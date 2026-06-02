@@ -41,6 +41,7 @@ export default function Inspector() {
   };
 
   const pivotPlacing = placeMode?.layerId === l.id && placeMode.target === "pivot";
+  const positioning = placeMode?.layerId === l.id && placeMode.target === "position";
 
   return (
     <div className="space-y-3 px-3 py-3">
@@ -53,6 +54,13 @@ export default function Inspector() {
         <Field label="X" value={l.x} onChange={(v) => patchLayer(l.id, { x: v })} />
         <Field label="Y" value={l.y} onChange={(v) => patchLayer(l.id, { y: v })} />
       </div>
+
+      <button
+        onClick={() => setPlaceMode(positioning ? null : { layerId: l.id, target: "position" })}
+        className={`w-full rounded-md px-2 py-1.5 text-sm font-medium ${positioning ? "bg-clay text-white" : "border border-line hover:bg-claysoft"}`}
+      >
+        {positioning ? "逐帧定位中…点画布把它放到本帧（点这关闭）" : "按帧定位（点肩膀，整组移过去）"}
+      </button>
 
       <label className="flex items-center gap-2 text-sm">
         <span className="w-14 shrink-0 text-muted">精灵表</span>

@@ -286,6 +286,13 @@ export default function CanvasStage() {
       const pm = st.placeMode;
       const l = st.layers.find((q) => q.id === pm.layerId);
       if (l) {
+        if (pm.target === "position") {
+          // 按帧定位：把本部件(连同子件)整体移到点击处（本帧），保持模式以便逐帧点
+          const pinv = parentWorldMatrix(l, st.layers).inverse();
+          const local = pinv.transformPoint(new DOMPoint(w.x, w.y));
+          st.patchLayer(l.id, { x: Math.round(local.x), y: Math.round(local.y) });
+          return;
+        }
         const localClicked = worldMatrix(l, st.layers).inverse().transformPoint(new DOMPoint(w.x, w.y));
         const ix = Math.round(localClicked.x + l.pivotX);
         const iy = Math.round(localClicked.y + l.pivotY);

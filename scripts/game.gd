@@ -20,6 +20,7 @@ var deaths := 0
 var won := false
 var lbl_time: Label
 var lbl_death: Label
+var lbl_ult: Label
 var lbl_win: Label
 
 func _ready() -> void:
@@ -184,12 +185,14 @@ func _build_camera() -> void:
 	cam.limit_right = int(data["world"]["width"])
 	cam.limit_bottom = int(data["world"]["height"])
 	add_child(cam)
+	Juice.register_camera(cam)
 
 # —— HUD ——
 func _build_hud() -> void:
 	var cl := CanvasLayer.new(); cl.layer = 50; add_child(cl)
 	lbl_time = _hud_label(cl, Vector2(16, 12), 22)
 	lbl_death = _hud_label(cl, Vector2(16, 40), 18)
+	lbl_ult = _hud_label(cl, Vector2(16, 66), 18)
 	lbl_win = _hud_label(cl, Vector2(0, 0), 40)
 	lbl_win.set_anchors_preset(Control.PRESET_CENTER)
 	lbl_win.position = Vector2(-160, -40)
@@ -227,6 +230,9 @@ func _process(delta: float) -> void:
 		time += delta
 		lbl_time.text = "时间 %.2f" % time
 		lbl_death.text = "死亡 %d" % deaths
+		var r: float = player.ult_ratio()
+		lbl_ult.text = "大招 ●就绪 (J)" if r >= 1.0 else "大招 充能 %d%%" % int(r * 100)
+		lbl_ult.add_theme_color_override("font_color", Color(1, 0.95, 0.5) if r >= 1.0 else Color(0.6, 0.7, 0.7))
 	# 重开
 	if Input.is_action_just_pressed("ui_cancel"):
 		get_tree().reload_current_scene()

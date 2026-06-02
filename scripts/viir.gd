@@ -31,6 +31,14 @@ extends CharacterBody2D
 @export var jelly_stiffness := 240.0 ## 弹簧刚度(越大回弹越快)
 @export var jelly_damping := 10.0    ## 阻尼(越小抖得越久=越Q)
 
+@export_group("大招 · 孢爆")
+@export var ult_cooldown := 2.5      ## 冷却(秒)
+@export var ult_pop := -260.0        ## 放招时的上浮初速
+@export var ult_jelly := 0.6         ## 放招的果冻拉伸量
+
+const SPORE_BURST := preload("res://scenes/spore_burst.tscn")
+var _ult_cd := 0.0
+
 const _BASE := 0.58
 var _deform := 0.0       # >0 竖向拉长, <0 压扁变宽
 var _deform_vel := 0.0
@@ -99,6 +107,12 @@ func _physics_process(delta: float) -> void:
 		_deform_vel = 0.0
 	_was_floor = on_floor
 
+	# —— 大招冷却 + 触发 ——
+	_ult_cd = maxf(_ult_cd - delta, 0.0)
+	if Input.is_action_just_pressed("special") and _ult_cd <= 0.0:
+		_cast_ultimate()
+		return
+
 	# —— 冲刺进行中 ——
 	if _dashing > 0.0:
 		_dashing -= delta
@@ -160,6 +174,21 @@ func _update_anim(on_floor: bool) -> void:
 	else:
 		if spr.animation != "idle": spr.play("idle")
 	spr.flip_h = _facing < 0
+
+func _cast_ultimate() -> void:
+	_ult_cd = ult_cooldown
+	_dashes = 1                          # 放招即刷新冲刺(连段起手)
+	_dashing = 0.0
+	_deform = ult_jelly                  # 大幅果冻拉伸
+	velocity = Vector2(velocity.x * 0.2, ult_pop)
+	var b := SPORE_BURST.instantiate()
+	b.global_position = global_position
+	get_parent().add_child(b)
+	Juice.shake(12.0)
+	Juice.hitstop(0.07)
+
+func ult_ratio() -> float:
+	return clampf(1.0 - _ult_cd / ult_cooldown, 0.0, 1.0)
 
 func bounce() -> void:
 	velocity.y = bounce_velocity

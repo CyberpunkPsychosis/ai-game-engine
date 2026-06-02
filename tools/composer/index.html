@@ -217,6 +217,8 @@ function blankScene(){
 const $=id=>document.getElementById(id);
 function showHint(t){const h=$("hint");h.textContent=t;h.classList.add("show");clearTimeout(h._t);h._t=setTimeout(()=>h.classList.remove("show"),1400);}
 function uid(){return Math.random().toString(36).slice(2,9);}
+function hexA(hex,a){const c=hex.replace("#","");const n=parseInt(c.length===3?c.replace(/(.)/g,"$1$1"):c,16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
 function layerIndex(id){return LAYER_DEF.findIndex(l=>l.id===id);}
 function parallaxOf(id){return PARALLAX[id]??1;}
 
@@ -278,6 +280,7 @@ function draw(){
     }
     const iw=fw*ins.scale*cam.zoom, ih=fh*ins.scale*cam.zoom;
     ctx.save();
+    ctx.globalAlpha=ins.opacity==null?1:ins.opacity;
     ctx.translate(sx,sy);
     ctx.rotate((ins.rot||0)*Math.PI/180);
     if(ins.flipX) ctx.scale(-1,1);
@@ -294,23 +297,30 @@ function draw(){
     }
   }
 
-  // 雾（盖在中景之上、前景之下的简单做法：整屏一层）
+  // 大气雾（垂直渐变，营造纵深朦胧）
   if(scene.background.fogA>0){
-    ctx.globalAlpha=scene.background.fogA;
-    ctx.fillStyle=scene.background.fog;
-    ctx.fillRect(0,h*0.45,w,h*0.55);
-    ctx.globalAlpha=1;
+    const fg=ctx.createLinearGradient(0,0,0,h);
+    const fa=scene.background.fogA;
+    fg.addColorStop(0,hexA(scene.background.fog,0));
+    fg.addColorStop(0.55,hexA(scene.background.fog,fa));
+    fg.addColorStop(1,hexA(scene.background.fog,fa*0.55));
+    ctx.fillStyle=fg;ctx.fillRect(0,0,w,h);
   }
 
-  // 萤火虫
+  // 发光孢子（叠加发光）
   const N=scene.background.fireflies|0;
+  ctx.globalCompositeOperation="lighter";
   for(let i=0;i<N;i++){
-    const fx=(Math.sin(i*12.9+t*0.3)*0.5+0.5)*w;
-    const fy=(Math.cos(i*7.7+t*0.22)*0.5+0.5)*h;
-    const a=0.3+0.3*Math.sin(t*2+i);
-    ctx.globalAlpha=a;ctx.fillStyle="#cfeecb";
-    ctx.beginPath();ctx.arc(fx,fy,1.6,0,7);ctx.fill();
+    const fx=(Math.sin(i*12.9+t*0.13)*0.5+0.5)*w;
+    const fy=(Math.cos(i*7.7+t*0.1)*0.5+0.5)*h;
+    const a=0.25+0.35*Math.sin(t*1.8+i);
+    const r=1.4+1.2*(0.5+0.5*Math.sin(i));
+    const gl=ctx.createRadialGradient(fx,fy,0,fx,fy,r*5);
+    gl.addColorStop(0,`rgba(200,255,210,${a})`);
+    gl.addColorStop(1,"rgba(200,255,210,0)");
+    ctx.fillStyle=gl;ctx.beginPath();ctx.arc(fx,fy,r*5,0,7);ctx.fill();
   }
+  ctx.globalCompositeOperation="source-over";
   ctx.globalAlpha=1;
 
   // 标记
@@ -675,7 +685,7 @@ function normalizeScene(s){
   return {...b,...s,background:{...b.background,...(s.background||{})},
     world, view,
     instances:(s.instances||[]).map(i=>({id:i.id||uid(),layer:i.layer||"play",
-      asset:i.asset,anim:i.anim,fps:i.fps,
+      asset:i.asset,anim:i.anim,fps:i.fps,opacity:(i.opacity==null?1:i.opacity),
       x:i.x||0,y:i.y||0,scale:i.scale||1,rot:i.rot||0,flipX:!!i.flipX,z:i.z||0})),
     markers:s.markers||[]};
 }

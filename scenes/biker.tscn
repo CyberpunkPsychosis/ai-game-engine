@@ -1,0 +1,37 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Texture2D" path="res://art/biker/idle2.png" id="body"]
+[ext_resource type="Texture2D" path="res://art/biker/gun.png" id="gun"]
+[ext_resource type="Texture2D" path="res://art/biker/arm.png" id="arm"]
+[ext_resource type="Script" path="res://scripts/biker_idle.gd" id="s"]
+
+[node name="Biker" type="Node2D"]
+
+[node name="BG" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="Color" type="ColorRect" parent="BG"]
+offset_right = 1280.0
+offset_bottom = 720.0
+color = Color(0.12, 0.13, 0.17, 1)
+
+[node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(6, 6)
+
+[node name="Body" type="Sprite2D" parent="."]
+texture = ExtResource("body")
+hframes = 4
+script = ExtResource("s")
+
+[node name="Arm" type="Sprite2D" parent="Body"]
+position = Vector2(7, 1)
+texture = ExtResource("arm")
+
+[node name="Gun" type="Sprite2D" parent="Body"]
+position = Vector2(12, 2)
+texture = ExtResource("gun")
+
+[node name="Label" type="Label" parent="."]
+offset_left = -150.0
+offset_top = -120.0
+text = "biker idle2 (4帧)"

@@ -115,19 +115,38 @@
         return `${stamp}-${safe}`;
       }
 
-      // Git Data API：支持单文件最大 100MB，并把多个文件打包进一个 commit
+      // Git Data API + 自动重试（扛手机网络抖动）
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       async function gh(token, path, opts = {}) {
-        const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}${path}`, {
-          method: opts.method || "GET",
-          headers: {
-            Authorization: "Bearer " + token,
-            Accept: "application/vnd.github+json",
-            "Content-Type": "application/json",
-          },
-          body: opts.body ? JSON.stringify(opts.body) : undefined,
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status} — ${await res.text()}`);
-        return res.json();
+        let lastErr;
+        for (let a = 0; a < 5; a++) {
+          let res;
+          try {
+            res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}${path}`, {
+              method: opts.method || "GET",
+              headers: {
+                Authorization: "Bearer " + token,
+                Accept: "application/vnd.github+json",
+                "Content-Type": "application/json",
+              },
+              body: opts.body ? JSON.stringify(opts.body) : undefined,
+            });
+          } catch (e) {
+            lastErr = e; // 网络中断（Load failed）→ 重试
+            await sleep(600 * Math.pow(2, a));
+            continue;
+          }
+          if (res.ok) return res.json();
+          const body = await res.text();
+          const err = new Error(`HTTP ${res.status} — ${body}`);
+          if (res.status >= 500 || res.status === 429 || res.status === 409) {
+            lastErr = err; // 服务端临时错/限流/冲突 → 重试
+            await sleep(600 * Math.pow(2, a));
+            continue;
+          }
+          throw err; // 4xx（权限/仓库错）→ 直接失败，重试也没用
+        }
+        throw lastErr;
       }
 
       $("go").addEventListener("click", async () => {
@@ -140,27 +159,48 @@
         localStorage.setItem("gh_token", token);
         $("go").disabled = true;
         try {
-          // 1. 拿到当前分支最新 commit 和它的 tree
+          // 当前分支最新 commit，作为第一个提交的父；每提交一次就往后挪
           const ref = await gh(token, `/git/ref/heads/${BRANCH}`);
-          const baseCommitSha = ref.object.sha;
-          const baseCommit = await gh(token, `/git/commits/${baseCommitSha}`);
-          const baseTreeSha = baseCommit.tree.sha;
+          let parentSha = ref.object.sha;
 
-          // 上传单个 blob 并加入 tree
-          const tree = [];
-          async function pushBlob(path, bytes) {
-            const blob = await gh(token, "/git/blobs", {
+          // 上传一组文件 → 一个 tree → 一个 commit → 移动分支指针；返回新的 parentSha
+          async function commitGroup(entriesArr, msg) {
+            const tree = [];
+            let i = 0;
+            for (const { path, bytes } of entriesArr) {
+              const blob = await gh(token, "/git/blobs", {
+                method: "POST",
+                body: { content: bufToBase64(bytes), encoding: "base64" },
+              });
+              tree.push({ path, mode: "100644", type: "blob", sha: blob.sha });
+              i++;
+              if (i % 10 === 0 || i === entriesArr.length) {
+                log.innerHTML += `<div class="ok">  …${i}/${entriesArr.length}</div>`;
+              }
+            }
+            const base = await gh(token, `/git/commits/${parentSha}`);
+            const newTree = await gh(token, "/git/trees", {
               method: "POST",
-              body: { content: bufToBase64(bytes), encoding: "base64" },
+              body: { base_tree: base.tree.sha, tree },
             });
-            tree.push({ path, mode: "100644", type: "blob", sha: blob.sha });
+            const newCommit = await gh(token, "/git/commits", {
+              method: "POST",
+              body: { message: msg, tree: newTree.sha, parents: [parentSha] },
+            });
+            await gh(token, `/git/refs/heads/${BRANCH}`, {
+              method: "PATCH",
+              body: { sha: newCommit.sha },
+            });
+            parentSha = newCommit.sha; // 链到下一个提交
           }
 
-          // 2. 每个文件：zip 在浏览器里解压后逐张上传，其它文件直接上传
+          // 每个文件单独成一个提交：传完一个就落地一个，后面失败不影响前面
+          let done = 0;
           for (const f of files) {
             const isZip = /\.zip$/i.test(f.name);
             log.innerHTML += `<div>处理：${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB)…</div>`;
             const buf = await f.arrayBuffer();
+            const entriesArr = [];
 
             if (isZip) {
               if (typeof fflate === "undefined") throw new Error("解压库未加载，请检查网络后刷新重试");
@@ -172,42 +212,25 @@
                 if (n.split("/").pop().startsWith(".")) return false;    // 隐藏文件 .DS_Store 等
                 return entries[n].length > 0;
               });
-              log.innerHTML += `<div>解压出 ${names.length} 个文件，逐个上传…</div>`;
-              let i = 0;
               for (const n of names) {
                 const safe = n.split("/").map((s) => s.replace(/[^\w.\-]+/g, "_")).join("/");
-                await pushBlob(`${dir}/${safe}`, entries[n]);
-                i++;
-                if (i % 10 === 0 || i === names.length) {
-                  log.innerHTML += `<div class="ok">  …${i}/${names.length}</div>`;
-                }
+                entriesArr.push({ path: `${dir}/${safe}`, bytes: entries[n] });
               }
-              log.innerHTML += `<div class="ok">✓ ${f.name} 已解压上传 → ${dir}/</div>`;
+              log.innerHTML += `<div>解压出 ${names.length} 个文件，逐个上传…</div>`;
+              await commitGroup(entriesArr, `upload: ${dir}/ (${names.length} files)`);
+              log.innerHTML += `<div class="ok">✓ ${f.name} 已提交 → ${dir}/</div>`;
             } else {
               const path = `${FOLDER}/${tsName(f.name)}`;
-              await pushBlob(path, new Uint8Array(buf));
-              log.innerHTML += `<div class="ok">✓ 已上传：${path}</div>`;
+              entriesArr.push({ path, bytes: new Uint8Array(buf) });
+              await commitGroup(entriesArr, `upload: ${path}`);
+              log.innerHTML += `<div class="ok">✓ 已提交：${path}</div>`;
             }
+            done++;
           }
 
-          // 3. 新建 tree → commit → 移动分支指针
-          const newTree = await gh(token, "/git/trees", {
-            method: "POST",
-            body: { base_tree: baseTreeSha, tree },
-          });
-          const msg = `upload: ${files.length} file(s) to ${FOLDER}/`;
-          const newCommit = await gh(token, "/git/commits", {
-            method: "POST",
-            body: { message: msg, tree: newTree.sha, parents: [baseCommitSha] },
-          });
-          await gh(token, `/git/refs/heads/${BRANCH}`, {
-            method: "PATCH",
-            body: { sha: newCommit.sha },
-          });
-
-          log.innerHTML += `<div class="ok" style="margin-top:8px;font-weight:600">全部上传成功！回聊天告诉 Claude「传好了」。</div>`;
+          log.innerHTML += `<div class="ok" style="margin-top:8px;font-weight:600">全部完成！${done} 个文件已提交，回聊天告诉 Claude「传好了」。</div>`;
         } catch (e) {
-          log.innerHTML += `<div class="err">失败：${e.message}\n（常见原因：令牌没勾 Contents 写权限、或没选这个仓库；单文件上限 100MB）</div>`;
+          log.innerHTML += `<div class="err">中断：${e.message}\n（已成功的文件不会丢；重新上传剩下的即可。常见原因：令牌权限/仓库选择、或网络）</div>`;
         } finally {
           $("go").disabled = false;
         }

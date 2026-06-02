@@ -88,7 +88,7 @@ export default function Inspector() {
           <span className="text-xs font-semibold tracking-wide text-muted">挂点（手 / 枪口…）</span>
           <button onClick={() => addPoint(l.id, "")} className="ml-auto rounded-md border border-line px-2 py-0.5 text-xs hover:bg-claysoft">+ 挂点</button>
         </div>
-        {l.points.length === 0 && <p className="text-[11px] text-muted">给本部件加挂点，比如手臂上的“手”。别的部件可吸附到这里。</p>}
+        <p className="text-[11px] text-muted">加挂点后，直接在画布上用手指拖动橙色圆点定位（比如拖到肩/手）。别的部件可吸附到这里。</p>
         {l.points.map((p) => {
           const placing = placeMode?.layerId === l.id && placeMode.target === p.id;
           return (

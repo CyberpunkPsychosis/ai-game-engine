@@ -7,7 +7,15 @@ export default function CanvasStage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const imgCache = useRef<Record<string, HTMLImageElement>>({});
-  const drag = useRef<{ mode: "layer" | "pan" | null; id?: string; grabX: number; grabY: number; startPanX: number; startPanY: number }>({
+  const drag = useRef<{
+    mode: "layer" | "pan" | "point" | "pivot" | null;
+    id?: string;
+    pointId?: string;
+    grabX: number;
+    grabY: number;
+    startPanX: number;
+    startPanY: number;
+  }>({
     mode: null,
     grabX: 0,
     grabY: 0,
@@ -60,6 +68,23 @@ export default function CanvasStage() {
         return l;
       }
     }
+    return null;
+  };
+
+  // 命中选中图层的挂点/锚点手柄（屏幕空间，半径阈值适配触屏）
+  const handleHit = (sx: number, sy: number): { mode: "point" | "pivot"; pointId?: string } | null => {
+    const st = useStore.getState();
+    const sel = st.layers.find((l) => l.id === st.selectedId);
+    if (!sel) return null;
+    const { zoom, panX, panY } = st.view;
+    const wm = worldMatrix(sel, st.layers);
+    const R = 14;
+    for (const pt of sel.points) {
+      const wp = wm.transformPoint(new DOMPoint(pt.x - sel.pivotX, pt.y - sel.pivotY));
+      if (Math.hypot(panX + wp.x * zoom - sx, panY + wp.y * zoom - sy) <= R) return { mode: "point", pointId: pt.id };
+    }
+    const o = wm.transformPoint(new DOMPoint(0, 0));
+    if (Math.hypot(panX + o.x * zoom - sx, panY + o.y * zoom - sy) <= R) return { mode: "pivot" };
     return null;
   };
 
@@ -171,15 +196,16 @@ export default function CanvasStage() {
         const wp = worldMatrix(l, layers).transformPoint(new DOMPoint(pt.x - l.pivotX, pt.y - l.pivotY));
         const px = panX + wp.x * zoom;
         const py = panY + wp.y * zoom;
+        const r = l.id === selectedId ? 6 : 3.5;
         ctx.fillStyle = "#cc785c";
         ctx.beginPath();
-        ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+        ctx.arc(px, py, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
         ctx.fillStyle = "#5a574f";
-        ctx.fillText(pt.name, px + 5, py - 4);
+        ctx.fillText(pt.name, px + r + 2, py - 4);
       }
     }
   }
@@ -260,6 +286,13 @@ export default function CanvasStage() {
       return;
     }
 
+    // 优先抓挂点/锚点手柄（选中图层）
+    const hh = handleHit(sx, sy);
+    if (hh) {
+      drag.current = { mode: hh.mode, id: st.selectedId!, pointId: hh.pointId, grabX: 0, grabY: 0, startPanX: 0, startPanY: 0 };
+      return;
+    }
+
     const hit = hitTest(w.x, w.y);
     if (hit) {
       st.selectLayer(hit.id);
@@ -283,6 +316,29 @@ export default function CanvasStage() {
     const st = useStore.getState();
     if (drag.current.mode === "pan") {
       st.setView({ panX: drag.current.startPanX + (sx - drag.current.grabX), panY: drag.current.startPanY + (sy - drag.current.grabY) });
+      return;
+    }
+    if (drag.current.mode === "point" && drag.current.id && drag.current.pointId) {
+      const l = st.layers.find((q) => q.id === drag.current.id);
+      if (!l) return;
+      const w = screenToWorld(sx, sy);
+      const local = worldMatrix(l, st.layers).inverse().transformPoint(new DOMPoint(w.x, w.y));
+      st.updatePoint(l.id, drag.current.pointId, {
+        x: Math.round(local.x + l.pivotX),
+        y: Math.round(local.y + l.pivotY),
+      });
+      return;
+    }
+    if (drag.current.mode === "pivot" && drag.current.id) {
+      const l = st.layers.find((q) => q.id === drag.current.id);
+      if (!l) return;
+      const w = screenToWorld(sx, sy);
+      const localClicked = worldMatrix(l, st.layers).inverse().transformPoint(new DOMPoint(w.x, w.y));
+      const ix = Math.round(localClicked.x + l.pivotX);
+      const iy = Math.round(localClicked.y + l.pivotY);
+      const pinv = parentWorldMatrix(l, st.layers).inverse();
+      const local = pinv.transformPoint(new DOMPoint(w.x, w.y));
+      st.patchLayer(l.id, { pivotX: ix, pivotY: iy, x: Math.round(local.x), y: Math.round(local.y) });
       return;
     }
     if (drag.current.mode === "layer" && drag.current.id) {

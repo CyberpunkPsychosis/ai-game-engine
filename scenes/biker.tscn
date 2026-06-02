@@ -23,13 +23,13 @@ texture = ExtResource("body")
 hframes = 4
 script = ExtResource("s")
 
-[node name="Arm" type="Sprite2D" parent="Body"]
-position = Vector2(7, 1)
-texture = ExtResource("arm")
-
 [node name="Gun" type="Sprite2D" parent="Body"]
-position = Vector2(12, 2)
+position = Vector2(-1, 3)
 texture = ExtResource("gun")
+
+[node name="Arm" type="Sprite2D" parent="Body"]
+position = Vector2(-3, 5)
+texture = ExtResource("arm")
 
 [node name="Label" type="Label" parent="."]
 offset_left = -150.0

@@ -46,7 +46,8 @@ function renderFrame(
     if (!layer.visible) continue;
     const img = imgs[layer.assetId];
     if (!img) continue;
-    const m = new DOMMatrix().translate(originX, originY).multiply(worldMatrix(layer, layers));
+    // 部件按其在画布中的世界坐标渲染（与编辑器一致）；origin 仅作为元数据
+    const m = worldMatrix(layer, layers);
     ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
     const sf = Math.max(1, layer.sheetFrames || 1);
     if (sf > 1) {

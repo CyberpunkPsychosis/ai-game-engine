@@ -23,15 +23,17 @@ texture = ExtResource("body")
 hframes = 4
 script = ExtResource("s")
 
-[node name="Gun" type="Sprite2D" parent="Body"]
-position = Vector2(-1, 3)
+[node name="Mount" type="Node2D" parent="Body"]
+
+[node name="Gun" type="Sprite2D" parent="Body/Mount"]
+position = Vector2(15.5, 1.5)
 texture = ExtResource("gun")
 
-[node name="Arm" type="Sprite2D" parent="Body"]
-position = Vector2(-3, 5)
+[node name="Arm" type="Sprite2D" parent="Body/Mount"]
+position = Vector2(13.5, 3.5)
 texture = ExtResource("arm")
 
 [node name="Label" type="Label" parent="."]
 offset_left = -150.0
 offset_top = -120.0
-text = "biker idle2 (4帧)"
+text = "biker idle2 (4帧 · 锚点驱动)"

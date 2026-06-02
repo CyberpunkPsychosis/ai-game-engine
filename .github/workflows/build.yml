@@ -90,7 +90,9 @@ jobs:
         run: |
           mkdir -p build/web/tools/sprite-rigger
           cp -r tools/sprite-rigger/dist/* build/web/tools/sprite-rigger/
-          ls -la build/web/tools/sprite-rigger
+          mkdir -p build/web/tools/uploader
+          cp -r tools/uploader/* build/web/tools/uploader/
+          ls -la build/web/tools
 
       - name: 打包网页版为 Pages 工件
         uses: actions/upload-pages-artifact@v3

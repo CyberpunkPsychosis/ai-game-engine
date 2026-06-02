@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>上传给 Claude · AI Game Engine</title>
+    <style>
+      :root {
+        --cream: #f5f4ef; --surface: #fffefb; --ink: #2b2a27; --muted: #76726a;
+        --line: #e7e3d9; --clay: #cc785c; --clay6: #b5654a; --soft: #f1e7e1;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--cream); color: var(--ink);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+        -webkit-font-smoothing: antialiased; line-height: 1.5;
+      }
+      .wrap { max-width: 560px; margin: 0 auto; padding: 20px 16px 60px; }
+      h1 { font-size: 20px; margin: 8px 0 2px; }
+      .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+      .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+      label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+      input[type="text"], input[type="password"] {
+        width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
+        background: #fff; font-size: 15px; color: var(--ink);
+      }
+      input[type="file"] { width: 100%; font-size: 14px; }
+      .file-drop {
+        border: 1.5px dashed #d8d3c6; border-radius: 12px; padding: 22px 14px; text-align: center;
+        color: var(--muted); background: #fcfbf7;
+      }
+      button {
+        width: 100%; padding: 13px; border: none; border-radius: 10px; background: var(--clay);
+        color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 6px;
+      }
+      button:disabled { opacity: .5; }
+      button:active { background: var(--clay6); }
+      .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+      .hint a { color: var(--clay6); }
+      details { margin-top: 10px; font-size: 13px; }
+      summary { cursor: pointer; color: var(--clay6); font-weight: 600; }
+      ol { padding-left: 18px; }
+      li { margin: 6px 0; }
+      #log { margin-top: 14px; font-size: 13px; }
+      .ok { color: #2e7d32; }
+      .err { color: #c0392b; white-space: pre-wrap; }
+      .row { margin-bottom: 14px; }
+      code { background: var(--soft); padding: 1px 5px; border-radius: 5px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>上传给 Claude</h1>
+      <div class="sub">选文件 → 上传，会提交到仓库 <code>incoming/</code>，Claude 就能读到。</div>
+
+      <div class="card">
+        <div class="row">
+          <label>① 选择文件（可多选）</label>
+          <div class="file-drop">
+            <input id="files" type="file" multiple />
+          </div>
+        </div>
+
+        <div class="row">
+          <label>② GitHub 令牌（只需填一次，存在本机）</label>
+          <input id="token" type="password" placeholder="ghp_... 或 github_pat_..." autocomplete="off" />
+          <div class="hint">
+            没令牌？<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">点这创建</a>（见下方步骤）。令牌只存你手机本地，不会上传。
+          </div>
+          <details>
+            <summary>怎么创建令牌（1 分钟）</summary>
+            <ol>
+              <li>打开上面「点这创建」</li>
+              <li>Token name 随便填；Expiration 选 30 天</li>
+              <li>Repository access 选 <b>Only select repositories</b> → 勾 <code>ai-game-engine</code></li>
+              <li>Permissions → Repository permissions → <b>Contents</b> 设为 <b>Read and write</b></li>
+              <li>底部 Generate token → 复制那串 → 粘到上面输入框</li>
+            </ol>
+          </details>
+        </div>
+
+        <button id="go">上传</button>
+        <div id="log"></div>
+      </div>
+
+      <div class="sub">上传成功后，回聊天告诉 Claude「传好了」。</div>
+    </div>
+
+    <script>
+      const OWNER = "CyberpunkPsychosis";
+      const REPO = "ai-game-engine";
+      const BRANCH = "main";
+      const FOLDER = "incoming";
+
+      const $ = (id) => document.getElementById(id);
+      const tokenInput = $("token");
+      tokenInput.value = localStorage.getItem("gh_token") || "";
+
+      function bufToBase64(buf) {
+        let binary = "";
+        const bytes = new Uint8Array(buf);
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+        }
+        return btoa(binary);
+      }
+
+      function tsName(name) {
+        const d = new Date();
+        const p = (n) => String(n).padStart(2, "0");
+        const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+        const safe = name.replace(/[^\w.\-]+/g, "_");
+        return `${stamp}-${safe}`;
+      }
+
+      async function putFile(token, path, base64) {
+        const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`;
+        const res = await fetch(url, {
+          method: "PUT",
+          headers: {
+            Authorization: "Bearer " + token,
+            Accept: "application/vnd.github+json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ message: "upload: " + path, content: base64, branch: BRANCH }),
+        });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(`HTTP ${res.status} — ${t}`);
+        }
+        return res.json();
+      }
+
+      $("go").addEventListener("click", async () => {
+        const log = $("log");
+        log.innerHTML = "";
+        const token = tokenInput.value.trim();
+        const files = $("files").files;
+        if (!token) { log.innerHTML = '<div class="err">请先填 GitHub 令牌。</div>'; return; }
+        if (!files.length) { log.innerHTML = '<div class="err">请先选择文件。</div>'; return; }
+        localStorage.setItem("gh_token", token);
+        $("go").disabled = true;
+        try {
+          for (const f of files) {
+            log.innerHTML += `<div>上传中：${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB)…</div>`;
+            const buf = await f.arrayBuffer();
+            const path = `${FOLDER}/${tsName(f.name)}`;
+            await putFile(token, path, bufToBase64(buf));
+            log.innerHTML += `<div class="ok">✓ 已提交：${path}</div>`;
+          }
+          log.innerHTML += `<div class="ok" style="margin-top:8px;font-weight:600">全部上传成功！回聊天告诉 Claude「传好了」。</div>`;
+        } catch (e) {
+          log.innerHTML += `<div class="err">失败：${e.message}\n（常见原因：令牌没勾 Contents 写权限、或没选这个仓库）</div>`;
+        } finally {
+          $("go").disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

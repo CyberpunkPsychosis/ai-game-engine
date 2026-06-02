@@ -98,6 +98,7 @@ jobs:
           cp -r assets/* build/web/assets/ 2>/dev/null || true
           mkdir -p build/web/scenes
           cp -r scenes/* build/web/scenes/ 2>/dev/null || true
+          node -e "const fs=require('fs');const d=fs.existsSync('scenes')?fs.readdirSync('scenes').filter(f=>f.endsWith('.json')&&f!=='index.json'):[];fs.mkdirSync('build/web/scenes',{recursive:true});fs.writeFileSync('build/web/scenes/index.json',JSON.stringify(d));console.log('scenes index:',d)"
           ls -la build/web/tools
 
       - name: 打包网页版为 Pages 工件

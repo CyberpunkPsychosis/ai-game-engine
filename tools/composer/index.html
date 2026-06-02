@@ -165,9 +165,12 @@
 
 <script>
 //==================== 配置 ====================
-const OWNER="CyberpunkPsychosis", REPO="ai-game-engine", BRANCH="main";
-// 素材与场景同源加载（构建时拷进 build/web）
+const OWNER="CyberpunkPsychosis", REPO="ai-game-engine";
+// 保存写入的分支（= 当前开发分支，和 Pages 部署同源一致）
+const BRANCH="claude/game-engine-claude-chat-mbKeN";
+// 素材与场景同源加载（构建时拷进 build/web）—— 读取不需要令牌
 const ASSET_BASE="../../assets/packs/mossy/";
+const SCENE_BASE="../../scenes/";
 const PARALLAX={far:0.30, back:0.60, play:1.00, fore:1.18};
 const LAYER_DEF=[
   {id:"far",  name:"远景"},
@@ -626,22 +629,24 @@ $("saveGo").onclick=async()=>{
 
 $("mLoad").onclick=async()=>{
   openPanel("loadPanel");const list=$("loadList");list.textContent="读取中…";
-  const token=localStorage.getItem("gh_token")||"";
   try{
-    const items=await gh(token,`/contents/scenes?ref=${BRANCH}`);
-    const jsons=(Array.isArray(items)?items:[]).filter(f=>f.name.endsWith(".json"));
-    if(!jsons.length){list.textContent="scenes/ 里还没有场景";return;}
+    // 同源读取场景索引（构建时生成），无需令牌
+    const r=await fetch(SCENE_BASE+"index.json?_="+Date.now());
+    if(!r.ok)throw new Error("index "+r.status);
+    const names=await r.json();
+    if(!names.length){list.textContent="scenes/ 里还没有场景";return;}
     list.innerHTML="";
-    jsons.forEach(f=>{
+    names.forEach(name=>{
       const b=document.createElement("button");b.className="btn";b.style.width="100%";b.style.margin="4px 0";
-      b.textContent="📄 "+f.name;
+      b.textContent="📄 "+name;
       b.onclick=async()=>{
-        const r=await fetch(f.download_url);scene=normalizeScene(await r.json());
+        const sr=await fetch(SCENE_BASE+name+"?_="+Date.now());
+        scene=normalizeScene(await sr.json());
         sel=null;selMarker=null;closePanels();showHint("已读取："+scene.name);
       };
       list.appendChild(b);
     });
-  }catch(e){list.textContent="失败："+e.message+"（私有仓库需令牌）";}
+  }catch(e){list.textContent="读取失败："+e.message+"\n（保存后需等构建部署 1-2 分钟才会出现在列表）";}
 };
 $("loadCancel").onclick=closePanels;
 

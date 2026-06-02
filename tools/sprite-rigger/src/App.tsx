@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { loadSnapshot } from "./lib/persist";
 import Toolbar from "./components/Toolbar";
 import ProjectTree from "./components/ProjectTree";
 import CanvasStage from "./components/CanvasStage";
@@ -41,6 +42,19 @@ function CanvasSettings() {
 export default function App() {
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
+  const hydrated = useRef(false);
+
+  useEffect(() => {
+    if (hydrated.current) return;
+    hydrated.current = true;
+    loadSnapshot()
+      .then((d) => {
+        if (d && (d.layers.length > 0 || Object.keys(d.assets).length > 0)) {
+          useStore.getState().hydrate(d);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="flex h-full flex-col">

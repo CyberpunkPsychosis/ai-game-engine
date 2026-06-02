@@ -23,7 +23,17 @@ export default function Toolbar({ onLeft, onRight }: { onLeft: () => void; onRig
       <div className="flex items-center gap-1.5">
         <div className="h-5 w-5 rounded bg-clay" />
         <span className="text-sm font-semibold">Sprite Rigger</span>
-        <span className="hidden text-xs text-muted sm:inline">像素拼装 · 锚点对齐</span>
+        <span className="hidden text-xs text-muted sm:inline">像素拼装 · 自动保存</span>
+        <button
+          onClick={() => {
+            if (confirm("清空当前工程？已上传的素材和所有帧都会删除（本地存档一并清除）。")) {
+              useStore.getState().resetProject();
+            }
+          }}
+          className="ml-1 rounded-md border border-line px-2 py-1 text-xs text-muted hover:bg-claysoft"
+        >
+          新建
+        </button>
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">

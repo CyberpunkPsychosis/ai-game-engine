@@ -29,6 +29,13 @@ export default function Inspector() {
 
   const others = layers.filter((q) => q.id !== l.id);
 
+  const rotateBy = (deg: number) => {
+    let r = Math.round(l.rotation / 45) * 45 + deg;
+    while (r > 180) r -= 360;
+    while (r <= -180) r += 360;
+    patchLayer(l.id, { rotation: r });
+  };
+
   return (
     <div className="space-y-3 px-3 py-3">
       <label className="flex items-center gap-2 text-sm">
@@ -45,7 +52,7 @@ export default function Inspector() {
         <Field label="Y" value={l.y} onChange={(v) => patchLayer(l.id, { y: v })} />
       </div>
 
-      <div>
+      <div className="space-y-1.5">
         <label className="flex items-center gap-2 text-sm">
           <span className="w-14 shrink-0 text-muted">旋转</span>
           <input
@@ -59,6 +66,11 @@ export default function Inspector() {
           />
           <span className="w-10 text-right text-xs text-muted">{Math.round(l.rotation)}°</span>
         </label>
+        <div className="flex gap-1.5 pl-16">
+          <button onClick={() => rotateBy(-45)} className="flex-1 rounded-md border border-line px-2 py-1 text-xs hover:bg-claysoft" title="逆时针 45°">↺ −45°</button>
+          <button onClick={() => rotateBy(45)} className="flex-1 rounded-md border border-line px-2 py-1 text-xs hover:bg-claysoft" title="顺时针 45°">↻ +45°</button>
+          <button onClick={() => patchLayer(l.id, { rotation: 0 })} className="rounded-md border border-line px-2 py-1 text-xs hover:bg-claysoft" title="归零">0°</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">

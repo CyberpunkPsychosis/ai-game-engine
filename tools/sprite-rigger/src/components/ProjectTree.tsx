@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useStore } from "../store";
 import type { TreeNode } from "../lib/types";
 import { parseZip, parseFiles } from "../lib/zip";
+import { saveBlob } from "../lib/persist";
 
 function NodeRow({ node, depth, onPick }: { node: TreeNode; depth: number; onPick?: () => void }) {
   const [open, setOpen] = useState(true);
@@ -71,6 +72,7 @@ export default function ProjectTree({ onPick }: { onPick?: () => void } = {}) {
     try {
       const r = await parseZip(f);
       importAssets(r.assets, r.tree);
+      for (const a of r.assets) if (a.blob) await saveBlob(a.id, a.blob);
     } finally {
       setLoading(false);
       e.target.value = "";
@@ -83,6 +85,7 @@ export default function ProjectTree({ onPick }: { onPick?: () => void } = {}) {
     try {
       const r = await parseFiles(fs);
       importAssets(r.assets, r.tree);
+      for (const a of r.assets) if (a.blob) await saveBlob(a.id, a.blob);
     } finally {
       setLoading(false);
       e.target.value = "";

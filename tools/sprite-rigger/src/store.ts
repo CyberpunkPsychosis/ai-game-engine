@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Asset, Layer, Frame, TreeNode, FrameTransform } from "./lib/types";
 import { uid } from "./lib/zip";
+import { saveSnapshot, clearAll, type Loaded } from "./lib/persist";
 
 interface View {
   zoom: number;
@@ -52,6 +53,9 @@ interface State {
   setView: (v: Partial<View>) => void;
   setSettings: (s: Partial<Settings>) => void;
   setAnchorMode: (v: boolean) => void;
+
+  hydrate: (data: Loaded) => void;
+  resetProject: () => void;
 }
 
 const tf = (l: Layer): FrameTransform => ({ x: l.x, y: l.y, rotation: l.rotation, visible: l.visible });
@@ -215,4 +219,47 @@ export const useStore = create<State>((set, get) => ({
   setView: (v) => set((s) => ({ view: { ...s.view, ...v } })),
   setSettings: (st) => set((s) => ({ settings: { ...s.settings, ...st } })),
   setAnchorMode: (v) => set({ anchorMode: v }),
+
+  hydrate: (data) =>
+    set((s) => ({
+      assets: data.assets,
+      tree: data.tree,
+      layers: data.layers,
+      frames: data.frames,
+      currentFrameId: data.currentFrameId,
+      selectedId: data.selectedId,
+      settings: { ...s.settings, ...(data.settings ?? {}) },
+      view: { ...s.view, ...(data.view ?? {}) },
+    })),
+
+  resetProject: () => {
+    clearAll().catch(() => {});
+    set({
+      assets: {},
+      tree: null,
+      layers: [],
+      frames: [],
+      currentFrameId: null,
+      selectedId: null,
+    });
+  },
 }));
+
+// 自动保存（防抖）：任何状态变化后 600ms 写入 IndexedDB
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+useStore.subscribe((s) => {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveSnapshot({
+      assets: s.assets,
+      layers: s.layers,
+      frames: s.frames,
+      tree: s.tree,
+      currentFrameId: s.currentFrameId,
+      selectedId: s.selectedId,
+      settings: s.settings,
+      view: s.view,
+    }).catch(() => {});
+  }, 600);
+});
+

@@ -2,9 +2,10 @@ export interface Asset {
   id: string;
   name: string;
   path: string; // zip 内完整路径
-  url: string; // object URL
+  url: string; // object URL（运行时，刷新后重建）
   width: number;
   height: number;
+  blob?: Blob; // 原始二进制（用于持久化，不序列化进工程 JSON）
 }
 
 export interface Layer {

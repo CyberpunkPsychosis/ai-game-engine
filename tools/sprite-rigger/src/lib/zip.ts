@@ -20,7 +20,7 @@ async function fileToAsset(path: string, blob: Blob): Promise<Asset> {
   const url = URL.createObjectURL(blob);
   const size = await loadImageSize(url);
   const name = path.split("/").pop() ?? path;
-  return { id: uid("a"), name, path, url, width: size.w, height: size.h };
+  return { id: uid("a"), name, path, url, width: size.w, height: size.h, blob };
 }
 
 // 把扁平的资源路径列表组织成目录树

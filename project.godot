@@ -6,9 +6,22 @@ config_version=5
 [application]
 
 config/name="AI Game Engine"
+config/version="0.1.0"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.5", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[autoload]
+
+GameManager="*res://scripts/autoload/game_manager.gd"
+SceneManager="*res://scripts/autoload/scene_manager.gd"
+AudioManager="*res://scripts/autoload/audio_manager.gd"
+Juice="*res://scripts/autoload/juice.gd"
+DevTools="*res://scripts/autoload/dev_tools.gd"
+
+[audio]
+
+buses/default_bus_layout="res://default_bus_layout.tres"
 
 [display]
 
@@ -55,3 +68,23 @@ attack={
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=0
+
+[importer_defaults]
+
+texture={
+"compress/mode": 0,
+"mipmaps/generate": false,
+"roughness/mode": 0
+}
+
+[layer_names]
+
+2d_physics/layer_1="world"
+2d_physics/layer_2="player"
+2d_physics/layer_3="enemy"
+2d_physics/layer_4="player_hitbox"
+2d_physics/layer_5="enemy_hitbox"
+2d_physics/layer_6="player_hurtbox"
+2d_physics/layer_7="enemy_hurtbox"
+2d_physics/layer_8="pickups"

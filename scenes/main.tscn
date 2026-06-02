@@ -111,4 +111,4 @@ offset_left = 16.0
 offset_top = 12.0
 offset_right = 900.0
 offset_bottom = 60.0
-text = "Move: A/D or Arrows     Jump: Space / W / Up     Gamepad supported"
+text = "Move: A/D or Arrows   Jump: Space/W/Up   K: test hit   F1: tune   F3: debug   Esc: pause"

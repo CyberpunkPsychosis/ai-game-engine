@@ -23,19 +23,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 下载 Godot + 导出模板
+      - name: 缓存 Godot + 导出模板
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-v1
+
+      - name: 安装 Godot + 导出模板（缓存未命中才下载）
         run: |
           set -e
           BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable"
-          curl -sSL -o godot.zip "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
-          curl -sSL -o templates.tpz "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
-          unzip -q godot.zip
-          sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
-          sudo chmod +x /usr/local/bin/godot
+          mkdir -p ~/godot
+          if [ ! -f ~/godot/godot ]; then
+            curl -sSL -o godot.zip "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+            unzip -q godot.zip
+            mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" ~/godot/godot
+            chmod +x ~/godot/godot
+          fi
+          echo "$HOME/godot" >> "$GITHUB_PATH"
           TPL="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
-          mkdir -p "$TPL"
-          unzip -q templates.tpz
-          cp templates/* "$TPL"/
+          if [ ! -d "$TPL" ] || [ -z "$(ls -A "$TPL" 2>/dev/null)" ]; then
+            mkdir -p "$TPL"
+            curl -sSL -o templates.tpz "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+            unzip -q templates.tpz
+            cp templates/* "$TPL"/
+          fi
 
       - name: 导入资源
         run: godot --headless --import || true

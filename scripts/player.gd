@@ -1,7 +1,7 @@
 extends CharacterBody2D
-## 横版动作角色控制器 —— 所有手感参数都暴露在 Inspector，方便边玩边调。
+## 横版动作角色控制器 —— 所有手感参数都暴露在 Inspector，可在游戏里按 F1 实时调。
 ## 已内置：可变跳跃高度、土狼时间(coyote time)、跳跃缓冲(jump buffer)、上升/下落分离重力。
-## 这些是动作平台游戏"跳起来舒服"的核心，先把底子打好。
+## 已接入战斗框架：受击 -> 击退 + 顿帧 + 镜头震动 + 闪红（按 K 可自伤测试手感）。
 
 @export_group("水平移动")
 @export var max_speed: float = 320.0          ## 最大水平速度 (px/s)
@@ -21,6 +21,20 @@ extends CharacterBody2D
 
 var _coyote_timer: float = 0.0
 var _buffer_timer: float = 0.0
+
+@onready var _visual: ColorRect = $Visual
+@onready var _camera: Camera2D = $Camera2D
+@onready var _health: Health = $Health
+@onready var _hurtbox: Hurtbox = $Hurtbox
+
+func _ready() -> void:
+	add_to_group("player")
+	Juice.register_camera(_camera)
+	if _health:
+		_health.damaged.connect(_on_damaged)
+		_health.died.connect(_on_died)
+	if _hurtbox:
+		_hurtbox.hit_by.connect(_on_hit_by)
 
 func _physics_process(delta: float) -> void:
 	var on_floor := is_on_floor()
@@ -63,3 +77,36 @@ func _physics_process(delta: float) -> void:
 		velocity.y *= jump_cut_mult
 
 	move_and_slide()
+
+func _unhandled_input(event: InputEvent) -> void:
+	# 调试：K 键自伤，用来测试打击感（顿帧/震动/闪红）
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_K:
+		if _health:
+			_health.take_damage(10.0)
+
+# --- 战斗反馈 ---
+func _on_hit_by(hitbox: Hitbox) -> void:
+	var dir := hitbox.knockback_dir_to(self)
+	velocity.x = dir.x * hitbox.knockback
+	velocity.y = -150.0
+	Juice.hitstop(hitbox.hitstop)
+	Juice.shake(hitbox.shake)
+
+func _on_damaged(_amount: float, _source: Node) -> void:
+	_flash()
+	# 自伤测试时也给点反馈（hitbox 命中时已在 _on_hit_by 处理震动/顿帧）
+	Juice.shake(7.0)
+
+func _flash() -> void:
+	if _visual == null:
+		return
+	_visual.modulate = Color(1.0, 0.35, 0.35)
+	var t := create_tween()
+	t.tween_property(_visual, "modulate", Color.WHITE, 0.25)
+
+func _on_died() -> void:
+	# 占位：原地复活回起点（之后接入真正的死亡/重生流程）
+	_health.current = _health.max_health
+	_health.is_dead = false
+	global_position = Vector2(200, 600)
+	velocity = Vector2.ZERO

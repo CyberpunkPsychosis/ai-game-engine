@@ -3,11 +3,10 @@ import { useStore } from "../store";
 import type { TreeNode } from "../lib/types";
 import { parseZip, parseFiles } from "../lib/zip";
 
-function NodeRow({ node, depth }: { node: TreeNode; depth: number }) {
+function NodeRow({ node, depth, onPick }: { node: TreeNode; depth: number; onPick?: () => void }) {
   const [open, setOpen] = useState(true);
   const assets = useStore((s) => s.assets);
-  const addLayer = useStore((s) => s.addLayer);
-  const settings = useStore((s) => s.settings);
+  const addLayerCentered = useStore((s) => s.addLayerCentered);
   const pad = depth * 12 + 8;
 
   if (node.isDir) {
@@ -21,7 +20,7 @@ function NodeRow({ node, depth }: { node: TreeNode; depth: number }) {
           <span className="w-3 text-xs">{open ? "▾" : "▸"}</span>
           <span className="truncate font-medium">{node.name}</span>
         </button>
-        {open && node.children.map((c) => <NodeRow key={c.path} node={c} depth={depth + 1} />)}
+        {open && node.children.map((c) => <NodeRow key={c.path} node={c} depth={depth + 1} onPick={onPick} />)}
       </div>
     );
   }
@@ -31,10 +30,15 @@ function NodeRow({ node, depth }: { node: TreeNode; depth: number }) {
     <div
       draggable
       onDragStart={(e) => e.dataTransfer.setData("text/assetId", node.assetId ?? "")}
-      onClick={() => node.assetId && addLayer(node.assetId, settings.originX, settings.originY)}
-      className="flex cursor-grab items-center gap-2 rounded-md py-1 pr-2 hover:bg-claysoft active:cursor-grabbing"
+      onClick={() => {
+        if (node.assetId) {
+          addLayerCentered(node.assetId);
+          onPick?.();
+        }
+      }}
+      className="flex cursor-pointer items-center gap-2 rounded-md py-1 pr-2 hover:bg-claysoft"
       style={{ paddingLeft: pad }}
-      title="点击添加到画布，或拖到画布上"
+      title="点击添加到画布中央（手机端推荐），桌面也可拖到画布"
     >
       {asset && (
         <img
@@ -53,7 +57,7 @@ function NodeRow({ node, depth }: { node: TreeNode; depth: number }) {
   );
 }
 
-export default function ProjectTree() {
+export default function ProjectTree({ onPick }: { onPick?: () => void } = {}) {
   const tree = useStore((s) => s.tree);
   const importAssets = useStore((s) => s.importAssets);
   const [loading, setLoading] = useState(false);
@@ -115,7 +119,7 @@ export default function ProjectTree() {
             支持 PNG/WebP，自动按目录解析。
           </div>
         )}
-        {!loading && tree && tree.children.map((c) => <NodeRow key={c.path} node={c} depth={0} />)}
+        {!loading && tree && tree.children.map((c) => <NodeRow key={c.path} node={c} depth={0} onPick={onPick} />)}
       </div>
     </div>
   );

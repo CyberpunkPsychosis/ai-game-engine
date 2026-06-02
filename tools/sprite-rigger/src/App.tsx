@@ -74,7 +74,7 @@ export default function App() {
         {leftOpen && (
           <div className="absolute inset-0 z-20 flex md:hidden">
             <div className="w-72 bg-panel shadow-xl">
-              <ProjectTree />
+              <ProjectTree onPick={() => setLeftOpen(false)} />
             </div>
             <div className="flex-1 bg-black/20" onClick={() => setLeftOpen(false)} />
           </div>

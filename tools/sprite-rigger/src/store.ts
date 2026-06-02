@@ -28,9 +28,13 @@ interface State {
   anchorMode: boolean;
   view: View;
   settings: Settings;
+  canvasW: number;
+  canvasH: number;
 
   importAssets: (assets: Asset[], tree: TreeNode) => void;
   addLayer: (assetId: string, x: number, y: number) => void;
+  addLayerCentered: (assetId: string) => void;
+  setCanvasSize: (w: number, h: number) => void;
   selectLayer: (id: string | null) => void;
   patchLayer: (id: string, patch: Partial<Layer>) => void;
   deleteLayer: (id: string) => void;
@@ -55,7 +59,9 @@ export const useStore = create<State>((set, get) => ({
   currentFrameId: null,
   selectedId: null,
   anchorMode: false,
-  view: { zoom: 3, panX: 0, panY: 0 },
+  view: { zoom: 3, panX: 40, panY: 40 },
+  canvasW: 800,
+  canvasH: 600,
   settings: {
     gridSize: 1,
     snap: true,
@@ -93,6 +99,15 @@ export const useStore = create<State>((set, get) => ({
       };
       return { layers: [...s.layers, layer], selectedId: layer.id };
     }),
+
+  addLayerCentered: (assetId) => {
+    const s = get();
+    const cx = (s.canvasW / 2 - s.view.panX) / s.view.zoom;
+    const cy = (s.canvasH / 2 - s.view.panY) / s.view.zoom;
+    s.addLayer(assetId, Math.round(cx), Math.round(cy));
+  },
+
+  setCanvasSize: (w, h) => set({ canvasW: w, canvasH: h }),
 
   selectLayer: (id) => set({ selectedId: id }),
 

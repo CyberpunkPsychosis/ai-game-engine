@@ -72,6 +72,8 @@ export default function CanvasStage() {
       canvas.width = W * dpr;
       canvas.height = H * dpr;
     }
+    const st = useStore.getState();
+    if (st.canvasW !== W || st.canvasH !== H) st.setCanvasSize(W, H);
     const ctx = canvas.getContext("2d")!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);

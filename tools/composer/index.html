@@ -173,6 +173,7 @@ const OWNER="CyberpunkPsychosis", REPO="ai-game-engine";
 const BRANCH="claude/game-engine-claude-chat-mbKeN";
 // 素材与场景同源加载（构建时拷进 build/web）—— 读取不需要令牌
 const ASSET_BASE="../../assets/packs/mossy/";
+const ANIM_BASE="../../assets/anim/";
 const SCENE_BASE="../../scenes/";
 const PARALLAX={far:0.30, back:0.60, play:1.00, fore:1.18};
 const LAYER_DEF=[
@@ -188,6 +189,8 @@ const MARK_LABEL={spawn:"S",enemy:"E",exit:"X",hazard:"!"};
 const cv=document.getElementById("stage"), ctx=cv.getContext("2d");
 let DPR=Math.min(window.devicePixelRatio||1,2);
 let manifest=null;
+let PAL=[];                        // 统一调色板分类 [{name,key,anim,items}]
+const ANIM={};                    // clipName -> {file,fw,fh,count,cols,fps,role}
 const imgCache=new Map();          // url -> {img, loaded}
 let scene=blankScene();
 let cam={x:0,y:0,zoom:0.5};
@@ -261,16 +264,27 @@ function draw(){
     layerIndex(a.layer)-layerIndex(b.layer) || (a.z||0)-(b.z||0));
   for(const ins of order){
     const p=parallaxOf(ins.layer);
-    const e=getImg(ASSET_BASE+ins.asset);
     const [sx,sy]=worldToScreen(ins.x,ins.y,p);
-    const iw=(e.loaded?e.img.naturalWidth:64)*ins.scale*cam.zoom;
-    const ih=(e.loaded?e.img.naturalHeight:64)*ins.scale*cam.zoom;
+    let e,fw,fh,srcx=0,srcy=0,isAnim=!!ins.anim,clip=null;
+    if(isAnim){
+      clip=ANIM[ins.anim];if(!clip)continue;
+      e=getImg(ANIM_BASE+clip.file);fw=clip.fw;fh=clip.fh;
+      const fps=ins.fps||clip.fps;
+      const fi=Math.floor(t*fps)%clip.count;
+      srcx=(fi%clip.cols)*fw;srcy=Math.floor(fi/clip.cols)*fh;
+    }else{
+      e=getImg(ASSET_BASE+ins.asset);
+      fw=e.loaded?e.img.naturalWidth:64;fh=e.loaded?e.img.naturalHeight:64;
+    }
+    const iw=fw*ins.scale*cam.zoom, ih=fh*ins.scale*cam.zoom;
     ctx.save();
     ctx.translate(sx,sy);
     ctx.rotate((ins.rot||0)*Math.PI/180);
     if(ins.flipX) ctx.scale(-1,1);
-    if(e.loaded) ctx.drawImage(e.img,-iw/2,-ih/2,iw,ih);
-    else{ctx.fillStyle="#333";ctx.fillRect(-iw/2,-ih/2,iw,ih);}
+    if(e.loaded){
+      if(isAnim) ctx.drawImage(e.img,srcx,srcy,fw,fh,-iw/2,-ih/2,iw,ih);
+      else ctx.drawImage(e.img,-iw/2,-ih/2,iw,ih);
+    }else{ctx.fillStyle="#333";ctx.fillRect(-iw/2,-ih/2,iw,ih);}
     ctx.restore();
     // 选中描边
     if(ins.id===sel){
@@ -341,15 +355,16 @@ function hitInstance(sx,sy){
     layerIndex(a.layer)-layerIndex(b.layer) || (a.z||0)-(b.z||0));
   for(let i=order.length-1;i>=0;i--){
     const ins=order[i];const p=parallaxOf(ins.layer);
-    const e=getImg(ASSET_BASE+ins.asset);if(!e.loaded)continue;
+    let fw,fh;
+    if(ins.anim){const c=ANIM[ins.anim];if(!c)continue;fw=c.fw;fh=c.fh;}
+    else{const e=getImg(ASSET_BASE+ins.asset);if(!e.loaded)continue;fw=e.img.naturalWidth;fh=e.img.naturalHeight;}
     const [cx,cy]=worldToScreen(ins.x,ins.y,p);
-    // 逆旋转点到实例本地
     const ang=-(ins.rot||0)*Math.PI/180;
     let dx=sx-cx,dy=sy-cy;
     const rx=dx*Math.cos(ang)-dy*Math.sin(ang);
     const ry=dx*Math.sin(ang)+dy*Math.cos(ang);
-    const iw=e.img.naturalWidth*ins.scale*cam.zoom/2;
-    const ih=e.img.naturalHeight*ins.scale*cam.zoom/2;
+    const iw=fw*ins.scale*cam.zoom/2;
+    const ih=fh*ins.scale*cam.zoom/2;
     if(Math.abs(rx)<=iw&&Math.abs(ry)<=ih) return ins;
   }
   return null;
@@ -500,45 +515,76 @@ function buildLayers(){
   });
 }
 
-//==================== 调色板 ====================
+//==================== 调色板（静态零件 + 动画） ====================
 async function loadManifest(){
+  PAL=[];
   try{
-    const r=await fetch(ASSET_BASE+"manifest.json");
-    manifest=await r.json();
-  }catch(err){showHint("素材清单加载失败");return;}
-  palCat=manifest.categories[0].name;
-  buildCats();buildPieces();
+    manifest=await (await fetch(ASSET_BASE+"manifest.json")).json();
+    manifest.categories.forEach(c=>PAL.push({
+      name:c.name.replace(/_/g," "), key:c.name, anim:false,
+      items:c.pieces.map(p=>({file:p.file,w:p.w,h:p.h}))}));
+  }catch(err){showHint("素材清单加载失败");}
+  try{
+    const ar=await (await fetch(ANIM_BASE+"manifest.json")).json();
+    const RN={plant:"🌿动画·植物",enemy:"👾动画·敌人",player:"🧙动画·主角"};
+    const groups={};
+    ar.animations.forEach(c=>{ANIM[c.name]=c;(groups[c.role]=groups[c.role]||[]).push(c.name);});
+    ["player","enemy","plant"].forEach(role=>{
+      if(groups[role])PAL.push({name:RN[role],key:"anim_"+role,anim:true,
+        items:groups[role].map(clip=>({clip}))});
+    });
+  }catch(e){/* 动画可选 */}
+  if(!PAL.length)return;
+  palCat=PAL[0].key;buildCats();buildPieces();
 }
+function curCat(){return PAL.find(c=>c.key===palCat);}
 function buildCats(){
   const el=$("cats");el.innerHTML="";
-  manifest.categories.forEach(c=>{
+  PAL.forEach(c=>{
     const d=document.createElement("div");
-    d.className="cat"+(c.name===palCat?" active":"");
-    d.textContent=c.name.replace(/_/g," ");
-    d.onclick=()=>{palCat=c.name;buildCats();buildPieces();};
+    d.className="cat"+(c.key===palCat?" active":"");
+    d.textContent=c.name;
+    d.onclick=()=>{palCat=c.key;buildCats();buildPieces();};
     el.appendChild(d);
   });
 }
 function buildPieces(){
   const el=$("pieces");el.innerHTML="";
-  const cat=manifest.categories.find(c=>c.name===palCat);
-  cat.pieces.forEach(p=>{
+  const cat=curCat();if(!cat)return;
+  cat.items.forEach(it=>{
     const d=document.createElement("div");d.className="pc";
-    const im=document.createElement("img");im.src=ASSET_BASE+p.file;im.loading="lazy";
-    d.appendChild(im);
-    d.onclick=()=>addPiece(cat,p);
+    if(cat.anim){
+      const c=ANIM[it.clip];const rows=Math.ceil(c.count/c.cols);
+      const box=document.createElement("div");
+      box.style.cssText="width:100%;height:100%;background-repeat:no-repeat;background-position:0 0;";
+      box.style.backgroundImage=`url(${ANIM_BASE+c.file})`;
+      box.style.backgroundSize=`${c.cols*100}% ${rows*100}%`;
+      d.appendChild(box);
+      d.onclick=()=>addAnim(it.clip);
+    }else{
+      const im=document.createElement("img");im.src=ASSET_BASE+it.file;im.loading="lazy";
+      d.appendChild(im);
+      d.onclick=()=>addPiece(it);
+    }
     el.appendChild(d);
   });
 }
-function addPiece(cat,p){
-  // 放在当前视图中心、当前层
-  const [wx,wy]=screenToWorld(innerWidth/2,innerHeight/2,parallaxOf(curLayer));
-  // 让大图集零件默认缩到合理大小（约屏幕1/4高）
+function placeAt(){return screenToWorld(innerWidth/2,innerHeight/2,parallaxOf(curLayer));}
+function addPiece(p){
+  const [wx,wy]=placeAt();
   const target=innerHeight*0.5/cam.zoom;
-  const sc=Math.min(1, target/Math.max(p.w,p.h));
+  const sc=Math.min(1,target/Math.max(p.w,p.h));
   scene.instances.push({id:uid(),layer:curLayer,asset:p.file,
     x:Math.round(wx),y:Math.round(wy),scale:+sc.toFixed(3),rot:0,flipX:false,z:0});
   showHint("已放入「"+LAYER_DEF.find(l=>l.id===curLayer).name+"」");
+}
+function addAnim(clip){
+  const c=ANIM[clip];const [wx,wy]=placeAt();
+  const target=innerHeight*0.42/cam.zoom;
+  const sc=Math.min(2,target/Math.max(c.fw,c.fh));
+  scene.instances.push({id:uid(),layer:curLayer,anim:clip,fps:c.fps,
+    x:Math.round(wx),y:Math.round(wy),scale:+sc.toFixed(3),rot:0,flipX:false,z:0});
+  showHint("已放入会动的「"+clip+"」");
 }
 
 //==================== 顶栏菜单 ====================
@@ -628,7 +674,8 @@ function normalizeScene(s){
   const view=s.view||{h:Math.round(world.height*0.72),groundY:world.height-100};
   return {...b,...s,background:{...b.background,...(s.background||{})},
     world, view,
-    instances:(s.instances||[]).map(i=>({id:i.id||uid(),layer:i.layer||"play",asset:i.asset,
+    instances:(s.instances||[]).map(i=>({id:i.id||uid(),layer:i.layer||"play",
+      asset:i.asset,anim:i.anim,fps:i.fps,
       x:i.x||0,y:i.y||0,scale:i.scale||1,rot:i.rot||0,flipX:!!i.flipX,z:i.z||0})),
     markers:s.markers||[]};
 }

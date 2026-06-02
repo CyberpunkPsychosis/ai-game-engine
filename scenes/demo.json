@@ -221,6 +221,90 @@
       "rot": 0,
       "flipX": true,
       "z": 2
+    },
+    {
+      "id": "29326ml",
+      "layer": "play",
+      "anim": "Wizard_Idle",
+      "fps": 12,
+      "x": 330,
+      "y": 975,
+      "scale": 0.7,
+      "rot": 0,
+      "flipX": false,
+      "z": 5
+    },
+    {
+      "id": "64lg2tj",
+      "layer": "play",
+      "anim": "SlimeGreen",
+      "fps": 12,
+      "x": 1300,
+      "y": 1010,
+      "scale": 0.7,
+      "rot": 0,
+      "flipX": false,
+      "z": 4
+    },
+    {
+      "id": "f8cz2ka",
+      "layer": "play",
+      "anim": "SlimeOrange",
+      "fps": 12,
+      "x": 2080,
+      "y": 985,
+      "scale": 0.7,
+      "rot": 0,
+      "flipX": true,
+      "z": 4
+    },
+    {
+      "id": "7edcmpb",
+      "layer": "play",
+      "anim": "BlueFlower1",
+      "fps": 12,
+      "x": 720,
+      "y": 1005,
+      "scale": 0.5,
+      "rot": 0,
+      "flipX": false,
+      "z": 3
+    },
+    {
+      "id": "3u2m7os",
+      "layer": "play",
+      "anim": "Plant_Wind_1",
+      "fps": 12,
+      "x": 1480,
+      "y": 990,
+      "scale": 0.55,
+      "rot": 0,
+      "flipX": false,
+      "z": 3
+    },
+    {
+      "id": "5af3r09",
+      "layer": "play",
+      "anim": "Plant_1",
+      "fps": 12,
+      "x": 2420,
+      "y": 1000,
+      "scale": 0.5,
+      "rot": 0,
+      "flipX": false,
+      "z": 3
+    },
+    {
+      "id": "fquo6sb",
+      "layer": "fore",
+      "anim": "Plant_Wind_1",
+      "fps": 12,
+      "x": 3550,
+      "y": 1120,
+      "scale": 0.7,
+      "rot": 0,
+      "flipX": true,
+      "z": 2
     }
   ],
   "markers": [

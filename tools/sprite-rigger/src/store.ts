@@ -28,7 +28,7 @@ interface State {
   frames: Frame[];
   currentFrameId: string | null;
   selectedId: string | null;
-  anchorMode: boolean;
+  placeMode: { layerId: string; target: "pivot" | string } | null;
   view: View;
   settings: Settings;
   canvasW: number;
@@ -52,7 +52,12 @@ interface State {
 
   setView: (v: Partial<View>) => void;
   setSettings: (s: Partial<Settings>) => void;
-  setAnchorMode: (v: boolean) => void;
+  setPlaceMode: (v: { layerId: string; target: "pivot" | string } | null) => void;
+
+  addPoint: (layerId: string, name: string) => void;
+  updatePoint: (layerId: string, pointId: string, patch: Partial<{ name: string; x: number; y: number }>) => void;
+  removePoint: (layerId: string, pointId: string) => void;
+  attachToPoint: (childId: string, parentId: string, pointId: string) => void;
 
   hydrate: (data: Loaded) => void;
   resetProject: () => void;
@@ -67,7 +72,7 @@ export const useStore = create<State>((set, get) => ({
   frames: [],
   currentFrameId: null,
   selectedId: null,
-  anchorMode: false,
+  placeMode: null,
   view: { zoom: 3, panX: 40, panY: 40 },
   canvasW: 800,
   canvasH: 600,
@@ -94,6 +99,7 @@ export const useStore = create<State>((set, get) => ({
         rotation: 0,
         pivotX: Math.round(asset.width / 2),
         pivotY: Math.round(asset.height / 2),
+        points: [],
         z: s.layers.length,
         visible: true,
       };
@@ -218,7 +224,59 @@ export const useStore = create<State>((set, get) => ({
 
   setView: (v) => set((s) => ({ view: { ...s.view, ...v } })),
   setSettings: (st) => set((s) => ({ settings: { ...s.settings, ...st } })),
-  setAnchorMode: (v) => set({ anchorMode: v }),
+  setPlaceMode: (v) => set({ placeMode: v }),
+
+  addPoint: (layerId, name) =>
+    set((s) => {
+      const l = s.layers.find((q) => q.id === layerId);
+      const asset = l ? s.assets[l.assetId] : undefined;
+      const cx = asset ? Math.round(asset.width / 2) : 0;
+      const cy = asset ? Math.round(asset.height / 2) : 0;
+      return {
+        layers: s.layers.map((q) =>
+          q.id === layerId
+            ? { ...q, points: [...q.points, { id: uid("p"), name: name || `挂点${q.points.length + 1}`, x: cx, y: cy }] }
+            : q
+        ),
+      };
+    }),
+
+  updatePoint: (layerId, pointId, patch) =>
+    set((s) => ({
+      layers: s.layers.map((q) =>
+        q.id === layerId ? { ...q, points: q.points.map((p) => (p.id === pointId ? { ...p, ...patch } : p)) } : q
+      ),
+    })),
+
+  removePoint: (layerId, pointId) =>
+    set((s) => ({
+      layers: s.layers.map((q) => (q.id === layerId ? { ...q, points: q.points.filter((p) => p.id !== pointId) } : q)),
+    })),
+
+  attachToPoint: (childId, parentId, pointId) =>
+    set((s) => {
+      const parent = s.layers.find((l) => l.id === parentId);
+      const pt = parent?.points.find((p) => p.id === pointId);
+      if (!parent || !pt) return {};
+      // 防环
+      const byId = new Map(s.layers.map((l) => [l.id, l]));
+      let cur: Layer | undefined = byId.get(parentId);
+      while (cur) {
+        if (cur.id === childId) return {};
+        cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+      }
+      const nx = pt.x - parent.pivotX;
+      const ny = pt.y - parent.pivotY;
+      const layers = s.layers.map((l) => (l.id === childId ? { ...l, parentId, x: nx, y: ny } : l));
+      let frames = s.frames;
+      if (s.currentFrameId) {
+        const child = layers.find((l) => l.id === childId)!;
+        frames = s.frames.map((f) =>
+          f.id === s.currentFrameId ? { ...f, transforms: { ...f.transforms, [childId]: tf(child) } } : f
+        );
+      }
+      return { layers, frames };
+    }),
 
   hydrate: (data) =>
     set((s) => ({

@@ -74,7 +74,7 @@ export async function loadSnapshot(): Promise<Loaded | null> {
   return {
     assets,
     tree: snap.tree,
-    layers: snap.layers,
+    layers: snap.layers.map((l) => ({ ...l, points: (l as any).points ?? [] })),
     frames: snap.frames,
     currentFrameId: snap.currentFrameId,
     selectedId: snap.selectedId,

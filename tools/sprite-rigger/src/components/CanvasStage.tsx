@@ -22,7 +22,7 @@ export default function CanvasStage() {
   const view = useStore((s) => s.view);
   const settings = useStore((s) => s.settings);
   const selectedId = useStore((s) => s.selectedId);
-  const anchorMode = useStore((s) => s.anchorMode);
+  const placeMode = useStore((s) => s.placeMode);
 
   // 预加载图片到缓存
   useEffect(() => {
@@ -163,6 +163,25 @@ export default function CanvasStage() {
         ctx.stroke();
       }
     }
+
+    // 命名挂点（屏幕空间）
+    ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+    for (const l of layers) {
+      for (const pt of l.points) {
+        const wp = worldMatrix(l, layers).transformPoint(new DOMPoint(pt.x - l.pivotX, pt.y - l.pivotY));
+        const px = panX + wp.x * zoom;
+        const py = panY + wp.y * zoom;
+        ctx.fillStyle = "#cc785c";
+        ctx.beginPath();
+        ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = "#5a574f";
+        ctx.fillText(pt.name, px + 5, py - 4);
+      }
+    }
   }
 
   // 重绘
@@ -221,17 +240,23 @@ export default function CanvasStage() {
     const w = screenToWorld(sx, sy);
     const st = useStore.getState();
 
-    if (st.anchorMode && st.selectedId) {
-      // 设锚点：把点击处设为选中图层的锚点，且部件视觉不动
-      const l = st.layers.find((q) => q.id === st.selectedId);
+    if (st.placeMode) {
+      const pm = st.placeMode;
+      const l = st.layers.find((q) => q.id === pm.layerId);
       if (l) {
         const localClicked = worldMatrix(l, st.layers).inverse().transformPoint(new DOMPoint(w.x, w.y));
         const ix = Math.round(localClicked.x + l.pivotX);
         const iy = Math.round(localClicked.y + l.pivotY);
-        const pinv = parentWorldMatrix(l, st.layers).inverse();
-        const local = pinv.transformPoint(new DOMPoint(w.x, w.y));
-        st.patchLayer(l.id, { pivotX: ix, pivotY: iy, x: Math.round(local.x), y: Math.round(local.y) });
+        if (pm.target === "pivot") {
+          // 改锚点且部件视觉不动
+          const pinv = parentWorldMatrix(l, st.layers).inverse();
+          const local = pinv.transformPoint(new DOMPoint(w.x, w.y));
+          st.patchLayer(l.id, { pivotX: ix, pivotY: iy, x: Math.round(local.x), y: Math.round(local.y) });
+        } else {
+          st.updatePoint(l.id, pm.target, { x: ix, y: iy });
+        }
       }
+      st.setPlaceMode(null);
       return;
     }
 
@@ -322,7 +347,7 @@ export default function CanvasStage() {
       <canvas
         ref={canvasRef}
         className="h-full w-full"
-        style={{ cursor: anchorMode ? "crosshair" : "default" }}
+        style={{ cursor: placeMode ? "crosshair" : "default" }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -339,7 +364,7 @@ export default function CanvasStage() {
         }}
       />
 
-      {handle && !anchorMode && (
+      {handle && !placeMode && (
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {

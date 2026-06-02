@@ -8,6 +8,13 @@ export interface Asset {
   blob?: Blob; // 原始二进制（用于持久化，不序列化进工程 JSON）
 }
 
+export interface AnchorPoint {
+  id: string;
+  name: string;
+  x: number; // 资源局部像素
+  y: number;
+}
+
 export interface Layer {
   id: string;
   assetId: string;
@@ -18,8 +25,9 @@ export interface Layer {
   y: number;
   rotation: number; // 角度
   // 结构
-  pivotX: number; // 锚点（资源局部像素）
+  pivotX: number; // 自身原点/握把锚点（资源局部像素，旋转中心）
   pivotY: number;
+  points: AnchorPoint[]; // 命名挂点（如"手""枪口"），供别的部件吸附
   z: number;
   visible: boolean;
 }

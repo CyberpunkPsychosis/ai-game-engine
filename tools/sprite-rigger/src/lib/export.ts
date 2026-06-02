@@ -160,6 +160,7 @@ export async function exportRig(input: ExportInput): Promise<void> {
       parent: l.parentId,
       z: l.z,
       pivot: { x: l.pivotX, y: l.pivotY },
+      points: (l.points ?? []).map((p) => ({ name: p.name, x: p.x, y: p.y })),
       asset: assetFileName[l.assetId] ?? null,
     })),
     frames: frameMeta,

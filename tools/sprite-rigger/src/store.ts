@@ -55,6 +55,7 @@ interface State {
   setPlaceMode: (v: { layerId: string; target: "pivot" | string } | null) => void;
 
   addPoint: (layerId: string, name: string) => void;
+  addPointAt: (layerId: string, x: number, y: number) => void;
   updatePoint: (layerId: string, pointId: string, patch: Partial<{ name: string; x: number; y: number }>) => void;
   removePoint: (layerId: string, pointId: string) => void;
   attachToPoint: (childId: string, parentId: string, pointId: string) => void;
@@ -239,11 +240,20 @@ export const useStore = create<State>((set, get) => ({
       return {
         layers: s.layers.map((q) =>
           q.id === layerId
-            ? { ...q, points: [...q.points, { id: uid("p"), name: name || `挂点${q.points.length + 1}`, x: cx, y: cy }] }
+            ? { ...q, points: [...q.points, { id: uid("p"), name: name || `点${q.points.length + 1}`, x: cx, y: cy }] }
             : q
         ),
       };
     }),
+
+  addPointAt: (layerId, x, y) =>
+    set((s) => ({
+      layers: s.layers.map((q) =>
+        q.id === layerId
+          ? { ...q, points: [...q.points, { id: uid("p"), name: `点${q.points.length + 1}`, x: Math.round(x), y: Math.round(y) }] }
+          : q
+      ),
+    })),
 
   updatePoint: (layerId, pointId, patch) =>
     set((s) => ({

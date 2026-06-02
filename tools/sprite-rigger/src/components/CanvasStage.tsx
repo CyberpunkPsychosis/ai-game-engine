@@ -165,24 +165,7 @@ export default function CanvasStage() {
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // 锚点 + 选中框（屏幕空间）
-    if (settings.showAnchors) {
-      for (const l of layers) {
-        const wm = worldMatrix(l, layers);
-        const o = wm.transformPoint(new DOMPoint(0, 0));
-        const sx = panX + o.x * zoom;
-        const sy = panY + o.y * zoom;
-        const sel = l.id === selectedId;
-        ctx.strokeStyle = sel ? "#cc785c" : "#b9b4a6";
-        ctx.lineWidth = sel ? 2 : 1;
-        ctx.beginPath();
-        ctx.moveTo(sx - 6, sy);
-        ctx.lineTo(sx + 6, sy);
-        ctx.moveTo(sx, sy - 6);
-        ctx.lineTo(sx, sy + 6);
-        ctx.stroke();
-      }
-    }
+    // 选中框（屏幕空间）
     const selected = layers.find((l) => l.id === selectedId);
     if (selected) {
       const a = assets[selected.assetId];
@@ -205,8 +188,9 @@ export default function CanvasStage() {
       }
     }
 
-    // 命名挂点（屏幕空间）
+    // 标记点（屏幕空间）
     ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+    if (settings.showAnchors)
     for (const l of layers) {
       for (const pt of l.points) {
         const wp = worldMatrix(l, layers).transformPoint(new DOMPoint(pt.x - l.pivotX, pt.y - l.pivotY));
@@ -296,6 +280,10 @@ export default function CanvasStage() {
         const localClicked = worldMatrix(l, st.layers).inverse().transformPoint(new DOMPoint(w.x, w.y));
         const ix = Math.round(localClicked.x + l.pivotX);
         const iy = Math.round(localClicked.y + l.pivotY);
+        if (pm.target === "addpoint") {
+          st.addPointAt(l.id, ix, iy);
+          return; // 保持模式，可连续点多个
+        }
         if (pm.target === "pivot") {
           // 改锚点且部件视觉不动
           const pinv = parentWorldMatrix(l, st.layers).inverse();

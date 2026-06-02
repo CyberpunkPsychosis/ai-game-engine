@@ -281,8 +281,9 @@ export default function CanvasStage() {
         const ix = Math.round(localClicked.x + l.pivotX);
         const iy = Math.round(localClicked.y + l.pivotY);
         if (pm.target === "addpoint") {
-          st.addPointAt(l.id, ix, iy);
-          return; // 保持模式，可连续点多个
+          st.addPointAt(l.id, localClicked.x + l.pivotX, localClicked.y + l.pivotY);
+          st.setPlaceMode(null); // 一次只加一个，避免误点一堆
+          return;
         }
         if (pm.target === "pivot") {
           // 改锚点且部件视觉不动
@@ -335,8 +336,8 @@ export default function CanvasStage() {
       const w = screenToWorld(sx, sy);
       const local = worldMatrix(l, st.layers).inverse().transformPoint(new DOMPoint(w.x, w.y));
       st.updatePoint(l.id, drag.current.pointId, {
-        x: Math.round(local.x + l.pivotX),
-        y: Math.round(local.y + l.pivotY),
+        x: Math.round((local.x + l.pivotX) * 10) / 10,
+        y: Math.round((local.y + l.pivotY) * 10) / 10,
       });
       return;
     }

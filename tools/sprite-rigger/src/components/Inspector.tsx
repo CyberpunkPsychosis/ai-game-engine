@@ -77,7 +77,7 @@ export default function Inspector() {
         {l.points.map((p) => (
           <div key={p.id} className="flex items-center gap-1">
             <input value={p.name} onChange={(e) => updatePoint(l.id, p.id, { name: e.target.value })} className="w-24 rounded-md border border-line bg-surface px-2 py-1 text-sm" />
-            <span className="text-[11px] text-muted">{p.x},{p.y}</span>
+            <span className="text-[11px] text-muted">{Math.round(p.x)},{Math.round(p.y)}</span>
             <button onClick={() => removePoint(l.id, p.id)} className="ml-auto rounded-md px-2 py-1 text-xs text-muted hover:text-clay">删除</button>
           </div>
         ))}

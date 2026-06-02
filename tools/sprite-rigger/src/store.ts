@@ -250,7 +250,13 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({
       layers: s.layers.map((q) =>
         q.id === layerId
-          ? { ...q, points: [...q.points, { id: uid("p"), name: `点${q.points.length + 1}`, x: Math.round(x), y: Math.round(y) }] }
+          ? {
+              ...q,
+              points: [
+                ...q.points,
+                { id: uid("p"), name: `点${q.points.length + 1}`, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 },
+              ],
+            }
           : q
       ),
     })),

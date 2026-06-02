@@ -45,6 +45,7 @@ export interface Frame {
   id: string;
   name: string;
   transforms: Record<string, FrameTransform>; // layerId -> 该帧变换快照
+  points?: Record<string, { x: number; y: number }>; // pointId -> 该帧的点位(覆盖基准位)
 }
 
 export interface TreeNode {

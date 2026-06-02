@@ -80,7 +80,7 @@ export async function loadSnapshot(): Promise<Loaded | null> {
       sheetFrames: (l as any).sheetFrames ?? 1,
       locked: (l as any).locked ?? false,
     })),
-    frames: snap.frames,
+    frames: snap.frames.map((f) => ({ ...f, points: (f as any).points ?? {} })),
     currentFrameId: snap.currentFrameId,
     selectedId: snap.selectedId,
     settings: snap.settings,

@@ -34,6 +34,11 @@ export default function CanvasStage() {
   const frames = useStore((s) => s.frames);
   const currentFrameId = useStore((s) => s.currentFrameId);
   const frameIndex = Math.max(0, frames.findIndex((f) => f.id === currentFrameId));
+  const currentFrame = frames.find((f) => f.id === currentFrameId);
+
+  // 点在当前帧的有效位置（帧覆盖优先，否则基准位）
+  const effPoint = (pt: { id: string; x: number; y: number }, frame?: { points?: Record<string, { x: number; y: number }> }) =>
+    frame?.points?.[pt.id] ?? { x: pt.x, y: pt.y };
 
   // 图层在当前帧应显示的子帧宽度与起始 x（精灵表）
   const sheetInfo = (l: Layer) => {
@@ -68,20 +73,26 @@ export default function CanvasStage() {
   const snap = (v: number) => (settings.snap ? Math.round(v / settings.gridSize) * settings.gridSize : v);
 
   const hitTest = (wx: number, wy: number): Layer | null => {
-    const list = ordered(layers);
-    for (let i = list.length - 1; i >= 0; i--) {
-      const l = list[i];
+    // 在所有"盖住手指点"的部件里，选离其中心最近的（不再只认最上层）
+    let best: Layer | null = null;
+    let bestD = Infinity;
+    for (const l of layers) {
       if (!l.visible || l.locked) continue;
       const a = assets[l.assetId];
       if (!a) continue;
       const { fw } = sheetInfo(l);
-      const inv = worldMatrix(l, layers).inverse();
-      const p = inv.transformPoint(new DOMPoint(wx, wy));
+      const p = worldMatrix(l, layers).inverse().transformPoint(new DOMPoint(wx, wy));
       if (p.x >= -l.pivotX && p.x <= fw - l.pivotX && p.y >= -l.pivotY && p.y <= a.height - l.pivotY) {
-        return l;
+        const cx = fw / 2 - l.pivotX;
+        const cy = a.height / 2 - l.pivotY;
+        const d = Math.hypot(p.x - cx, p.y - cy);
+        if (d < bestD) {
+          bestD = d;
+          best = l;
+        }
       }
     }
-    return null;
+    return best;
   };
 
   // 命中选中图层的挂点/锚点手柄（屏幕空间，半径阈值适配触屏）
@@ -91,9 +102,11 @@ export default function CanvasStage() {
     if (!sel) return null;
     const { zoom, panX, panY } = st.view;
     const wm = worldMatrix(sel, st.layers);
+    const frame = st.frames.find((f) => f.id === st.currentFrameId);
     const R = 14;
     for (const pt of sel.points) {
-      const wp = wm.transformPoint(new DOMPoint(pt.x - sel.pivotX, pt.y - sel.pivotY));
+      const ep = frame?.points?.[pt.id] ?? { x: pt.x, y: pt.y };
+      const wp = wm.transformPoint(new DOMPoint(ep.x - sel.pivotX, ep.y - sel.pivotY));
       if (Math.hypot(panX + wp.x * zoom - sx, panY + wp.y * zoom - sy) <= R) return { mode: "point", pointId: pt.id };
     }
     const o = wm.transformPoint(new DOMPoint(0, 0));
@@ -193,7 +206,8 @@ export default function CanvasStage() {
     if (settings.showAnchors)
     for (const l of layers) {
       for (const pt of l.points) {
-        const wp = worldMatrix(l, layers).transformPoint(new DOMPoint(pt.x - l.pivotX, pt.y - l.pivotY));
+        const ep = effPoint(pt, currentFrame);
+        const wp = worldMatrix(l, layers).transformPoint(new DOMPoint(ep.x - l.pivotX, ep.y - l.pivotY));
         const px = panX + wp.x * zoom;
         const py = panY + wp.y * zoom;
         const r = l.id === selectedId ? 6 : 3.5;
@@ -338,10 +352,7 @@ export default function CanvasStage() {
       if (!l) return;
       const w = screenToWorld(sx, sy);
       const local = worldMatrix(l, st.layers).inverse().transformPoint(new DOMPoint(w.x, w.y));
-      st.updatePoint(l.id, drag.current.pointId, {
-        x: Math.floor(local.x + l.pivotX) + 0.5,
-        y: Math.floor(local.y + l.pivotY) + 0.5,
-      });
+      st.setPointPos(l.id, drag.current.pointId, Math.floor(local.x + l.pivotX) + 0.5, Math.floor(local.y + l.pivotY) + 0.5);
       return;
     }
     if (drag.current.mode === "pivot" && drag.current.id) {

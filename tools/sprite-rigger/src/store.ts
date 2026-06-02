@@ -56,6 +56,7 @@ interface State {
 
   addPoint: (layerId: string, name: string) => void;
   addPointAt: (layerId: string, x: number, y: number) => void;
+  setPointPos: (layerId: string, pointId: string, x: number, y: number) => void;
   updatePoint: (layerId: string, pointId: string, patch: Partial<{ name: string; x: number; y: number }>) => void;
   removePoint: (layerId: string, pointId: string) => void;
   attachToPoint: (childId: string, parentId: string, pointId: string) => void;
@@ -90,9 +91,6 @@ export const useStore = create<State>((set, get) => ({
     set((s) => {
       const asset = s.assets[assetId];
       if (!asset) return {};
-      // 猜精灵表帧数：宽是高的整数倍则按方形帧切（如 256x64 => 4 帧）
-      const guess = asset.height > 0 ? Math.max(1, Math.round(asset.width / asset.height)) : 1;
-      const fw = asset.width / guess;
       const layer: Layer = {
         id: uid("l"),
         assetId,
@@ -101,9 +99,9 @@ export const useStore = create<State>((set, get) => ({
         x,
         y,
         rotation: 0,
-        pivotX: Math.round(fw / 2),
+        pivotX: Math.round(asset.width / 2),
         pivotY: Math.round(asset.height / 2),
-        sheetFrames: guess,
+        sheetFrames: 1,
         points: [],
         z: s.layers.length,
         visible: true,
@@ -114,7 +112,7 @@ export const useStore = create<State>((set, get) => ({
       let currentFrameId = s.currentFrameId;
       if (frames.length === 0) {
         currentFrameId = uid("f");
-        frames = [{ id: currentFrameId, name: "帧 1", transforms: {} }];
+        frames = [{ id: currentFrameId, name: "帧 1", transforms: {}, points: {} }];
       }
       // 新部件在所有帧里都出现（同一初始位置）
       const t = tf(layer);
@@ -207,9 +205,10 @@ export const useStore = create<State>((set, get) => ({
     const transforms: Record<string, FrameTransform> = cur
       ? JSON.parse(JSON.stringify(cur.transforms))
       : Object.fromEntries(s.layers.map((l) => [l.id, tf(l)]));
+    const points = cur?.points ? JSON.parse(JSON.stringify(cur.points)) : {};
     const id = uid("f");
     const i = s.frames.findIndex((f) => f.id === s.currentFrameId);
-    const frame: Frame = { id, name: `帧 ${s.frames.length + 1}`, transforms };
+    const frame: Frame = { id, name: `帧 ${s.frames.length + 1}`, transforms, points };
     const frames = [...s.frames];
     frames.splice(i < 0 ? s.frames.length : i + 1, 0, frame);
     set({ frames, currentFrameId: id });
@@ -248,19 +247,39 @@ export const useStore = create<State>((set, get) => ({
     }),
 
   addPointAt: (layerId, x, y) =>
-    set((s) => ({
-      layers: s.layers.map((q) =>
-        q.id === layerId
-          ? {
-              ...q,
-              points: [
-                ...q.points,
-                { id: uid("p"), name: `点${q.points.length + 1}`, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 },
-              ],
-            }
-          : q
-      ),
-    })),
+    set((s) => {
+      const id = uid("p");
+      const px = Math.round(x * 10) / 10;
+      const py = Math.round(y * 10) / 10;
+      const layers = s.layers.map((q) =>
+        q.id === layerId ? { ...q, points: [...q.points, { id, name: `点${q.points.length + 1}`, x: px, y: py }] } : q
+      );
+      let frames = s.frames;
+      if (s.currentFrameId)
+        frames = s.frames.map((f) =>
+          f.id === s.currentFrameId ? { ...f, points: { ...(f.points ?? {}), [id]: { x: px, y: py } } } : f
+        );
+      return { layers, frames };
+    }),
+
+  setPointPos: (layerId, pointId, x, y) =>
+    set((s) => {
+      const px = Math.round(x * 10) / 10;
+      const py = Math.round(y * 10) / 10;
+      // 有当前帧：写该帧覆盖位；否则写基准位
+      if (s.currentFrameId) {
+        return {
+          frames: s.frames.map((f) =>
+            f.id === s.currentFrameId ? { ...f, points: { ...(f.points ?? {}), [pointId]: { x: px, y: py } } } : f
+          ),
+        };
+      }
+      return {
+        layers: s.layers.map((q) =>
+          q.id === layerId ? { ...q, points: q.points.map((p) => (p.id === pointId ? { ...p, x: px, y: py } : p)) } : q
+        ),
+      };
+    }),
 
   updatePoint: (layerId, pointId, patch) =>
     set((s) => ({

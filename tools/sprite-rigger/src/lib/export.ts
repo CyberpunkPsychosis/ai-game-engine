@@ -143,7 +143,7 @@ export async function exportRig(input: ExportInput): Promise<void> {
     const blob = await canvasToBlob(canvas);
     const file = `frame_${String(i).padStart(3, "0")}.png`;
     framesDir.file(file, blob);
-    frameMeta.push({ name: frameList[i].name, file, transforms: frameList[i].transforms });
+    frameMeta.push({ name: frameList[i].name, file, transforms: frameList[i].transforms, points: frameList[i].points ?? {} });
   }
 
   // 原始部件
@@ -176,7 +176,7 @@ export async function exportRig(input: ExportInput): Promise<void> {
         sheet_frames: sf,
         frame_size: a ? { w: a.width / sf, h: a.height } : null,
         source_size: a ? { w: a.width, h: a.height } : null,
-        points: (l.points ?? []).map((p) => ({ name: p.name, x: p.x, y: p.y })),
+        points: (l.points ?? []).map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y })),
         asset: assetFileName[l.assetId] ?? null,
         visible: l.visible,
       };

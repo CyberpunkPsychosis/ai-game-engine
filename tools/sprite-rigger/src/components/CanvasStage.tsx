@@ -292,6 +292,31 @@ export default function CanvasStage() {
     st.setView({ zoom: z, panX: sx - wx * z, panY: sy - wy * z });
   };
 
+  // 选中部件右上角的旋转手柄位置（屏幕坐标）
+  const selectedLayer = layers.find((l) => l.id === selectedId);
+  let handle: { x: number; y: number } | null = null;
+  if (selectedLayer) {
+    const a = assets[selectedLayer.assetId];
+    if (a) {
+      const wm = new DOMMatrix()
+        .translate(view.panX, view.panY)
+        .scale(view.zoom)
+        .multiply(worldMatrix(selectedLayer, layers));
+      const c = wm.transformPoint(new DOMPoint(a.width - selectedLayer.pivotX, -selectedLayer.pivotY));
+      handle = { x: c.x, y: c.y };
+    }
+  }
+
+  const rotate45 = () => {
+    const st = useStore.getState();
+    const l = st.layers.find((x) => x.id === st.selectedId);
+    if (!l) return;
+    let r = Math.round(l.rotation / 45) * 45 + 45;
+    while (r > 180) r -= 360;
+    while (r <= -180) r += 360;
+    st.patchLayer(l.id, { rotation: r });
+  };
+
   return (
     <div ref={wrapRef} className="relative h-full w-full overflow-hidden bg-surface">
       <canvas
@@ -313,6 +338,21 @@ export default function CanvasStage() {
           useStore.getState().addLayer(id, Math.round(w.x), Math.round(w.y));
         }}
       />
+
+      {handle && !anchorMode && (
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            rotate45();
+          }}
+          title="旋转 45°"
+          className="absolute z-10 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface text-sm text-clay-600 shadow-md hover:bg-claysoft"
+          style={{ left: handle.x, top: handle.y, transform: "translate(20%, -120%)", touchAction: "none" }}
+        >
+          ↻
+        </button>
+      )}
     </div>
   );
 }

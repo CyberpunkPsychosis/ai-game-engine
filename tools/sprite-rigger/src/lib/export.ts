@@ -35,7 +35,8 @@ function renderFrame(
   layers: Layer[],
   imgs: Record<string, HTMLImageElement>,
   originX: number,
-  originY: number
+  originY: number,
+  frameIndex: number
 ) {
   const ctx = canvas.getContext("2d")!;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -47,7 +48,14 @@ function renderFrame(
     if (!img) continue;
     const m = new DOMMatrix().translate(originX, originY).multiply(worldMatrix(layer, layers));
     ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
-    ctx.drawImage(img, -layer.pivotX, -layer.pivotY);
+    const sf = Math.max(1, layer.sheetFrames || 1);
+    if (sf > 1) {
+      const fw = img.naturalWidth / sf;
+      const sx = (frameIndex % sf) * fw;
+      ctx.drawImage(img, sx, 0, fw, img.naturalHeight, -layer.pivotX, -layer.pivotY, fw, img.naturalHeight);
+    } else {
+      ctx.drawImage(img, -layer.pivotX, -layer.pivotY);
+    }
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
@@ -131,7 +139,7 @@ export async function exportRig(input: ExportInput): Promise<void> {
   const frameMeta: any[] = [];
   for (let i = 0; i < frameList.length; i++) {
     const posed = applyFrame(layers, frameList[i]);
-    renderFrame(canvas, posed, imgs, originX, originY);
+    renderFrame(canvas, posed, imgs, originX, originY, i);
     const blob = await canvasToBlob(canvas);
     const file = `frame_${String(i).padStart(3, "0")}.png`;
     framesDir.file(file, blob);

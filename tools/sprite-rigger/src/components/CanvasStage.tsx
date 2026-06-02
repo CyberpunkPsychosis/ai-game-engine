@@ -31,6 +31,18 @@ export default function CanvasStage() {
   const settings = useStore((s) => s.settings);
   const selectedId = useStore((s) => s.selectedId);
   const placeMode = useStore((s) => s.placeMode);
+  const frames = useStore((s) => s.frames);
+  const currentFrameId = useStore((s) => s.currentFrameId);
+  const frameIndex = Math.max(0, frames.findIndex((f) => f.id === currentFrameId));
+
+  // 图层在当前帧应显示的子帧宽度与起始 x（精灵表）
+  const sheetInfo = (l: Layer) => {
+    const a = assets[l.assetId];
+    const sf = Math.max(1, l.sheetFrames || 1);
+    const fw = a ? a.width / sf : 0;
+    const sx = (frameIndex % sf) * fw;
+    return { fw, sx, h: a ? a.height : 0 };
+  };
 
   // 预加载图片到缓存
   useEffect(() => {
@@ -62,9 +74,10 @@ export default function CanvasStage() {
       if (!l.visible) continue;
       const a = assets[l.assetId];
       if (!a) continue;
+      const { fw } = sheetInfo(l);
       const inv = worldMatrix(l, layers).inverse();
       const p = inv.transformPoint(new DOMPoint(wx, wy));
-      if (p.x >= -l.pivotX && p.x <= a.width - l.pivotX && p.y >= -l.pivotY && p.y <= a.height - l.pivotY) {
+      if (p.x >= -l.pivotX && p.x <= fw - l.pivotX && p.y >= -l.pivotY && p.y <= a.height - l.pivotY) {
         return l;
       }
     }
@@ -146,7 +159,9 @@ export default function CanvasStage() {
       if (!img || !img.complete) continue;
       const m = new DOMMatrix().translate(panX, panY).scale(zoom).multiply(worldMatrix(l, layers));
       ctx.setTransform(dpr * m.a, dpr * m.b, dpr * m.c, dpr * m.d, dpr * m.e, dpr * m.f);
-      ctx.drawImage(img, -l.pivotX, -l.pivotY);
+      const { fw, sx, h } = sheetInfo(l);
+      if ((l.sheetFrames || 1) > 1) ctx.drawImage(img, sx, 0, fw, h, -l.pivotX, -l.pivotY, fw, h);
+      else ctx.drawImage(img, -l.pivotX, -l.pivotY);
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
@@ -172,11 +187,12 @@ export default function CanvasStage() {
     if (selected) {
       const a = assets[selected.assetId];
       if (a) {
+        const fw = a.width / Math.max(1, selected.sheetFrames || 1);
         const wm = new DOMMatrix().translate(panX, panY).scale(zoom).multiply(worldMatrix(selected, layers));
         const corners = [
           new DOMPoint(-selected.pivotX, -selected.pivotY),
-          new DOMPoint(a.width - selected.pivotX, -selected.pivotY),
-          new DOMPoint(a.width - selected.pivotX, a.height - selected.pivotY),
+          new DOMPoint(fw - selected.pivotX, -selected.pivotY),
+          new DOMPoint(fw - selected.pivotX, a.height - selected.pivotY),
           new DOMPoint(-selected.pivotX, a.height - selected.pivotY),
         ].map((p) => wm.transformPoint(p));
         ctx.strokeStyle = "#cc785c";
@@ -379,11 +395,12 @@ export default function CanvasStage() {
   if (selectedLayer) {
     const a = assets[selectedLayer.assetId];
     if (a) {
+      const fw = a.width / Math.max(1, selectedLayer.sheetFrames || 1);
       const wm = new DOMMatrix()
         .translate(view.panX, view.panY)
         .scale(view.zoom)
         .multiply(worldMatrix(selectedLayer, layers));
-      const c = wm.transformPoint(new DOMPoint(a.width - selectedLayer.pivotX, -selectedLayer.pivotY));
+      const c = wm.transformPoint(new DOMPoint(fw - selectedLayer.pivotX, -selectedLayer.pivotY));
       handle = { x: c.x, y: c.y };
     }
   }

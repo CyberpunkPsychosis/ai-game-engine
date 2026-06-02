@@ -27,6 +27,7 @@ export interface Layer {
   // 结构
   pivotX: number; // 自身原点/握把锚点（资源局部像素，旋转中心）
   pivotY: number;
+  sheetFrames: number; // 精灵表横向帧数（1=单图；>1 按帧播放）
   points: AnchorPoint[]; // 命名挂点（如"手""枪口"），供别的部件吸附
   z: number;
   visible: boolean;

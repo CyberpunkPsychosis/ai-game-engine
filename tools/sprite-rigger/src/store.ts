@@ -89,6 +89,9 @@ export const useStore = create<State>((set, get) => ({
     set((s) => {
       const asset = s.assets[assetId];
       if (!asset) return {};
+      // 猜精灵表帧数：宽是高的整数倍则按方形帧切（如 256x64 => 4 帧）
+      const guess = asset.height > 0 ? Math.max(1, Math.round(asset.width / asset.height)) : 1;
+      const fw = asset.width / guess;
       const layer: Layer = {
         id: uid("l"),
         assetId,
@@ -97,8 +100,9 @@ export const useStore = create<State>((set, get) => ({
         x,
         y,
         rotation: 0,
-        pivotX: Math.round(asset.width / 2),
+        pivotX: Math.round(fw / 2),
         pivotY: Math.round(asset.height / 2),
+        sheetFrames: guess,
         points: [],
         z: s.layers.length,
         visible: true,

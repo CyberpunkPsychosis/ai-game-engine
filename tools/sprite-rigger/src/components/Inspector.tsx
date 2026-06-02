@@ -54,6 +54,18 @@ export default function Inspector() {
         <Field label="Y" value={l.y} onChange={(v) => patchLayer(l.id, { y: v })} />
       </div>
 
+      <label className="flex items-center gap-2 text-sm">
+        <span className="w-14 shrink-0 text-muted">精灵表</span>
+        <input
+          type="number"
+          min={1}
+          value={l.sheetFrames}
+          onChange={(e) => patchLayer(l.id, { sheetFrames: Math.max(1, parseInt(e.target.value) || 1) })}
+          className="w-20 rounded-md border border-line bg-surface px-2 py-1"
+        />
+        <span className="text-[11px] text-muted">横向帧数（身体动画填 4；单图填 1）</span>
+      </label>
+
       <div className="space-y-1.5">
         <label className="flex items-center gap-2 text-sm">
           <span className="w-14 shrink-0 text-muted">旋转</span>

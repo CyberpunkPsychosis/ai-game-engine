@@ -37,7 +37,10 @@ extends CharacterBody2D
 @export var ult_jelly := 0.6         ## 放招的果冻拉伸量
 
 const SPORE_BURST := preload("res://scenes/spore_burst.tscn")
+const VIIR_RIG := preload("res://scenes/viir_rig.tscn")
 var _ult_cd := 0.0
+var _rig: Node2D
+var _casting := false
 
 const _BASE := 0.58
 var _deform := 0.0       # >0 竖向拉长, <0 压扁变宽
@@ -65,6 +68,12 @@ func _ready() -> void:
 	spr.scale = Vector2(0.58, 0.58)        # 256px 帧 -> ~148px 高
 	spr.position = Vector2(0, -28)         # 让脚底对齐碰撞底
 	spr.play("idle")
+	# 施法绑骨(默认隐藏，放招时显示)
+	_rig = VIIR_RIG.instantiate()
+	_rig.position = Vector2(0, -28)
+	_rig.visible = false
+	add_child(_rig)
+	_rig.released.connect(_on_rig_released)
 
 func _build_frames() -> SpriteFrames:
 	var man = JSON.parse_string(FileAccess.get_file_as_string("res://assets/anim/manifest.json"))
@@ -179,13 +188,26 @@ func _cast_ultimate() -> void:
 	_ult_cd = ult_cooldown
 	_dashes = 1                          # 放招即刷新冲刺(连段起手)
 	_dashing = 0.0
-	_deform = ult_jelly                  # 大幅果冻拉伸
 	velocity = Vector2(velocity.x * 0.2, ult_pop)
+	# 切到绑骨播施法动作(孢爆在释放瞬间由 released 信号生成)
+	_casting = true
+	spr.visible = false
+	_rig.visible = true
+	_rig.scale = Vector2(_BASE * _facing, _BASE)
+	_rig.play_cast()
+	get_tree().create_timer(0.6).timeout.connect(_end_cast)
+
+func _on_rig_released() -> void:
 	var b := SPORE_BURST.instantiate()
 	b.global_position = global_position
 	get_parent().add_child(b)
 	Juice.shake(12.0)
-	Juice.hitstop(0.07)
+	Juice.hitstop(0.06)
+
+func _end_cast() -> void:
+	_casting = false
+	_rig.visible = false
+	spr.visible = true
 
 func ult_ratio() -> float:
 	return clampf(1.0 - _ult_cd / ult_cooldown, 0.0, 1.0)

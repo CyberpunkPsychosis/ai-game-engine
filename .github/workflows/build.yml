@@ -1,0 +1,80 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.5"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  # ---------- 网页版 + Windows 构建 ----------
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载 Godot + 导出模板
+        run: |
+          set -e
+          BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable"
+          curl -sSL -o godot.zip "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          curl -sSL -o templates.tpz "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q godot.zip
+          sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          TPL="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$TPL"
+          unzip -q templates.tpz
+          cp templates/* "$TPL"/
+
+      - name: 导入资源
+        run: godot --headless --import || true
+
+      - name: 导出网页版
+        run: |
+          mkdir -p build/web
+          godot --headless --export-release "Web" build/web/index.html
+          # GitHub Pages 不会把 index.html 当目录首页时, 确保存在
+          ls -la build/web
+
+      - name: 导出 Windows 版
+        run: |
+          mkdir -p build/windows
+          godot --headless --export-release "Windows Desktop" build/windows/AIGameEngine.exe
+          ls -la build/windows
+
+      - name: 上传 Windows 构建 (可下载试玩)
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIGameEngine-Windows
+          path: build/windows/
+
+      - name: 打包网页版为 Pages 工件
+        if: github.ref == 'refs/heads/claude/game-engine-claude-chat-mbKeN'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  # ---------- 部署网页版到 GitHub Pages ----------
+  deploy-pages:
+    needs: build
+    if: github.ref == 'refs/heads/claude/game-engine-claude-chat-mbKeN'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 部署到 Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

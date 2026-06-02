@@ -14,6 +14,8 @@ export default function CanvasStage() {
     startPanX: 0,
     startPanY: 0,
   });
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinch = useRef<{ startDist: number; startZoom: number; startPanX: number; startPanY: number; midX: number; midY: number } | null>(null);
 
   const assets = useStore((s) => s.assets);
   const layers = useStore((s) => s.layers);
@@ -179,9 +181,43 @@ export default function CanvasStage() {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
+  const startPinch = () => {
+    const pts = Array.from(pointers.current.values());
+    if (pts.length < 2) return;
+    const [a, b] = pts;
+    pinch.current = {
+      startDist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+      startZoom: view.zoom,
+      startPanX: view.panX,
+      startPanY: view.panY,
+      midX: (a.x + b.x) / 2,
+      midY: (a.y + b.y) / 2,
+    };
+  };
+
+  const doPinch = () => {
+    const pts = Array.from(pointers.current.values());
+    if (pts.length < 2 || !pinch.current) return;
+    const [a, b] = pts;
+    const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+    const z = Math.min(32, Math.max(0.5, pinch.current.startZoom * (dist / pinch.current.startDist)));
+    const worldX = (pinch.current.midX - pinch.current.startPanX) / pinch.current.startZoom;
+    const worldY = (pinch.current.midY - pinch.current.startPanY) / pinch.current.startZoom;
+    useStore.getState().setView({ zoom: z, panX: midX - worldX * z, panY: midY - worldY * z });
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture(e.pointerId);
-    const { x: sx, y: sy } = getLocalXY(e);
+    const local = getLocalXY(e);
+    pointers.current.set(e.pointerId, local);
+    if (pointers.current.size >= 2) {
+      drag.current.mode = null; // 进入双指：取消单指拖动
+      startPinch();
+      return;
+    }
+    const { x: sx, y: sy } = local;
     const w = screenToWorld(sx, sy);
     const st = useStore.getState();
 
@@ -212,6 +248,11 @@ export default function CanvasStage() {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, getLocalXY(e));
+    if (pointers.current.size >= 2) {
+      doPinch();
+      return;
+    }
     if (!drag.current.mode) return;
     const { x: sx, y: sy } = getLocalXY(e);
     const st = useStore.getState();
@@ -230,8 +271,10 @@ export default function CanvasStage() {
     }
   };
 
-  const onPointerUp = () => {
-    drag.current.mode = null;
+  const onPointerUp = (e: React.PointerEvent) => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
+    if (pointers.current.size === 0) drag.current.mode = null;
   };
 
   const onWheel = (e: React.WheelEvent) => {

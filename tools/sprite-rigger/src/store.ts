@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Asset, Layer, Frame, TreeNode } from "./lib/types";
+import type { Asset, Layer, Frame, TreeNode, FrameTransform } from "./lib/types";
 import { uid } from "./lib/zip";
 
 interface View {
@@ -14,9 +14,11 @@ interface Settings {
   showAnchors: boolean;
   outW: number;
   outH: number;
-  originX: number; // 角色根锚点（输出画布坐标），导出时作为 (0,0)
+  originX: number;
   originY: number;
 }
+
+const TF_KEYS = ["x", "y", "rotation", "visible"] as const;
 
 interface State {
   assets: Record<string, Asset>;
@@ -41,15 +43,18 @@ interface State {
   moveZ: (id: string, dir: number) => void;
   setParent: (id: string, parentId: string | null) => void;
 
-  captureFrame: () => void;
   selectFrame: (id: string) => void;
   deleteFrame: (id: string) => void;
-  renameFrame: (id: string, name: string) => void;
+  duplicateFrame: () => void;
+  nextFrame: () => void;
+  prevFrame: () => void;
 
   setView: (v: Partial<View>) => void;
   setSettings: (s: Partial<Settings>) => void;
   setAnchorMode: (v: boolean) => void;
 }
+
+const tf = (l: Layer): FrameTransform => ({ x: l.x, y: l.y, rotation: l.rotation, visible: l.visible });
 
 export const useStore = create<State>((set, get) => ({
   assets: {},
@@ -62,16 +67,7 @@ export const useStore = create<State>((set, get) => ({
   view: { zoom: 3, panX: 40, panY: 40 },
   canvasW: 800,
   canvasH: 600,
-  settings: {
-    gridSize: 1,
-    snap: true,
-    showGrid: true,
-    showAnchors: true,
-    outW: 256,
-    outH: 256,
-    originX: 128,
-    originY: 200,
-  },
+  settings: { gridSize: 1, snap: true, showGrid: true, showAnchors: true, outW: 256, outH: 256, originX: 128, originY: 200 },
 
   importAssets: (assets, tree) =>
     set((s) => {
@@ -97,7 +93,17 @@ export const useStore = create<State>((set, get) => ({
         z: s.layers.length,
         visible: true,
       };
-      return { layers: [...s.layers, layer], selectedId: layer.id };
+      // 保证至少有一帧
+      let frames = s.frames;
+      let currentFrameId = s.currentFrameId;
+      if (frames.length === 0) {
+        currentFrameId = uid("f");
+        frames = [{ id: currentFrameId, name: "帧 1", transforms: {} }];
+      }
+      // 新部件在所有帧里都出现（同一初始位置）
+      const t = tf(layer);
+      frames = frames.map((f) => ({ ...f, transforms: { ...f.transforms, [layer.id]: { ...t } } }));
+      return { layers: [...s.layers, layer], frames, currentFrameId, selectedId: layer.id };
     }),
 
   addLayerCentered: (assetId) => {
@@ -112,15 +118,28 @@ export const useStore = create<State>((set, get) => ({
   selectLayer: (id) => set({ selectedId: id }),
 
   patchLayer: (id, patch) =>
-    set((s) => ({
-      layers: s.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)),
-    })),
+    set((s) => {
+      const layers = s.layers.map((l) => (l.id === id ? { ...l, ...patch } : l));
+      let frames = s.frames;
+      // 变换类字段写回当前帧（真正按帧编辑）
+      const hasTf = TF_KEYS.some((k) => k in patch);
+      if (hasTf && s.currentFrameId) {
+        const layer = layers.find((l) => l.id === id)!;
+        frames = s.frames.map((f) =>
+          f.id === s.currentFrameId ? { ...f, transforms: { ...f.transforms, [id]: tf(layer) } } : f
+        );
+      }
+      return { layers, frames };
+    }),
 
   deleteLayer: (id) =>
     set((s) => ({
-      layers: s.layers
-        .filter((l) => l.id !== id)
-        .map((l) => (l.parentId === id ? { ...l, parentId: null } : l)),
+      layers: s.layers.filter((l) => l.id !== id).map((l) => (l.parentId === id ? { ...l, parentId: null } : l)),
+      frames: s.frames.map((f) => {
+        const t = { ...f.transforms };
+        delete t[id];
+        return { ...f, transforms: t };
+      }),
       selectedId: s.selectedId === id ? null : s.selectedId,
     })),
 
@@ -138,7 +157,6 @@ export const useStore = create<State>((set, get) => ({
   setParent: (id, parentId) =>
     set((s) => {
       if (id === parentId) return {};
-      // 防环：parentId 不能是 id 的后代
       const byId = new Map(s.layers.map((l) => [l.id, l]));
       let cur = parentId ? byId.get(parentId) : undefined;
       while (cur) {
@@ -146,15 +164,6 @@ export const useStore = create<State>((set, get) => ({
         cur = cur.parentId ? byId.get(cur.parentId) : undefined;
       }
       return { layers: s.layers.map((l) => (l.id === id ? { ...l, parentId } : l)) };
-    }),
-
-  captureFrame: () =>
-    set((s) => {
-      const transforms: Frame["transforms"] = {};
-      for (const l of s.layers)
-        transforms[l.id] = { x: l.x, y: l.y, rotation: l.rotation, visible: l.visible };
-      const frame: Frame = { id: uid("f"), name: `帧 ${s.frames.length + 1}`, transforms };
-      return { frames: [...s.frames, frame], currentFrameId: frame.id };
     }),
 
   selectFrame: (id) =>
@@ -169,13 +178,39 @@ export const useStore = create<State>((set, get) => ({
     }),
 
   deleteFrame: (id) =>
-    set((s) => ({
-      frames: s.frames.filter((f) => f.id !== id),
-      currentFrameId: s.currentFrameId === id ? null : s.currentFrameId,
-    })),
+    set((s) => {
+      const frames = s.frames.filter((f) => f.id !== id);
+      let currentFrameId = s.currentFrameId;
+      if (s.currentFrameId === id) currentFrameId = frames[0]?.id ?? null;
+      return { frames, currentFrameId };
+    }),
 
-  renameFrame: (id, name) =>
-    set((s) => ({ frames: s.frames.map((f) => (f.id === id ? { ...f, name } : f)) })),
+  duplicateFrame: () => {
+    const s = get();
+    const cur = s.frames.find((f) => f.id === s.currentFrameId);
+    const transforms: Record<string, FrameTransform> = cur
+      ? JSON.parse(JSON.stringify(cur.transforms))
+      : Object.fromEntries(s.layers.map((l) => [l.id, tf(l)]));
+    const id = uid("f");
+    const i = s.frames.findIndex((f) => f.id === s.currentFrameId);
+    const frame: Frame = { id, name: `帧 ${s.frames.length + 1}`, transforms };
+    const frames = [...s.frames];
+    frames.splice(i < 0 ? s.frames.length : i + 1, 0, frame);
+    set({ frames, currentFrameId: id });
+  },
+
+  nextFrame: () => {
+    const s = get();
+    const i = s.frames.findIndex((f) => f.id === s.currentFrameId);
+    if (i >= 0 && i < s.frames.length - 1) s.selectFrame(s.frames[i + 1].id);
+    else s.duplicateFrame(); // 到末尾：复制当前帧（带着上一帧的部件继续调）
+  },
+
+  prevFrame: () => {
+    const s = get();
+    const i = s.frames.findIndex((f) => f.id === s.currentFrameId);
+    if (i > 0) s.selectFrame(s.frames[i - 1].id);
+  },
 
   setView: (v) => set((s) => ({ view: { ...s.view, ...v } })),
   setSettings: (st) => set((s) => ({ settings: { ...s.settings, ...st } })),

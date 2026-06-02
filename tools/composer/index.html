@@ -365,13 +365,17 @@ function hitMarker(sx,sy){
 
 //==================== 指针交互 ====================
 const ptrs=new Map();
-let drag=null;        // {type:'pan'|'move', ...}
+let drag=null;        // {type:'pan'|'move'|'pending', ...}
 let pinch=null;
+let lpTimer=null;     // 长按计时
+const LONGPRESS=300;  // ms，长按拿起
+const MOVE_TOL=10;    // px，超过即判定为划动(平移)而非长按
 
 cv.addEventListener("pointerdown",e=>{
   cv.setPointerCapture(e.pointerId);
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(ptrs.size===2){ // 进入缩放
+    clearTimeout(lpTimer);
     const pts=[...ptrs.values()];
     pinch={d:dist(pts[0],pts[1]),zoom:cam.zoom,
       cx:(pts[0].x+pts[1].x)/2,cy:(pts[0].y+pts[1].y)/2,camx:cam.x,camy:cam.y};
@@ -383,17 +387,24 @@ cv.addEventListener("pointerdown",e=>{
     scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
     return;
   }
-  // 先标记后实例
+  // 命中标记或零件 → 进入"待定"：轻点=选中，长按=拿起，划动=平移
   const m=hitMarker(sx,sy);
-  if(m){selMarker=m;sel=null;updateActions();drag={type:'marker',m};return;}
-  const ins=hitInstance(sx,sy);
-  if(ins){
-    sel=ins.id;selMarker=null;updateActions();
-    drag={type:'move',ins,p:parallaxOf(ins.layer),
-      ox:ins.x,oy:ins.y,sx,sy};
+  const ins=m?null:hitInstance(sx,sy);
+  if(m||ins){
+    const tgt=m?{kind:"marker",obj:m}:{kind:"ins",obj:ins};
+    drag={type:"pending",tgt,ox:(m?m.x:ins.x),oy:(m?m.y:ins.y),sx,sy};
+    clearTimeout(lpTimer);
+    lpTimer=setTimeout(()=>{
+      if(drag&&drag.type==="pending"){
+        drag.type="move";
+        if(tgt.kind==="ins"){sel=tgt.obj.id;selMarker=null;}else{selMarker=tgt.obj;sel=null;}
+        updateActions();
+        if(navigator.vibrate)navigator.vibrate(18);
+        showHint("已拿起，拖动放置");
+      }
+    },LONGPRESS);
   }else{
-    drag={type:'pan',camx:cam.x,camy:cam.y,sx,sy};
-    // 点空白取消选择
+    drag={type:"pan",camx:cam.x,camy:cam.y,sx,sy};
     sel=null;selMarker=null;updateActions();
   }
 });
@@ -404,25 +415,36 @@ cv.addEventListener("pointermove",e=>{
     const pts=[...ptrs.values()];
     const nd=dist(pts[0],pts[1]);
     const nz=Math.max(0.12,Math.min(3,pinch.zoom*nd/pinch.d));
-    // 以双指中点为锚缩放
     const [wxa,wya]=[pinch.cx/pinch.zoom+pinch.camx, pinch.cy/pinch.zoom+pinch.camy];
     cam.zoom=nz;
     cam.x=wxa-pinch.cx/nz; cam.y=wya-pinch.cy/nz;
     return;
   }
   if(!drag)return;
+  if(drag.type==="pending"){
+    // 还没长按就划动 → 当作平移，取消"拿起"
+    if(Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)>MOVE_TOL){
+      clearTimeout(lpTimer);
+      drag={type:"pan",camx:cam.x,camy:cam.y,sx:drag.sx,sy:drag.sy};
+    }else return;
+  }
   if(drag.type==="pan"){
     cam.x=drag.camx-(e.clientX-drag.sx)/cam.zoom;
     cam.y=drag.camy-(e.clientY-drag.sy)/cam.zoom;
   }else if(drag.type==="move"){
-    drag.ins.x=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom);
-    drag.ins.y=Math.round(drag.oy+(e.clientY-drag.sy)/cam.zoom);
-  }else if(drag.type==="marker"){
-    const [wx,wy]=screenToWorld(e.clientX,e.clientY,1);
-    drag.m.x=Math.round(wx);drag.m.y=Math.round(wy);
+    const o=drag.tgt.obj;
+    o.x=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom);
+    o.y=Math.round(drag.oy+(e.clientY-drag.sy)/cam.zoom);
   }
 });
 function endPtr(e){
+  clearTimeout(lpTimer);
+  // 轻点(未长按未划动) = 选中
+  if(drag&&drag.type==="pending"){
+    if(drag.tgt.kind==="ins"){sel=drag.tgt.obj.id;selMarker=null;}
+    else{selMarker=drag.tgt.obj;sel=null;}
+    updateActions();
+  }
   ptrs.delete(e.pointerId);
   if(ptrs.size<2)pinch=null;
   if(ptrs.size===0)drag=null;
@@ -690,7 +712,7 @@ $("loadCancel").onclick=closePanels;
 
 //==================== 启动 ====================
 buildLayers();loadManifest();updateActions();resetToPlayView();
-showHint("青色虚线内=玩家能看到的范围 · 点「主视角」随时回正");
+showHint("轻点=选中 · 长按零件=拿起再拖 · 单指划=平移 · 双指=缩放");
 </script>
 </body>
 </html>

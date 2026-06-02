@@ -51,7 +51,7 @@
   <body>
     <div class="wrap">
       <h1>上传给 Claude</h1>
-      <div class="sub">选文件 → 上传，会提交到仓库 <code>incoming/</code>，Claude 就能读到。</div>
+      <div class="sub">选文件 → 上传，会提交到仓库 <code>incoming/</code>，Claude 就能读到。<br>zip 会在浏览器里自动解压后逐个文件上传，所以大压缩包（如几十 MB 的素材包）也能传。</div>
 
       <div class="card">
         <div class="row">
@@ -86,6 +86,7 @@
       <div class="sub">上传成功后，回聊天告诉 Claude「传好了」。</div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
     <script>
       const OWNER = "CyberpunkPsychosis";
       const REPO = "ai-game-engine";
@@ -145,18 +146,48 @@
           const baseCommit = await gh(token, `/git/commits/${baseCommitSha}`);
           const baseTreeSha = baseCommit.tree.sha;
 
-          // 2. 每个文件上传成 blob，收集到 tree
+          // 上传单个 blob 并加入 tree
           const tree = [];
-          for (const f of files) {
-            log.innerHTML += `<div>上传中：${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB)…</div>`;
-            const buf = await f.arrayBuffer();
+          async function pushBlob(path, bytes) {
             const blob = await gh(token, "/git/blobs", {
               method: "POST",
-              body: { content: bufToBase64(buf), encoding: "base64" },
+              body: { content: bufToBase64(bytes), encoding: "base64" },
             });
-            const path = `${FOLDER}/${tsName(f.name)}`;
             tree.push({ path, mode: "100644", type: "blob", sha: blob.sha });
-            log.innerHTML += `<div class="ok">✓ 已上传：${path}</div>`;
+          }
+
+          // 2. 每个文件：zip 在浏览器里解压后逐张上传，其它文件直接上传
+          for (const f of files) {
+            const isZip = /\.zip$/i.test(f.name);
+            log.innerHTML += `<div>处理：${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB)…</div>`;
+            const buf = await f.arrayBuffer();
+
+            if (isZip) {
+              if (typeof fflate === "undefined") throw new Error("解压库未加载，请检查网络后刷新重试");
+              const entries = fflate.unzipSync(new Uint8Array(buf));
+              const dir = `${FOLDER}/${tsName(f.name).replace(/\.zip$/i, "")}`;
+              const names = Object.keys(entries).filter((n) => {
+                if (n.endsWith("/")) return false;                       // 目录项
+                if (n.startsWith("__MACOSX/")) return false;             // mac 垃圾
+                if (n.split("/").pop().startsWith(".")) return false;    // 隐藏文件 .DS_Store 等
+                return entries[n].length > 0;
+              });
+              log.innerHTML += `<div>解压出 ${names.length} 个文件，逐个上传…</div>`;
+              let i = 0;
+              for (const n of names) {
+                const safe = n.split("/").map((s) => s.replace(/[^\w.\-]+/g, "_")).join("/");
+                await pushBlob(`${dir}/${safe}`, entries[n]);
+                i++;
+                if (i % 10 === 0 || i === names.length) {
+                  log.innerHTML += `<div class="ok">  …${i}/${names.length}</div>`;
+                }
+              }
+              log.innerHTML += `<div class="ok">✓ ${f.name} 已解压上传 → ${dir}/</div>`;
+            } else {
+              const path = `${FOLDER}/${tsName(f.name)}`;
+              await pushBlob(path, new Uint8Array(buf));
+              log.innerHTML += `<div class="ok">✓ 已上传：${path}</div>`;
+            }
           }
 
           // 3. 新建 tree → commit → 移动分支指针

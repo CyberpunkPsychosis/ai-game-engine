@@ -31,6 +31,7 @@ export interface Layer {
   points: AnchorPoint[]; // 命名挂点（如"手""枪口"），供别的部件吸附
   z: number;
   visible: boolean;
+  locked: boolean; // 锁定后画布上点不到/拖不动，防误触
 }
 
 export interface FrameTransform {

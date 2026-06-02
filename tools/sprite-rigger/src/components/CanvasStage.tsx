@@ -71,7 +71,7 @@ export default function CanvasStage() {
     const list = ordered(layers);
     for (let i = list.length - 1; i >= 0; i--) {
       const l = list[i];
-      if (!l.visible) continue;
+      if (!l.visible || l.locked) continue;
       const a = assets[l.assetId];
       if (!a) continue;
       const { fw } = sheetInfo(l);
@@ -281,7 +281,10 @@ export default function CanvasStage() {
         const ix = Math.round(localClicked.x + l.pivotX);
         const iy = Math.round(localClicked.y + l.pivotY);
         if (pm.target === "addpoint") {
-          st.addPointAt(l.id, localClicked.x + l.pivotX, localClicked.y + l.pivotY);
+          // 吸附到所点像素格的中心（floor + 0.5）
+          const cx = Math.floor(localClicked.x + l.pivotX) + 0.5;
+          const cy = Math.floor(localClicked.y + l.pivotY) + 0.5;
+          st.addPointAt(l.id, cx, cy);
           st.setPlaceMode(null); // 一次只加一个，避免误点一堆
           return;
         }
@@ -336,8 +339,8 @@ export default function CanvasStage() {
       const w = screenToWorld(sx, sy);
       const local = worldMatrix(l, st.layers).inverse().transformPoint(new DOMPoint(w.x, w.y));
       st.updatePoint(l.id, drag.current.pointId, {
-        x: Math.round((local.x + l.pivotX) * 10) / 10,
-        y: Math.round((local.y + l.pivotY) * 10) / 10,
+        x: Math.floor(local.x + l.pivotX) + 0.5,
+        y: Math.floor(local.y + l.pivotY) + 0.5,
       });
       return;
     }

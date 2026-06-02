@@ -40,6 +40,7 @@ export default function LayersPanel() {
               {a && <img src={a.url} className="h-5 w-5 object-contain" style={{ imageRendering: "pixelated" }} />}
               <span className="truncate text-sm">{l.name}</span>
               <div className="ml-auto flex items-center gap-0.5 text-xs text-muted">
+                <button onClick={(e) => { e.stopPropagation(); patchLayer(l.id, { locked: !l.locked }); }} className={`px-1 ${l.locked ? "text-clay" : "hover:text-ink"}`} title="锁定（防误触：锁住后画布上点不到/拖不动）">{l.locked ? "🔒" : "🔓"}</button>
                 <button onClick={(e) => { e.stopPropagation(); moveZ(l.id, 1); }} className="px-1 hover:text-ink" title="上移">▲</button>
                 <button onClick={(e) => { e.stopPropagation(); moveZ(l.id, -1); }} className="px-1 hover:text-ink" title="下移">▼</button>
                 <button onClick={(e) => { e.stopPropagation(); deleteLayer(l.id); }} className="px-1 hover:text-clay" title="删除">✕</button>

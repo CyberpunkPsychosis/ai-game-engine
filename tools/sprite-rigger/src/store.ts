@@ -107,6 +107,7 @@ export const useStore = create<State>((set, get) => ({
         points: [],
         z: s.layers.length,
         visible: true,
+        locked: false,
       };
       // 保证至少有一帧
       let frames = s.frames;

@@ -73,6 +73,25 @@ jobs:
           name: AIGameEngine-Windows
           path: build/windows/
 
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tools/sprite-rigger/package-lock.json
+
+      - name: 构建像素拼装工具
+        working-directory: tools/sprite-rigger
+        run: |
+          npm ci
+          npm run build
+
+      - name: 把工具并入网页输出 (/tools/sprite-rigger)
+        run: |
+          mkdir -p build/web/tools/sprite-rigger
+          cp -r tools/sprite-rigger/dist/* build/web/tools/sprite-rigger/
+          ls -la build/web/tools/sprite-rigger
+
       - name: 打包网页版为 Pages 工件
         uses: actions/upload-pages-artifact@v3
         with:

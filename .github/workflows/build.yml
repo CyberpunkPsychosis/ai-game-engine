@@ -1,4 +1,4 @@
-name: Build & Deploy
+name: Build
 
 on:
   push:
@@ -10,15 +10,8 @@ env:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages-${{ github.ref }}"
-  cancel-in-progress: true
 
 jobs:
-  # ---------- 网页版 + Windows 构建 ----------
   build:
     runs-on: ubuntu-latest
     steps:
@@ -45,7 +38,6 @@ jobs:
         run: |
           mkdir -p build/web
           godot --headless --export-release "Web" build/web/index.html
-          # GitHub Pages 不会把 index.html 当目录首页时, 确保存在
           ls -la build/web
 
       - name: 导出 Windows 版
@@ -54,27 +46,14 @@ jobs:
           godot --headless --export-release "Windows Desktop" build/windows/AIGameEngine.exe
           ls -la build/windows
 
-      - name: 上传 Windows 构建 (可下载试玩)
+      - name: 上传网页版 (下载后本地可跑)
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIGameEngine-Web
+          path: build/web/
+
+      - name: 上传 Windows 版 (双击即玩)
         uses: actions/upload-artifact@v4
         with:
           name: AIGameEngine-Windows
           path: build/windows/
-
-      - name: 打包网页版为 Pages 工件
-        if: github.ref == 'refs/heads/claude/game-engine-claude-chat-mbKeN'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: build/web
-
-  # ---------- 部署网页版到 GitHub Pages ----------
-  deploy-pages:
-    needs: build
-    if: github.ref == 'refs/heads/claude/game-engine-claude-chat-mbKeN'
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: 部署到 Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

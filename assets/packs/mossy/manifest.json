@@ -1,0 +1,393 @@
+{
+  "pack": "mossy",
+  "tile_hint": null,
+  "categories": [
+    {
+      "name": "BackgroundDecoration",
+      "role": "background",
+      "parallax": 0.5,
+      "pieces": [
+        {
+          "file": "BackgroundDecoration/BackgroundDecoration_00.png",
+          "w": 1048,
+          "h": 4027
+        },
+        {
+          "file": "BackgroundDecoration/BackgroundDecoration_01.png",
+          "w": 1686,
+          "h": 1725
+        },
+        {
+          "file": "BackgroundDecoration/BackgroundDecoration_02.png",
+          "w": 1034,
+          "h": 2344
+        },
+        {
+          "file": "BackgroundDecoration/BackgroundDecoration_03.png",
+          "w": 1682,
+          "h": 910
+        },
+        {
+          "file": "BackgroundDecoration/BackgroundDecoration_04.png",
+          "w": 1085,
+          "h": 1001
+        },
+        {
+          "file": "BackgroundDecoration/BackgroundDecoration_05.png",
+          "w": 922,
+          "h": 644
+        }
+      ]
+    },
+    {
+      "name": "Decorations_Hazards",
+      "role": "decor",
+      "parallax": 1.0,
+      "pieces": [
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_00.png",
+          "w": 1225,
+          "h": 808
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_01.png",
+          "w": 1053,
+          "h": 915
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_02.png",
+          "w": 1473,
+          "h": 626
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_03.png",
+          "w": 1283,
+          "h": 706
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_04.png",
+          "w": 917,
+          "h": 850
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_05.png",
+          "w": 426,
+          "h": 1473
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_06.png",
+          "w": 421,
+          "h": 1480
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_07.png",
+          "w": 412,
+          "h": 1465
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_08.png",
+          "w": 1140,
+          "h": 512
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_09.png",
+          "w": 246,
+          "h": 1503
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_10.png",
+          "w": 609,
+          "h": 402
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_11.png",
+          "w": 740,
+          "h": 315
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_12.png",
+          "w": 456,
+          "h": 423
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_13.png",
+          "w": 401,
+          "h": 446
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_14.png",
+          "w": 335,
+          "h": 440
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_15.png",
+          "w": 365,
+          "h": 398
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_16.png",
+          "w": 254,
+          "h": 475
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_17.png",
+          "w": 273,
+          "h": 378
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_18.png",
+          "w": 289,
+          "h": 258
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_19.png",
+          "w": 171,
+          "h": 407
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_20.png",
+          "w": 299,
+          "h": 227
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_21.png",
+          "w": 150,
+          "h": 359
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_22.png",
+          "w": 99,
+          "h": 449
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_23.png",
+          "w": 83,
+          "h": 394
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_24.png",
+          "w": 138,
+          "h": 174
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_25.png",
+          "w": 60,
+          "h": 397
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_26.png",
+          "w": 142,
+          "h": 146
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_27.png",
+          "w": 65,
+          "h": 167
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_28.png",
+          "w": 73,
+          "h": 148
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_29.png",
+          "w": 63,
+          "h": 163
+        },
+        {
+          "file": "Decorations_Hazards/Decorations_Hazards_30.png",
+          "w": 68,
+          "h": 127
+        }
+      ]
+    },
+    {
+      "name": "FloatingPlatforms",
+      "role": "platform",
+      "parallax": 1.0,
+      "pieces": [
+        {
+          "file": "FloatingPlatforms/FloatingPlatforms_00.png",
+          "w": 2013,
+          "h": 450
+        },
+        {
+          "file": "FloatingPlatforms/FloatingPlatforms_01.png",
+          "w": 1560,
+          "h": 450
+        },
+        {
+          "file": "FloatingPlatforms/FloatingPlatforms_02.png",
+          "w": 1048,
+          "h": 450
+        },
+        {
+          "file": "FloatingPlatforms/FloatingPlatforms_03.png",
+          "w": 1048,
+          "h": 450
+        },
+        {
+          "file": "FloatingPlatforms/FloatingPlatforms_04.png",
+          "w": 447,
+          "h": 939
+        },
+        {
+          "file": "FloatingPlatforms/FloatingPlatforms_05.png",
+          "w": 381,
+          "h": 368
+        },
+        {
+          "file": "FloatingPlatforms/FloatingPlatforms_06.png",
+          "w": 256,
+          "h": 317
+        },
+        {
+          "file": "FloatingPlatforms/FloatingPlatforms_07.png",
+          "w": 281,
+          "h": 275
+        }
+      ]
+    },
+    {
+      "name": "Hanging_Plants",
+      "role": "foreground",
+      "parallax": 1.15,
+      "pieces": [
+        {
+          "file": "Hanging_Plants/Hanging_Plants_00.png",
+          "w": 465,
+          "h": 1374
+        },
+        {
+          "file": "Hanging_Plants/Hanging_Plants_01.png",
+          "w": 465,
+          "h": 1374
+        },
+        {
+          "file": "Hanging_Plants/Hanging_Plants_02.png",
+          "w": 362,
+          "h": 1175
+        },
+        {
+          "file": "Hanging_Plants/Hanging_Plants_03.png",
+          "w": 759,
+          "h": 509
+        },
+        {
+          "file": "Hanging_Plants/Hanging_Plants_04.png",
+          "w": 759,
+          "h": 509
+        },
+        {
+          "file": "Hanging_Plants/Hanging_Plants_05.png",
+          "w": 759,
+          "h": 509
+        },
+        {
+          "file": "Hanging_Plants/Hanging_Plants_06.png",
+          "w": 362,
+          "h": 973
+        },
+        {
+          "file": "Hanging_Plants/Hanging_Plants_07.png",
+          "w": 361,
+          "h": 975
+        },
+        {
+          "file": "Hanging_Plants/Hanging_Plants_08.png",
+          "w": 266,
+          "h": 946
+        },
+        {
+          "file": "Hanging_Plants/Hanging_Plants_09.png",
+          "w": 303,
+          "h": 818
+        }
+      ]
+    },
+    {
+      "name": "MossyHills",
+      "role": "background",
+      "parallax": 0.35,
+      "pieces": [
+        {
+          "file": "MossyHills/MossyHills_00.png",
+          "w": 1239,
+          "h": 857
+        },
+        {
+          "file": "MossyHills/MossyHills_01.png",
+          "w": 1324,
+          "h": 451
+        },
+        {
+          "file": "MossyHills/MossyHills_02.png",
+          "w": 1155,
+          "h": 487
+        },
+        {
+          "file": "MossyHills/MossyHills_03.png",
+          "w": 534,
+          "h": 423
+        },
+        {
+          "file": "MossyHills/MossyHills_04.png",
+          "w": 381,
+          "h": 368
+        },
+        {
+          "file": "MossyHills/MossyHills_05.png",
+          "w": 256,
+          "h": 317
+        },
+        {
+          "file": "MossyHills/MossyHills_06.png",
+          "w": 281,
+          "h": 275
+        }
+      ]
+    },
+    {
+      "name": "TileSet",
+      "role": "platform",
+      "parallax": 1.0,
+      "pieces": [
+        {
+          "file": "TileSet/TileSet_00.png",
+          "w": 2036,
+          "h": 2048
+        },
+        {
+          "file": "TileSet/TileSet_01.png",
+          "w": 2048,
+          "h": 1536
+        },
+        {
+          "file": "TileSet/TileSet_02.png",
+          "w": 1473,
+          "h": 1474
+        },
+        {
+          "file": "TileSet/TileSet_03.png",
+          "w": 1473,
+          "h": 1474
+        },
+        {
+          "file": "TileSet/TileSet_04.png",
+          "w": 1024,
+          "h": 962
+        },
+        {
+          "file": "TileSet/TileSet_05.png",
+          "w": 449,
+          "h": 1451
+        },
+        {
+          "file": "TileSet/TileSet_06.png",
+          "w": 1048,
+          "h": 450
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-name: Build
+name: Build & Deploy
 
 on:
   push:
@@ -10,6 +10,12 @@ env:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages-${{ github.ref }}"
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -46,14 +52,24 @@ jobs:
           godot --headless --export-release "Windows Desktop" build/windows/AIGameEngine.exe
           ls -la build/windows
 
-      - name: 上传网页版 (下载后本地可跑)
-        uses: actions/upload-artifact@v4
-        with:
-          name: AIGameEngine-Web
-          path: build/web/
-
       - name: 上传 Windows 版 (双击即玩)
         uses: actions/upload-artifact@v4
         with:
           name: AIGameEngine-Windows
           path: build/windows/
+
+      - name: 打包网页版为 Pages 工件
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy-pages:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

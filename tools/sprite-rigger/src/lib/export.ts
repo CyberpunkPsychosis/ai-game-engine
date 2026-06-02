@@ -162,15 +162,25 @@ export async function exportRig(input: ExportInput): Promise<void> {
     canvas: { width: outW, height: outH },
     origin: { x: originX, y: originY },
     fps,
-    layers: ordered(layers).map((l) => ({
-      id: l.id,
-      name: l.name,
-      parent: l.parentId,
-      z: l.z,
-      pivot: { x: l.pivotX, y: l.pivotY },
-      points: (l.points ?? []).map((p) => ({ name: p.name, x: p.x, y: p.y })),
-      asset: assetFileName[l.assetId] ?? null,
-    })),
+    layers: ordered(layers).map((l) => {
+      const a = assets[l.assetId];
+      const sf = Math.max(1, l.sheetFrames || 1);
+      return {
+        id: l.id,
+        name: l.name,
+        parent: l.parentId,
+        z: l.z,
+        // 当前帧(第一帧)装配下的变换
+        transform: { x: l.x, y: l.y, rotation: l.rotation },
+        pivot: { x: l.pivotX, y: l.pivotY },
+        sheet_frames: sf,
+        frame_size: a ? { w: a.width / sf, h: a.height } : null,
+        source_size: a ? { w: a.width, h: a.height } : null,
+        points: (l.points ?? []).map((p) => ({ name: p.name, x: p.x, y: p.y })),
+        asset: assetFileName[l.assetId] ?? null,
+        visible: l.visible,
+      };
+    }),
     frames: frameMeta,
   };
 

@@ -114,21 +114,18 @@
         return `${stamp}-${safe}`;
       }
 
-      async function putFile(token, path, base64) {
-        const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`;
-        const res = await fetch(url, {
-          method: "PUT",
+      // Git Data API：支持单文件最大 100MB，并把多个文件打包进一个 commit
+      async function gh(token, path, opts = {}) {
+        const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}${path}`, {
+          method: opts.method || "GET",
           headers: {
             Authorization: "Bearer " + token,
             Accept: "application/vnd.github+json",
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ message: "upload: " + path, content: base64, branch: BRANCH }),
+          body: opts.body ? JSON.stringify(opts.body) : undefined,
         });
-        if (!res.ok) {
-          const t = await res.text();
-          throw new Error(`HTTP ${res.status} — ${t}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status} — ${await res.text()}`);
         return res.json();
       }
 
@@ -142,16 +139,44 @@
         localStorage.setItem("gh_token", token);
         $("go").disabled = true;
         try {
+          // 1. 拿到当前分支最新 commit 和它的 tree
+          const ref = await gh(token, `/git/ref/heads/${BRANCH}`);
+          const baseCommitSha = ref.object.sha;
+          const baseCommit = await gh(token, `/git/commits/${baseCommitSha}`);
+          const baseTreeSha = baseCommit.tree.sha;
+
+          // 2. 每个文件上传成 blob，收集到 tree
+          const tree = [];
           for (const f of files) {
             log.innerHTML += `<div>上传中：${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB)…</div>`;
             const buf = await f.arrayBuffer();
+            const blob = await gh(token, "/git/blobs", {
+              method: "POST",
+              body: { content: bufToBase64(buf), encoding: "base64" },
+            });
             const path = `${FOLDER}/${tsName(f.name)}`;
-            await putFile(token, path, bufToBase64(buf));
-            log.innerHTML += `<div class="ok">✓ 已提交：${path}</div>`;
+            tree.push({ path, mode: "100644", type: "blob", sha: blob.sha });
+            log.innerHTML += `<div class="ok">✓ 已上传：${path}</div>`;
           }
+
+          // 3. 新建 tree → commit → 移动分支指针
+          const newTree = await gh(token, "/git/trees", {
+            method: "POST",
+            body: { base_tree: baseTreeSha, tree },
+          });
+          const msg = `upload: ${files.length} file(s) to ${FOLDER}/`;
+          const newCommit = await gh(token, "/git/commits", {
+            method: "POST",
+            body: { message: msg, tree: newTree.sha, parents: [baseCommitSha] },
+          });
+          await gh(token, `/git/refs/heads/${BRANCH}`, {
+            method: "PATCH",
+            body: { sha: newCommit.sha },
+          });
+
           log.innerHTML += `<div class="ok" style="margin-top:8px;font-weight:600">全部上传成功！回聊天告诉 Claude「传好了」。</div>`;
         } catch (e) {
-          log.innerHTML += `<div class="err">失败：${e.message}\n（常见原因：令牌没勾 Contents 写权限、或没选这个仓库）</div>`;
+          log.innerHTML += `<div class="err">失败：${e.message}\n（常见原因：令牌没勾 Contents 写权限、或没选这个仓库；单文件上限 100MB）</div>`;
         } finally {
           $("go").disabled = false;
         }

@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>像素拼接工具 · AI Game Engine</title>
+<style>
+  :root{
+    --ink:#eae6dd; --muted:#9a958a; --panel:#1d2226; --panel2:#262c31;
+    --line:#333b41; --clay:#cc785c; --accent:#5cc0cc; --sel:#ffd24a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;overflow:hidden;background:#11151a;color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    user-select:none;-webkit-user-select:none;}
+  #stage{position:fixed;inset:0;touch-action:none;display:block;}
+  /* top bar */
+  .topbar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;gap:6px;
+    padding:0 8px;background:rgba(20,25,29,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:20;}
+  .topbar .title{font-size:14px;font-weight:700;margin-right:auto;}
+  .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:9px;
+    padding:8px 10px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .btn:active{background:#30373d;}
+  .btn.p{background:var(--clay);border-color:var(--clay);}
+  .btn.sm{padding:7px 9px;font-size:12px;}
+  /* layer tabs */
+  .layers{position:fixed;top:48px;left:0;right:0;height:38px;display:flex;gap:0;z-index:19;
+    background:rgba(20,25,29,.9);border-bottom:1px solid var(--line);}
+  .layers .lt{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;
+    color:var(--muted);border-right:1px solid var(--line);cursor:pointer;gap:5px;}
+  .layers .lt.active{color:var(--ink);background:var(--panel2);box-shadow:inset 0 -2px 0 var(--accent);}
+  .layers .lt small{font-size:10px;color:var(--muted);}
+  /* bottom palette */
+  .palette{position:fixed;left:0;right:0;bottom:0;height:128px;background:rgba(20,25,29,.96);
+    border-top:1px solid var(--line);z-index:18;display:flex;flex-direction:column;transition:transform .2s;}
+  .palette.hidden{transform:translateY(128px);}
+  .cats{display:flex;gap:6px;overflow-x:auto;padding:6px 8px;border-bottom:1px solid var(--line);}
+  .cat{padding:5px 9px;font-size:12px;border-radius:7px;background:var(--panel2);color:var(--muted);
+    white-space:nowrap;cursor:pointer;border:1px solid transparent;}
+  .cat.active{color:var(--ink);border-color:var(--accent);}
+  .pieces{display:flex;gap:6px;overflow-x:auto;padding:8px;flex:1;align-items:center;}
+  .pc{flex:0 0 auto;width:76px;height:76px;background:#0d1115;border:1px solid var(--line);border-radius:8px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;padding:4px;}
+  .pc img{max-width:100%;max-height:100%;image-rendering:auto;}
+  /* selection action bar */
+  .actions{position:fixed;left:0;right:0;bottom:0;z-index:21;display:none;gap:6px;flex-wrap:wrap;
+    padding:8px;background:rgba(20,25,29,.97);border-top:1px solid var(--line);justify-content:center;}
+  .actions.show{display:flex;}
+  .actions .btn{flex:0 0 auto;}
+  /* generic panel */
+  .panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(420px,92vw);
+    max-height:80vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:16px;z-index:40;display:none;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+  .panel.show{display:block;}
+  .panel h3{margin:0 0 12px;font-size:15px;}
+  .row{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:13px;}
+  .row label{flex:0 0 92px;color:var(--muted);}
+  .row input[type=range]{flex:1;}
+  .row input[type=color]{width:42px;height:30px;border:none;background:none;}
+  .row input[type=text],.row select{flex:1;background:var(--panel2);border:1px solid var(--line);
+    color:var(--ink);border-radius:8px;padding:8px;font-size:13px;}
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:39;display:none;}
+  .scrim.show{display:block;}
+  .hint{position:fixed;top:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);
+    color:#fff;font-size:12px;padding:6px 12px;border-radius:20px;z-index:15;pointer-events:none;opacity:0;transition:opacity .3s;}
+  .hint.show{opacity:1;}
+  .menu{position:fixed;top:54px;right:8px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:6px;z-index:30;display:none;flex-direction:column;gap:4px;min-width:150px;}
+  .menu.show{display:flex;}
+  .menu .btn{text-align:left;border:none;background:none;}
+  .menu .btn:active{background:var(--panel2);}
+  .toggle{display:flex;background:var(--panel2);border-radius:8px;overflow:hidden;border:1px solid var(--line);}
+  .toggle button{flex:1;border:none;background:none;color:var(--muted);padding:7px;font-size:12px;font-weight:600;}
+  .toggle button.on{background:var(--accent);color:#04222a;}
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<div class="topbar">
+  <div class="title">像素拼接</div>
+  <button class="btn sm" id="btnMarker">标记</button>
+  <button class="btn sm" id="btnPlay">▶ 预览</button>
+  <button class="btn sm p" id="btnMenu">⋯</button>
+</div>
+
+<div class="layers" id="layers"></div>
+
+<div class="menu" id="menu">
+  <button class="btn" id="mNew">🆕 新建空场景</button>
+  <button class="btn" id="mBg">🎨 背景与雾</button>
+  <button class="btn" id="mSave">💾 保存到仓库</button>
+  <button class="btn" id="mLoad">📂 从仓库读取</button>
+  <button class="btn" id="mExport">⬇ 导出 JSON</button>
+  <button class="btn" id="mImport">⬆ 导入 JSON</button>
+  <button class="btn" id="mPng">🖼 导出预览图</button>
+</div>
+
+<div class="hint" id="hint"></div>
+
+<!-- palette -->
+<div class="palette" id="palette">
+  <div class="cats" id="cats"></div>
+  <div class="pieces" id="pieces"></div>
+</div>
+
+<!-- selection actions -->
+<div class="actions" id="actions">
+  <button class="btn sm" data-a="scaleUp">放大＋</button>
+  <button class="btn sm" data-a="scaleDn">缩小－</button>
+  <button class="btn sm" data-a="rotL">↺</button>
+  <button class="btn sm" data-a="rotR">↻</button>
+  <button class="btn sm" data-a="flip">翻转</button>
+  <button class="btn sm" data-a="front">置顶</button>
+  <button class="btn sm" data-a="back">置底</button>
+  <button class="btn sm" data-a="dup">复制</button>
+  <button class="btn sm" data-a="del">🗑删除</button>
+  <button class="btn sm p" data-a="done">完成</button>
+</div>
+
+<!-- bg panel -->
+<div class="scrim" id="scrim"></div>
+<div class="panel" id="bgPanel">
+  <h3>背景与雾</h3>
+  <div class="row"><label>顶部颜色</label><input type="color" id="bgTop"><span id="bgTopV" style="color:var(--muted)"></span></div>
+  <div class="row"><label>底部颜色</label><input type="color" id="bgBot"><span id="bgBotV" style="color:var(--muted)"></span></div>
+  <div class="row"><label>雾颜色</label><input type="color" id="bgFog"></div>
+  <div class="row"><label>雾浓度</label><input type="range" id="bgFogA" min="0" max="100"><span id="bgFogAV" style="color:var(--muted)"></span></div>
+  <div class="row"><label>萤火虫</label><input type="range" id="bgFire" min="0" max="120"><span id="bgFireV" style="color:var(--muted)"></span></div>
+  <button class="btn p" id="bgClose" style="width:100%;margin-top:8px">完成</button>
+</div>
+
+<!-- marker palette -->
+<div class="panel" id="markPanel">
+  <h3>放置标记（点画布放下）</h3>
+  <div class="row"><label>类型</label>
+    <select id="markType">
+      <option value="spawn">出生点 spawn</option>
+      <option value="enemy">敌人 enemy</option>
+      <option value="exit">出口 exit</option>
+      <option value="hazard">机关 hazard</option>
+    </select>
+  </div>
+  <button class="btn p" id="markClose" style="width:100%;margin-top:8px">开始放置</button>
+</div>
+
+<!-- save panel -->
+<div class="panel" id="savePanel">
+  <h3>保存到仓库</h3>
+  <div class="row"><label>场景名</label><input type="text" id="saveName" placeholder="level1"></div>
+  <div class="row"><label>GitHub 令牌</label><input type="text" id="saveTok" placeholder="自动用上传页存的" autocomplete="off"></div>
+  <div id="saveLog" style="font-size:12px;color:var(--muted);margin:8px 0;white-space:pre-wrap"></div>
+  <button class="btn p" id="saveGo" style="width:100%">提交到 scenes/</button>
+  <button class="btn" id="saveCancel" style="width:100%;margin-top:6px">取消</button>
+</div>
+
+<!-- load panel -->
+<div class="panel" id="loadPanel">
+  <h3>从仓库读取</h3>
+  <div id="loadList" style="font-size:13px"></div>
+  <button class="btn" id="loadCancel" style="width:100%;margin-top:10px">取消</button>
+</div>
+
+<input type="file" id="fileIn" accept="application/json" style="display:none">
+
+<script>
+//==================== 配置 ====================
+const OWNER="CyberpunkPsychosis", REPO="ai-game-engine", BRANCH="main";
+// 素材与场景同源加载（构建时拷进 build/web）
+const ASSET_BASE="../../assets/packs/mossy/";
+const PARALLAX={far:0.30, back:0.60, play:1.00, fore:1.18};
+const LAYER_DEF=[
+  {id:"far",  name:"远景"},
+  {id:"back", name:"中背景"},
+  {id:"play", name:"可玩层"},
+  {id:"fore", name:"前景"},
+];
+const MARK_COLOR={spawn:"#46d160",enemy:"#ff5a5a",exit:"#5cc0cc",hazard:"#ffb02e"};
+const MARK_LABEL={spawn:"S",enemy:"E",exit:"X",hazard:"!"};
+
+//==================== 状态 ====================
+const cv=document.getElementById("stage"), ctx=cv.getContext("2d");
+let DPR=Math.min(window.devicePixelRatio||1,2);
+let manifest=null;
+const imgCache=new Map();          // url -> {img, loaded}
+let scene=blankScene();
+let cam={x:0,y:0,zoom:0.5};
+let curLayer="play";
+let sel=null;                      // selected instance id
+let mode="edit";                   // edit | marker | play
+let markType="spawn";
+let palCat=null;
+let t0=performance.now();
+
+function blankScene(){
+  return {
+    version:1, name:"untitled",
+    world:{width:4000,height:1400},
+    background:{top:"#0c3340",bottom:"#0e5a63",fog:"#0e5a63",fogA:0.25,fireflies:40},
+    instances:[], markers:[]
+  };
+}
+
+//==================== 工具 ====================
+const $=id=>document.getElementById(id);
+function showHint(t){const h=$("hint");h.textContent=t;h.classList.add("show");clearTimeout(h._t);h._t=setTimeout(()=>h.classList.remove("show"),1400);}
+function uid(){return Math.random().toString(36).slice(2,9);}
+function layerIndex(id){return LAYER_DEF.findIndex(l=>l.id===id);}
+function parallaxOf(id){return PARALLAX[id]??1;}
+
+function getImg(url){
+  let e=imgCache.get(url);
+  if(e) return e;
+  e={img:new Image(),loaded:false};
+  e.img.crossOrigin="anonymous";
+  e.img.onload=()=>{e.loaded=true;};
+  e.img.src=url;
+  imgCache.set(url,e);
+  return e;
+}
+
+// 世界<->屏幕（按图层视差）
+function worldToScreen(wx,wy,p){
+  return [(wx-cam.x*p)*cam.zoom, (wy-cam.y*p)*cam.zoom];
+}
+function screenToWorld(sx,sy,p){
+  return [sx/cam.zoom+cam.x*p, sy/cam.zoom+cam.y*p];
+}
+
+//==================== 画布尺寸 ====================
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  cv.width=innerWidth*DPR; cv.height=innerHeight*DPR;
+  cv.style.width=innerWidth+"px"; cv.style.height=innerHeight+"px";
+}
+addEventListener("resize",resize); resize();
+
+//==================== 渲染 ====================
+function draw(){
+  const t=(performance.now()-t0)/1000;
+  const W=cv.width,H=cv.height;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const w=innerWidth,h=innerHeight;
+  // 背景渐变
+  const g=ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,scene.background.top);
+  g.addColorStop(1,scene.background.bottom);
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+
+  // 实例：按图层(远->近)再按数组序
+  const order=[...scene.instances].sort((a,b)=>
+    layerIndex(a.layer)-layerIndex(b.layer) || (a.z||0)-(b.z||0));
+  for(const ins of order){
+    const p=parallaxOf(ins.layer);
+    const e=getImg(ASSET_BASE+ins.asset);
+    const [sx,sy]=worldToScreen(ins.x,ins.y,p);
+    const iw=(e.loaded?e.img.naturalWidth:64)*ins.scale*cam.zoom;
+    const ih=(e.loaded?e.img.naturalHeight:64)*ins.scale*cam.zoom;
+    ctx.save();
+    ctx.translate(sx,sy);
+    ctx.rotate((ins.rot||0)*Math.PI/180);
+    if(ins.flipX) ctx.scale(-1,1);
+    if(e.loaded) ctx.drawImage(e.img,-iw/2,-ih/2,iw,ih);
+    else{ctx.fillStyle="#333";ctx.fillRect(-iw/2,-ih/2,iw,ih);}
+    ctx.restore();
+    // 选中描边
+    if(ins.id===sel){
+      ctx.save();ctx.translate(sx,sy);ctx.rotate((ins.rot||0)*Math.PI/180);
+      ctx.strokeStyle="#ffd24a";ctx.lineWidth=2;ctx.setLineDash([6,4]);
+      ctx.strokeRect(-iw/2,-ih/2,iw,ih);ctx.restore();
+    }
+  }
+
+  // 雾（盖在中景之上、前景之下的简单做法：整屏一层）
+  if(scene.background.fogA>0){
+    ctx.globalAlpha=scene.background.fogA;
+    ctx.fillStyle=scene.background.fog;
+    ctx.fillRect(0,h*0.45,w,h*0.55);
+    ctx.globalAlpha=1;
+  }
+
+  // 萤火虫
+  const N=scene.background.fireflies|0;
+  for(let i=0;i<N;i++){
+    const fx=(Math.sin(i*12.9+t*0.3)*0.5+0.5)*w;
+    const fy=(Math.cos(i*7.7+t*0.22)*0.5+0.5)*h;
+    const a=0.3+0.3*Math.sin(t*2+i);
+    ctx.globalAlpha=a;ctx.fillStyle="#cfeecb";
+    ctx.beginPath();ctx.arc(fx,fy,1.6,0,7);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // 标记
+  for(const m of scene.markers){
+    const [sx,sy]=worldToScreen(m.x,m.y,1);
+    ctx.fillStyle=MARK_COLOR[m.type]||"#fff";
+    ctx.beginPath();ctx.arc(sx,sy,12,0,7);ctx.fill();
+    ctx.fillStyle="#04222a";ctx.font="bold 13px sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(MARK_LABEL[m.type]||"?",sx,sy);
+    if(m===selMarker){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(sx,sy,15,0,7);ctx.stroke();}
+  }
+
+  // 地面参考线 + 世界边界
+  ctx.strokeStyle="rgba(255,255,255,.08)";ctx.lineWidth=1;
+  const [bx0,by0]=worldToScreen(0,0,1);
+  const [bx1,by1]=worldToScreen(scene.world.width,scene.world.height,1);
+  ctx.strokeRect(bx0,by0,bx1-bx0,by1-by0);
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+//==================== 命中测试 ====================
+function hitInstance(sx,sy){
+  const order=[...scene.instances].sort((a,b)=>
+    layerIndex(a.layer)-layerIndex(b.layer) || (a.z||0)-(b.z||0));
+  for(let i=order.length-1;i>=0;i--){
+    const ins=order[i];const p=parallaxOf(ins.layer);
+    const e=getImg(ASSET_BASE+ins.asset);if(!e.loaded)continue;
+    const [cx,cy]=worldToScreen(ins.x,ins.y,p);
+    // 逆旋转点到实例本地
+    const ang=-(ins.rot||0)*Math.PI/180;
+    let dx=sx-cx,dy=sy-cy;
+    const rx=dx*Math.cos(ang)-dy*Math.sin(ang);
+    const ry=dx*Math.sin(ang)+dy*Math.cos(ang);
+    const iw=e.img.naturalWidth*ins.scale*cam.zoom/2;
+    const ih=e.img.naturalHeight*ins.scale*cam.zoom/2;
+    if(Math.abs(rx)<=iw&&Math.abs(ry)<=ih) return ins;
+  }
+  return null;
+}
+let selMarker=null;
+function hitMarker(sx,sy){
+  for(let i=scene.markers.length-1;i>=0;i--){
+    const m=scene.markers[i];const [mx,my]=worldToScreen(m.x,m.y,1);
+    if(Math.hypot(sx-mx,sy-my)<16) return m;
+  }
+  return null;
+}
+
+//==================== 指针交互 ====================
+const ptrs=new Map();
+let drag=null;        // {type:'pan'|'move', ...}
+let pinch=null;
+
+cv.addEventListener("pointerdown",e=>{
+  cv.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2){ // 进入缩放
+    const pts=[...ptrs.values()];
+    pinch={d:dist(pts[0],pts[1]),zoom:cam.zoom,
+      cx:(pts[0].x+pts[1].x)/2,cy:(pts[0].y+pts[1].y)/2,camx:cam.x,camy:cam.y};
+    drag=null;return;
+  }
+  const sx=e.clientX,sy=e.clientY;
+  if(mode==="marker"){
+    const [wx,wy]=screenToWorld(sx,sy,1);
+    scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
+    return;
+  }
+  // 先标记后实例
+  const m=hitMarker(sx,sy);
+  if(m){selMarker=m;sel=null;updateActions();drag={type:'marker',m};return;}
+  const ins=hitInstance(sx,sy);
+  if(ins){
+    sel=ins.id;selMarker=null;updateActions();
+    drag={type:'move',ins,p:parallaxOf(ins.layer),
+      ox:ins.x,oy:ins.y,sx,sy};
+  }else{
+    drag={type:'pan',camx:cam.x,camy:cam.y,sx,sy};
+    // 点空白取消选择
+    sel=null;selMarker=null;updateActions();
+  }
+});
+cv.addEventListener("pointermove",e=>{
+  if(!ptrs.has(e.pointerId))return;
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch&&ptrs.size>=2){
+    const pts=[...ptrs.values()];
+    const nd=dist(pts[0],pts[1]);
+    const nz=Math.max(0.12,Math.min(3,pinch.zoom*nd/pinch.d));
+    // 以双指中点为锚缩放
+    const [wxa,wya]=[pinch.cx/pinch.zoom+pinch.camx, pinch.cy/pinch.zoom+pinch.camy];
+    cam.zoom=nz;
+    cam.x=wxa-pinch.cx/nz; cam.y=wya-pinch.cy/nz;
+    return;
+  }
+  if(!drag)return;
+  if(drag.type==="pan"){
+    cam.x=drag.camx-(e.clientX-drag.sx)/cam.zoom;
+    cam.y=drag.camy-(e.clientY-drag.sy)/cam.zoom;
+  }else if(drag.type==="move"){
+    drag.ins.x=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom);
+    drag.ins.y=Math.round(drag.oy+(e.clientY-drag.sy)/cam.zoom);
+  }else if(drag.type==="marker"){
+    const [wx,wy]=screenToWorld(e.clientX,e.clientY,1);
+    drag.m.x=Math.round(wx);drag.m.y=Math.round(wy);
+  }
+});
+function endPtr(e){
+  ptrs.delete(e.pointerId);
+  if(ptrs.size<2)pinch=null;
+  if(ptrs.size===0)drag=null;
+}
+cv.addEventListener("pointerup",endPtr);
+cv.addEventListener("pointercancel",endPtr);
+// 桌面滚轮缩放
+cv.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.1:0.9;
+  const nz=Math.max(0.12,Math.min(3,cam.zoom*f));
+  const [wx,wy]=[e.clientX/cam.zoom+cam.x,e.clientY/cam.zoom+cam.y];
+  cam.zoom=nz;cam.x=wx-e.clientX/nz;cam.y=wy-e.clientY/nz;
+},{passive:false});
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+//==================== 选中操作 ====================
+function curIns(){return scene.instances.find(i=>i.id===sel);}
+function updateActions(){
+  $("actions").classList.toggle("show",!!sel||!!selMarker);
+  $("palette").classList.toggle("hidden",!!sel||!!selMarker||mode!=="edit");
+}
+$("actions").addEventListener("click",e=>{
+  const a=e.target.dataset.a;if(!a)return;
+  if(selMarker){
+    if(a==="del"){scene.markers=scene.markers.filter(m=>m!==selMarker);selMarker=null;}
+    if(a==="done"){selMarker=null;}
+    updateActions();return;
+  }
+  const ins=curIns();if(!ins)return;
+  if(a==="scaleUp")ins.scale=Math.min(8,ins.scale*1.12);
+  if(a==="scaleDn")ins.scale=Math.max(0.05,ins.scale/1.12);
+  if(a==="rotL")ins.rot=(ins.rot||0)-5;
+  if(a==="rotR")ins.rot=(ins.rot||0)+5;
+  if(a==="flip")ins.flipX=!ins.flipX;
+  if(a==="front")ins.z=Math.max(0,...scene.instances.filter(i=>i.layer===ins.layer).map(i=>i.z||0))+1;
+  if(a==="back")ins.z=Math.min(0,...scene.instances.filter(i=>i.layer===ins.layer).map(i=>i.z||0))-1;
+  if(a==="dup"){const c={...ins,id:uid(),x:ins.x+30,y:ins.y+30};scene.instances.push(c);sel=c.id;}
+  if(a==="del"){scene.instances=scene.instances.filter(i=>i.id!==sel);sel=null;}
+  if(a==="done"){sel=null;}
+  updateActions();
+});
+
+//==================== 图层标签 ====================
+function buildLayers(){
+  const el=$("layers");el.innerHTML="";
+  LAYER_DEF.forEach(l=>{
+    const d=document.createElement("div");
+    d.className="lt"+(l.id===curLayer?" active":"");
+    d.innerHTML=`${l.name}<small>×${PARALLAX[l.id]}</small>`;
+    d.onclick=()=>{curLayer=l.id;buildLayers();showHint("当前放置层："+l.name);};
+    el.appendChild(d);
+  });
+}
+
+//==================== 调色板 ====================
+async function loadManifest(){
+  try{
+    const r=await fetch(ASSET_BASE+"manifest.json");
+    manifest=await r.json();
+  }catch(err){showHint("素材清单加载失败");return;}
+  palCat=manifest.categories[0].name;
+  buildCats();buildPieces();
+}
+function buildCats(){
+  const el=$("cats");el.innerHTML="";
+  manifest.categories.forEach(c=>{
+    const d=document.createElement("div");
+    d.className="cat"+(c.name===palCat?" active":"");
+    d.textContent=c.name.replace(/_/g," ");
+    d.onclick=()=>{palCat=c.name;buildCats();buildPieces();};
+    el.appendChild(d);
+  });
+}
+function buildPieces(){
+  const el=$("pieces");el.innerHTML="";
+  const cat=manifest.categories.find(c=>c.name===palCat);
+  cat.pieces.forEach(p=>{
+    const d=document.createElement("div");d.className="pc";
+    const im=document.createElement("img");im.src=ASSET_BASE+p.file;im.loading="lazy";
+    d.appendChild(im);
+    d.onclick=()=>addPiece(cat,p);
+    el.appendChild(d);
+  });
+}
+function addPiece(cat,p){
+  // 放在当前视图中心、当前层
+  const [wx,wy]=screenToWorld(innerWidth/2,innerHeight/2,parallaxOf(curLayer));
+  // 让大图集零件默认缩到合理大小（约屏幕1/4高）
+  const target=innerHeight*0.5/cam.zoom;
+  const sc=Math.min(1, target/Math.max(p.w,p.h));
+  scene.instances.push({id:uid(),layer:curLayer,asset:p.file,
+    x:Math.round(wx),y:Math.round(wy),scale:+sc.toFixed(3),rot:0,flipX:false,z:0});
+  showHint("已放入「"+LAYER_DEF.find(l=>l.id===curLayer).name+"」");
+}
+
+//==================== 顶栏菜单 ====================
+$("btnMenu").onclick=()=>$("menu").classList.toggle("show");
+function closeMenu(){$("menu").classList.remove("show");}
+$("btnMarker").onclick=()=>{openPanel("markPanel");};
+$("btnPlay").onclick=()=>{
+  mode=mode==="play"?"edit":"play";
+  $("btnPlay").textContent=mode==="play"?"■ 停止":"▶ 预览";
+  if(mode==="play"){sel=null;selMarker=null;updateActions();$("palette").classList.add("hidden");playScroll();}
+  else{$("palette").classList.remove("hidden");}
+};
+let playRAF=null;
+function playScroll(){
+  // 简单自动横向滚动，展示视差
+  cancelAnimationFrame(playRAF);
+  function step(){
+    if(mode!=="play")return;
+    cam.x+=2/cam.zoom;
+    if(cam.x>scene.world.width)cam.x=-innerWidth/cam.zoom;
+    playRAF=requestAnimationFrame(step);
+  }
+  step();
+}
+
+//==================== 面板 ====================
+function openPanel(id){$("scrim").classList.add("show");$(id).classList.add("show");closeMenu();}
+function closePanels(){$("scrim").classList.remove("show");document.querySelectorAll(".panel").forEach(p=>p.classList.remove("show"));}
+$("scrim").onclick=closePanels;
+
+// 新建
+$("mNew").onclick=()=>{if(confirm("清空当前场景？")){scene=blankScene();sel=null;selMarker=null;cam={x:0,y:0,zoom:0.5};updateActions();}closeMenu();};
+// 背景
+$("mBg").onclick=()=>{syncBgPanel();openPanel("bgPanel");};
+function syncBgPanel(){
+  $("bgTop").value=scene.background.top;$("bgTopV").textContent=scene.background.top;
+  $("bgBot").value=scene.background.bottom;$("bgBotV").textContent=scene.background.bottom;
+  $("bgFog").value=scene.background.fog;
+  $("bgFogA").value=Math.round(scene.background.fogA*100);$("bgFogAV").textContent=Math.round(scene.background.fogA*100)+"%";
+  $("bgFire").value=scene.background.fireflies;$("bgFireV").textContent=scene.background.fireflies;
+}
+$("bgTop").oninput=e=>{scene.background.top=e.target.value;$("bgTopV").textContent=e.target.value;};
+$("bgBot").oninput=e=>{scene.background.bottom=e.target.value;$("bgBotV").textContent=e.target.value;};
+$("bgFog").oninput=e=>{scene.background.fog=e.target.value;};
+$("bgFogA").oninput=e=>{scene.background.fogA=e.target.value/100;$("bgFogAV").textContent=e.target.value+"%";};
+$("bgFire").oninput=e=>{scene.background.fireflies=+e.target.value;$("bgFireV").textContent=e.target.value;};
+$("bgClose").onclick=closePanels;
+
+// 标记
+$("markClose").onclick=()=>{markType=$("markType").value;mode="marker";closePanels();$("btnMarker").classList.add("p");showHint("点画布放「"+markType+"」，再点标记键退出");};
+$("btnMarker").onclick=()=>{
+  if(mode==="marker"){mode="edit";$("btnMarker").classList.remove("p");showHint("退出标记模式");}
+  else openPanel("markPanel");
+};
+
+// 导出 JSON
+$("mExport").onclick=()=>{
+  const blob=new Blob([JSON.stringify(scene,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download=(scene.name||"scene")+".json";a.click();closeMenu();
+};
+// 导入 JSON
+$("mImport").onclick=()=>{$("fileIn").click();closeMenu();};
+$("fileIn").onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{scene=normalizeScene(JSON.parse(await f.text()));sel=null;selMarker=null;showHint("已导入："+scene.name);}
+  catch(err){showHint("JSON 解析失败");}
+};
+function normalizeScene(s){
+  const b=blankScene();
+  return {...b,...s,background:{...b.background,...(s.background||{})},
+    world:{...b.world,...(s.world||{})},
+    instances:(s.instances||[]).map(i=>({id:i.id||uid(),layer:i.layer||"play",asset:i.asset,
+      x:i.x||0,y:i.y||0,scale:i.scale||1,rot:i.rot||0,flipX:!!i.flipX,z:i.z||0})),
+    markers:s.markers||[]};
+}
+// 导出 PNG（当前视图）
+$("mPng").onclick=()=>{
+  cv.toBlob(b=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);
+    a.download=(scene.name||"scene")+".png";a.click();});closeMenu();
+};
+
+//==================== 存/取仓库（复用上传页 token + Git Data API） ====================
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function gh(token,path,opts={}){
+  let last;
+  for(let a=0;a<5;a++){
+    let res;
+    try{res=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}${path}`,{
+      method:opts.method||"GET",
+      headers:{Authorization:"Bearer "+token,Accept:"application/vnd.github+json","Content-Type":"application/json"},
+      body:opts.body?JSON.stringify(opts.body):undefined});
+    }catch(e){last=e;await sleep(600*2**a);continue;}
+    if(res.ok)return res.json();
+    const body=await res.text();const err=new Error(`HTTP ${res.status} — ${body}`);
+    if(res.status>=500||res.status===429||res.status===409){last=err;await sleep(600*2**a);continue;}
+    throw err;
+  }
+  throw last;
+}
+function b64utf8(str){return btoa(unescape(encodeURIComponent(str)));}
+
+$("mSave").onclick=()=>{
+  $("saveName").value=scene.name==="untitled"?"":scene.name;
+  $("saveTok").value=localStorage.getItem("gh_token")||"";
+  $("saveLog").textContent="";openPanel("savePanel");
+};
+$("saveCancel").onclick=closePanels;
+$("saveGo").onclick=async()=>{
+  const name=($("saveName").value.trim()||"scene").replace(/[^\w\-]+/g,"_");
+  const token=$("saveTok").value.trim();
+  if(!token){$("saveLog").textContent="请填 GitHub 令牌";return;}
+  localStorage.setItem("gh_token",token);
+  scene.name=name;
+  const path=`scenes/${name}.json`;
+  const log=$("saveLog");log.textContent="提交中…";
+  try{
+    const ref=await gh(token,`/git/ref/heads/${BRANCH}`);
+    const parent=ref.object.sha;
+    const base=await gh(token,`/git/commits/${parent}`);
+    const blob=await gh(token,"/git/blobs",{method:"POST",
+      body:{content:b64utf8(JSON.stringify(scene,null,2)),encoding:"base64"}});
+    const tree=await gh(token,"/git/trees",{method:"POST",
+      body:{base_tree:base.tree.sha,tree:[{path,mode:"100644",type:"blob",sha:blob.sha}]}});
+    const commit=await gh(token,"/git/commits",{method:"POST",
+      body:{message:`scene: ${name}`,tree:tree.sha,parents:[parent]}});
+    await gh(token,`/git/refs/heads/${BRANCH}`,{method:"PATCH",body:{sha:commit.sha}});
+    log.textContent="✓ 已提交 "+path+"\n回聊天告诉 Claude 场景名："+name;
+  }catch(e){log.textContent="失败："+e.message;}
+};
+
+$("mLoad").onclick=async()=>{
+  openPanel("loadPanel");const list=$("loadList");list.textContent="读取中…";
+  const token=localStorage.getItem("gh_token")||"";
+  try{
+    const items=await gh(token,`/contents/scenes?ref=${BRANCH}`);
+    const jsons=(Array.isArray(items)?items:[]).filter(f=>f.name.endsWith(".json"));
+    if(!jsons.length){list.textContent="scenes/ 里还没有场景";return;}
+    list.innerHTML="";
+    jsons.forEach(f=>{
+      const b=document.createElement("button");b.className="btn";b.style.width="100%";b.style.margin="4px 0";
+      b.textContent="📄 "+f.name;
+      b.onclick=async()=>{
+        const r=await fetch(f.download_url);scene=normalizeScene(await r.json());
+        sel=null;selMarker=null;closePanels();showHint("已读取："+scene.name);
+      };
+      list.appendChild(b);
+    });
+  }catch(e){list.textContent="失败："+e.message+"（私有仓库需令牌）";}
+};
+$("loadCancel").onclick=closePanels;
+
+//==================== 启动 ====================
+buildLayers();loadManifest();updateActions();
+showHint("点下方零件放入画布 · 单指拖动平移 · 双指缩放");
+</script>
+</body>
+</html>

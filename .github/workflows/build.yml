@@ -92,6 +92,12 @@ jobs:
           cp -r tools/sprite-rigger/dist/* build/web/tools/sprite-rigger/
           mkdir -p build/web/tools/uploader
           cp -r tools/uploader/* build/web/tools/uploader/
+          mkdir -p build/web/tools/composer
+          cp -r tools/composer/* build/web/tools/composer/
+          mkdir -p build/web/assets
+          cp -r assets/* build/web/assets/ 2>/dev/null || true
+          mkdir -p build/web/scenes
+          cp -r scenes/* build/web/scenes/ 2>/dev/null || true
           ls -la build/web/tools
 
       - name: 打包网页版为 Pages 工件

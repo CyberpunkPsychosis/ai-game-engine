@@ -1,0 +1,253 @@
+{
+  "version": 1,
+  "name": "demo",
+  "world": {
+    "width": 4200,
+    "height": 1400
+  },
+  "background": {
+    "top": "#0b3a48",
+    "bottom": "#0f6470",
+    "fog": "#10727d",
+    "fogA": 0.22,
+    "fireflies": 50
+  },
+  "instances": [
+    {
+      "id": "ujzde8g",
+      "layer": "far",
+      "asset": "MossyHills/MossyHills_00.png",
+      "x": 200,
+      "y": 1150,
+      "scale": 0.55,
+      "rot": 0,
+      "flipX": false,
+      "z": 0
+    },
+    {
+      "id": "xd6ncf1",
+      "layer": "far",
+      "asset": "MossyHills/MossyHills_01.png",
+      "x": 900,
+      "y": 1150,
+      "scale": 0.55,
+      "rot": 0,
+      "flipX": false,
+      "z": 1
+    },
+    {
+      "id": "0epf91d",
+      "layer": "far",
+      "asset": "MossyHills/MossyHills_02.png",
+      "x": 1600,
+      "y": 1150,
+      "scale": 0.55,
+      "rot": 0,
+      "flipX": false,
+      "z": 2
+    },
+    {
+      "id": "hodzdoc",
+      "layer": "far",
+      "asset": "MossyHills/MossyHills_00.png",
+      "x": 2300,
+      "y": 1150,
+      "scale": 0.55,
+      "rot": 0,
+      "flipX": false,
+      "z": 3
+    },
+    {
+      "id": "9is0j8h",
+      "layer": "far",
+      "asset": "MossyHills/MossyHills_01.png",
+      "x": 3000,
+      "y": 1150,
+      "scale": 0.55,
+      "rot": 0,
+      "flipX": false,
+      "z": 4
+    },
+    {
+      "id": "t9lgmxg",
+      "layer": "far",
+      "asset": "MossyHills/MossyHills_02.png",
+      "x": 3700,
+      "y": 1150,
+      "scale": 0.55,
+      "rot": 0,
+      "flipX": false,
+      "z": 5
+    },
+    {
+      "id": "9edn581",
+      "layer": "back",
+      "asset": "BackgroundDecoration/BackgroundDecoration_01.png",
+      "x": 900,
+      "y": 520,
+      "scale": 0.5,
+      "rot": 0,
+      "flipX": false,
+      "z": 0
+    },
+    {
+      "id": "u33xtpl",
+      "layer": "back",
+      "asset": "BackgroundDecoration/BackgroundDecoration_04.png",
+      "x": 2600,
+      "y": 560,
+      "scale": 0.55,
+      "rot": 0,
+      "flipX": false,
+      "z": 1
+    },
+    {
+      "id": "pft75v2",
+      "layer": "play",
+      "asset": "FloatingPlatforms/FloatingPlatforms_00.png",
+      "x": 500,
+      "y": 1120,
+      "scale": 0.34,
+      "rot": 0,
+      "flipX": false,
+      "z": 0
+    },
+    {
+      "id": "seh60kv",
+      "layer": "play",
+      "asset": "TileSet/TileSet_06.png",
+      "x": 1250,
+      "y": 1080,
+      "scale": 0.6,
+      "rot": 0,
+      "flipX": false,
+      "z": 0
+    },
+    {
+      "id": "j50ce9u",
+      "layer": "play",
+      "asset": "FloatingPlatforms/FloatingPlatforms_01.png",
+      "x": 2050,
+      "y": 1060,
+      "scale": 0.34,
+      "rot": 0,
+      "flipX": false,
+      "z": 0
+    },
+    {
+      "id": "vw53efr",
+      "layer": "play",
+      "asset": "TileSet/TileSet_04.png",
+      "x": 3000,
+      "y": 1120,
+      "scale": 0.3,
+      "rot": 0,
+      "flipX": false,
+      "z": 0
+    },
+    {
+      "id": "4edt2sy",
+      "layer": "play",
+      "asset": "FloatingPlatforms/FloatingPlatforms_02.png",
+      "x": 3650,
+      "y": 1140,
+      "scale": 0.34,
+      "rot": 0,
+      "flipX": false,
+      "z": 0
+    },
+    {
+      "id": "wb3wkh5",
+      "layer": "play",
+      "asset": "Decorations_Hazards/Decorations_Hazards_00.png",
+      "x": 760,
+      "y": 1030,
+      "scale": 0.18,
+      "rot": 0,
+      "flipX": false,
+      "z": 2
+    },
+    {
+      "id": "dnsipzz",
+      "layer": "play",
+      "asset": "Decorations_Hazards/Decorations_Hazards_01.png",
+      "x": 2300,
+      "y": 1000,
+      "scale": 0.16,
+      "rot": 0,
+      "flipX": false,
+      "z": 2
+    },
+    {
+      "id": "5fk2z9r",
+      "layer": "play",
+      "asset": "Decorations_Hazards/Decorations_Hazards_05.png",
+      "x": 1700,
+      "y": 1000,
+      "scale": 0.22,
+      "rot": 0,
+      "flipX": false,
+      "z": 3
+    },
+    {
+      "id": "i19r0wy",
+      "layer": "fore",
+      "asset": "Hanging_Plants/Hanging_Plants_00.png",
+      "x": 400,
+      "y": 150,
+      "scale": 0.5,
+      "rot": 0,
+      "flipX": false,
+      "z": 0
+    },
+    {
+      "id": "ojfljoo",
+      "layer": "fore",
+      "asset": "Hanging_Plants/Hanging_Plants_03.png",
+      "x": 1900,
+      "y": 120,
+      "scale": 0.6,
+      "rot": 0,
+      "flipX": false,
+      "z": 1
+    },
+    {
+      "id": "a5lqsaj",
+      "layer": "fore",
+      "asset": "Hanging_Plants/Hanging_Plants_01.png",
+      "x": 3300,
+      "y": 150,
+      "scale": 0.5,
+      "rot": 0,
+      "flipX": true,
+      "z": 2
+    }
+  ],
+  "markers": [
+    {
+      "type": "spawn",
+      "x": 300,
+      "y": 1000
+    },
+    {
+      "type": "enemy",
+      "x": 1300,
+      "y": 1000
+    },
+    {
+      "type": "hazard",
+      "x": 1700,
+      "y": 1080
+    },
+    {
+      "type": "enemy",
+      "x": 2100,
+      "y": 980
+    },
+    {
+      "type": "exit",
+      "x": 3900,
+      "y": 1040
+    }
+  ]
+}

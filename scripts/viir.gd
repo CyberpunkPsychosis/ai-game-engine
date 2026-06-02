@@ -23,6 +23,19 @@ extends CharacterBody2D
 @export var dash_end_speed := 380.0
 @export var bounce_velocity := -860.0
 
+@export_group("果冻 Q弹")
+@export var jelly_land := 0.42       ## 落地挤压量(越大越扁)
+@export var jelly_jump := 0.30       ## 起跳拉伸量
+@export var jelly_bounce := 0.55     ## 踩史莱姆弹起拉伸量
+@export var jelly_dash := 0.30       ## 冲刺横向拉伸量
+@export var jelly_stiffness := 240.0 ## 弹簧刚度(越大回弹越快)
+@export var jelly_damping := 10.0    ## 阻尼(越小抖得越久=越Q)
+
+const _BASE := 0.58
+var _deform := 0.0       # >0 竖向拉长, <0 压扁变宽
+var _deform_vel := 0.0
+var _was_floor := false
+
 var _coyote := 0.0
 var _buffer := 0.0
 var _dashes := 1
@@ -77,6 +90,15 @@ func _physics_process(delta: float) -> void:
 	else:
 		_coyote = max(_coyote - delta, 0.0)
 
+	# —— 果冻弹簧：每帧把形变弹回 0(欠阻尼 -> 回弹抖动) ——
+	_deform_vel += (-jelly_stiffness * _deform - jelly_damping * _deform_vel) * delta
+	_deform += _deform_vel * delta
+	spr.scale = Vector2(_BASE * (1.0 - 0.6 * _deform), _BASE * (1.0 + _deform))
+	if on_floor and not _was_floor:   # 刚落地 -> 啪地压扁
+		_deform = -jelly_land
+		_deform_vel = 0.0
+	_was_floor = on_floor
+
 	# —— 冲刺进行中 ——
 	if _dashing > 0.0:
 		_dashing -= delta
@@ -95,6 +117,7 @@ func _physics_process(delta: float) -> void:
 		_dashes -= 1
 		_dashing = dash_time
 		velocity = _dash_dir * dash_speed
+		_deform = -jelly_dash      # 横向拉伸(变宽变扁)
 		spr.play("dash")
 		return
 
@@ -116,6 +139,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = jump_velocity
 		_buffer = 0.0
 		_coyote = 0.0
+		_deform = jelly_jump       # 起跳竖向拉长
 	if Input.is_action_just_released("jump") and velocity.y < 0.0:
 		velocity.y *= jump_cut
 
@@ -141,6 +165,7 @@ func bounce() -> void:
 	velocity.y = bounce_velocity
 	_dashes = 1
 	_dashing = 0.0
+	_deform = jelly_bounce     # 弹起大幅拉长
 
 func respawn() -> void:
 	global_position = spawn_point

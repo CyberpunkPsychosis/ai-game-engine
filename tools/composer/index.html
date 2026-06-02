@@ -79,6 +79,7 @@
 
 <div class="topbar">
   <div class="title">像素拼接</div>
+  <button class="btn sm" id="btnHome">主视角</button>
   <button class="btn sm" id="btnMarker">标记</button>
   <button class="btn sm" id="btnPlay">▶ 预览</button>
   <button class="btn sm p" id="btnMenu">⋯</button>
@@ -121,7 +122,9 @@
 <!-- bg panel -->
 <div class="scrim" id="scrim"></div>
 <div class="panel" id="bgPanel">
-  <h3>背景与雾</h3>
+  <h3>背景与雾 · 可视区</h3>
+  <div class="row"><label>可视高度</label><input type="range" id="vH" min="400" max="2000"><span id="vHV" style="color:var(--muted)"></span></div>
+  <div class="row"><label>地面线</label><input type="range" id="vG" min="200" max="2000"><span id="vGV" style="color:var(--muted)"></span></div>
   <div class="row"><label>顶部颜色</label><input type="color" id="bgTop"><span id="bgTopV" style="color:var(--muted)"></span></div>
   <div class="row"><label>底部颜色</label><input type="color" id="bgBot"><span id="bgBotV" style="color:var(--muted)"></span></div>
   <div class="row"><label>雾颜色</label><input type="color" id="bgFog"></div>
@@ -196,9 +199,12 @@ let palCat=null;
 let t0=performance.now();
 
 function blankScene(){
+  const h=1400;
   return {
     version:1, name:"untitled",
-    world:{width:4000,height:1400},
+    world:{width:4000,height:h},
+    // 玩家相机：纵向可视高度 h，groundY=可视区底部(地面线)
+    view:{h:Math.round(h*0.72), groundY:h-100},
     background:{top:"#0c3340",bottom:"#0e5a63",fog:"#0e5a63",fogA:0.25,fireflies:40},
     instances:[], markers:[]
   };
@@ -304,11 +310,26 @@ function draw(){
     if(m===selMarker){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(sx,sy,15,0,7);ctx.stroke();}
   }
 
-  // 地面参考线 + 世界边界
+  // 世界边界
   ctx.strokeStyle="rgba(255,255,255,.08)";ctx.lineWidth=1;
   const [bx0,by0]=worldToScreen(0,0,1);
   const [bx1,by1]=worldToScreen(scene.world.width,scene.world.height,1);
   ctx.strokeRect(bx0,by0,bx1-bx0,by1-by0);
+
+  // 主视角可视区参考（play 模式不画——那时整屏≈玩家所见）
+  if(mode!=="play"){
+    const vTop=scene.view.groundY-scene.view.h, vBot=scene.view.groundY;
+    const syTop=(vTop-cam.y)*cam.zoom, syBot=(vBot-cam.y)*cam.zoom;
+    ctx.fillStyle="rgba(0,0,0,.34)";
+    if(syTop>0)ctx.fillRect(0,0,w,Math.min(syTop,h));
+    if(syBot<h)ctx.fillRect(0,Math.max(0,syBot),w,h-Math.max(0,syBot));
+    ctx.strokeStyle="rgba(92,192,204,.85)";ctx.lineWidth=1.5;ctx.setLineDash([10,6]);
+    ctx.beginPath();ctx.moveTo(0,syTop);ctx.lineTo(w,syTop);
+    ctx.moveTo(0,syBot);ctx.lineTo(w,syBot);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="rgba(140,220,230,.95)";ctx.font="11px sans-serif";ctx.textAlign="left";
+    ctx.textBaseline="top";ctx.fillText("▲ 画面上边（再高玩家看不到）",8,Math.max(2,syTop+4));
+    ctx.textBaseline="bottom";ctx.fillText("▼ 画面下边（地面线附近）",8,Math.min(h-2,syBot-4));
+  }
 
   requestAnimationFrame(draw);
 }
@@ -501,6 +522,17 @@ function addPiece(cat,p){
 //==================== 顶栏菜单 ====================
 $("btnMenu").onclick=()=>$("menu").classList.toggle("show");
 function closeMenu(){$("menu").classList.remove("show");}
+// 主视角：把镜头摆成玩家真实视角（可视区刚好充满屏幕）
+function resetToPlayView(){
+  const vh=scene.view.h, top=scene.view.groundY-vh;
+  cam.zoom=innerHeight/vh;
+  cam.y=top;                       // 可视区顶贴屏幕顶
+  const sp=scene.markers.find(m=>m.type==="spawn");
+  const cx=sp?sp.x:innerWidth/(2*cam.zoom);
+  cam.x=cx-innerWidth/(2*cam.zoom); // 出生点居中
+  showHint("主视角：屏幕内 ≈ 玩家所见");
+}
+$("btnHome").onclick=resetToPlayView;
 $("btnMarker").onclick=()=>{openPanel("markPanel");};
 $("btnPlay").onclick=()=>{
   mode=mode==="play"?"edit":"play";
@@ -531,12 +563,16 @@ $("mNew").onclick=()=>{if(confirm("清空当前场景？")){scene=blankScene();s
 // 背景
 $("mBg").onclick=()=>{syncBgPanel();openPanel("bgPanel");};
 function syncBgPanel(){
+  $("vH").max=scene.world.height;$("vH").value=scene.view.h;$("vHV").textContent=scene.view.h;
+  $("vG").max=scene.world.height;$("vG").value=scene.view.groundY;$("vGV").textContent=scene.view.groundY;
   $("bgTop").value=scene.background.top;$("bgTopV").textContent=scene.background.top;
   $("bgBot").value=scene.background.bottom;$("bgBotV").textContent=scene.background.bottom;
   $("bgFog").value=scene.background.fog;
   $("bgFogA").value=Math.round(scene.background.fogA*100);$("bgFogAV").textContent=Math.round(scene.background.fogA*100)+"%";
   $("bgFire").value=scene.background.fireflies;$("bgFireV").textContent=scene.background.fireflies;
 }
+$("vH").oninput=e=>{scene.view.h=+e.target.value;$("vHV").textContent=e.target.value;};
+$("vG").oninput=e=>{scene.view.groundY=+e.target.value;$("vGV").textContent=e.target.value;};
 $("bgTop").oninput=e=>{scene.background.top=e.target.value;$("bgTopV").textContent=e.target.value;};
 $("bgBot").oninput=e=>{scene.background.bottom=e.target.value;$("bgBotV").textContent=e.target.value;};
 $("bgFog").oninput=e=>{scene.background.fog=e.target.value;};
@@ -561,13 +597,15 @@ $("mExport").onclick=()=>{
 $("mImport").onclick=()=>{$("fileIn").click();closeMenu();};
 $("fileIn").onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
-  try{scene=normalizeScene(JSON.parse(await f.text()));sel=null;selMarker=null;showHint("已导入："+scene.name);}
+  try{scene=normalizeScene(JSON.parse(await f.text()));sel=null;selMarker=null;resetToPlayView();showHint("已导入："+scene.name);}
   catch(err){showHint("JSON 解析失败");}
 };
 function normalizeScene(s){
   const b=blankScene();
+  const world={...b.world,...(s.world||{})};
+  const view=s.view||{h:Math.round(world.height*0.72),groundY:world.height-100};
   return {...b,...s,background:{...b.background,...(s.background||{})},
-    world:{...b.world,...(s.world||{})},
+    world, view,
     instances:(s.instances||[]).map(i=>({id:i.id||uid(),layer:i.layer||"play",asset:i.asset,
       x:i.x||0,y:i.y||0,scale:i.scale||1,rot:i.rot||0,flipX:!!i.flipX,z:i.z||0})),
     markers:s.markers||[]};
@@ -642,7 +680,7 @@ $("mLoad").onclick=async()=>{
       b.onclick=async()=>{
         const sr=await fetch(SCENE_BASE+name+"?_="+Date.now());
         scene=normalizeScene(await sr.json());
-        sel=null;selMarker=null;closePanels();showHint("已读取："+scene.name);
+        sel=null;selMarker=null;closePanels();resetToPlayView();showHint("已读取："+scene.name);
       };
       list.appendChild(b);
     });
@@ -651,8 +689,8 @@ $("mLoad").onclick=async()=>{
 $("loadCancel").onclick=closePanels;
 
 //==================== 启动 ====================
-buildLayers();loadManifest();updateActions();
-showHint("点下方零件放入画布 · 单指拖动平移 · 双指缩放");
+buildLayers();loadManifest();updateActions();resetToPlayView();
+showHint("青色虚线内=玩家能看到的范围 · 点「主视角」随时回正");
 </script>
 </body>
 </html>

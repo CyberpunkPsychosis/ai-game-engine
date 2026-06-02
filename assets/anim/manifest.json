@@ -1,0 +1,214 @@
+{
+  "animations": [
+    {
+      "name": "SlimeGreen",
+      "file": "enemy/SlimeGreen.png",
+      "fw": 220,
+      "fh": 146,
+      "count": 30,
+      "cols": 6,
+      "fps": 12,
+      "role": "enemy"
+    },
+    {
+      "name": "SlimeOrange",
+      "file": "enemy/SlimeOrange.png",
+      "fw": 220,
+      "fh": 139,
+      "count": 30,
+      "cols": 6,
+      "fps": 12,
+      "role": "enemy"
+    },
+    {
+      "name": "BlueFlower1",
+      "file": "plant/BlueFlower1.png",
+      "fw": 245,
+      "fh": 256,
+      "count": 60,
+      "cols": 8,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "BlueFlower2",
+      "file": "plant/BlueFlower2.png",
+      "fw": 256,
+      "fh": 249,
+      "count": 60,
+      "cols": 8,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "PlantJump",
+      "file": "plant/PlantJump.png",
+      "fw": 256,
+      "fh": 188,
+      "count": 20,
+      "cols": 5,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "PlantJump2",
+      "file": "plant/PlantJump2.png",
+      "fw": 256,
+      "fh": 172,
+      "count": 20,
+      "cols": 5,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "Plant_1",
+      "file": "plant/Plant_1.png",
+      "fw": 140,
+      "fh": 256,
+      "count": 90,
+      "cols": 10,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "Plant_2",
+      "file": "plant/Plant_2.png",
+      "fw": 256,
+      "fh": 210,
+      "count": 90,
+      "cols": 10,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "Plant_3",
+      "file": "plant/Plant_3.png",
+      "fw": 256,
+      "fh": 204,
+      "count": 90,
+      "cols": 10,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "Plant_4",
+      "file": "plant/Plant_4.png",
+      "fw": 75,
+      "fh": 256,
+      "count": 60,
+      "cols": 8,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "Plant_5",
+      "file": "plant/Plant_5.png",
+      "fw": 133,
+      "fh": 256,
+      "count": 60,
+      "cols": 8,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "Plant_6",
+      "file": "plant/Plant_6.png",
+      "fw": 104,
+      "fh": 256,
+      "count": 60,
+      "cols": 8,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "Plant_7",
+      "file": "plant/Plant_7.png",
+      "fw": 129,
+      "fh": 256,
+      "count": 60,
+      "cols": 8,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "Plant_8_Poison",
+      "file": "plant/Plant_8_Poison.png",
+      "fw": 256,
+      "fh": 192,
+      "count": 30,
+      "cols": 6,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "Plant_Wind_1",
+      "file": "plant/Plant_Wind_1.png",
+      "fw": 256,
+      "fh": 253,
+      "count": 30,
+      "cols": 6,
+      "fps": 12,
+      "role": "plant"
+    },
+    {
+      "name": "Wizard_Idle",
+      "file": "player/Wizard_Idle.png",
+      "fw": 141,
+      "fh": 256,
+      "count": 20,
+      "cols": 5,
+      "fps": 12,
+      "role": "player"
+    },
+    {
+      "name": "Wizard_Walk",
+      "file": "player/Wizard_Walk.png",
+      "fw": 145,
+      "fh": 256,
+      "count": 20,
+      "cols": 5,
+      "fps": 12,
+      "role": "player"
+    },
+    {
+      "name": "Wizard_Jump",
+      "file": "player/Wizard_Jump.png",
+      "fw": 146,
+      "fh": 256,
+      "count": 8,
+      "cols": 3,
+      "fps": 12,
+      "role": "player"
+    },
+    {
+      "name": "Wizard_Dash2",
+      "file": "player/Wizard_Dash2.png",
+      "fw": 212,
+      "fh": 256,
+      "count": 16,
+      "cols": 4,
+      "fps": 12,
+      "role": "player"
+    },
+    {
+      "name": "Wizard_Dash3",
+      "file": "player/Wizard_Dash3.png",
+      "fw": 161,
+      "fh": 256,
+      "count": 16,
+      "cols": 4,
+      "fps": 12,
+      "role": "player"
+    },
+    {
+      "name": "Wizard_DashEffect",
+      "file": "player/Wizard_DashEffect.png",
+      "fw": 164,
+      "fh": 256,
+      "count": 16,
+      "cols": 4,
+      "fps": 12,
+      "role": "player"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 extends CharacterBody2D
-## 史莱姆敌人：可被挑空/空中连击/俯冲砸落，可被打死。受击有击退+闪红+硬直。
+## 史莱姆敌人：可被挑空/空中连击/俯冲砸落，可被打死。受击有击退+闪白(FX)+硬直+无敌帧。
 
 @export var max_hp := 3
 @export var speed := 40.0
@@ -8,7 +8,6 @@ extends CharacterBody2D
 const GRAV := 1800.0
 var _hp := 0
 var _dir := 1
-var _flash := 0.0
 var _knock := 0.0
 var _inv := 0.0
 var spr: AnimatedSprite2D
@@ -62,11 +61,6 @@ func _physics_process(delta: float) -> void:
 		if is_on_wall():
 			_dir *= -1
 	move_and_slide()
-	if _flash > 0.0:
-		_flash -= delta
-		spr.modulate = Color(1.0, 0.5, 0.5)
-	else:
-		spr.modulate = Color.WHITE
 	if absf(velocity.x) > 5.0:
 		spr.flip_h = velocity.x < 0.0
 
@@ -76,16 +70,21 @@ func hurt(dmg: int, kb: Vector2) -> void:
 	_hp -= dmg
 	velocity = kb
 	_knock = 0.35
-	_flash = 0.12
+	FX.flash(spr)
+	FX.sfx("hit", 0.0, randf_range(0.92, 1.08))
 	Juice.hitstop(0.05)
 	if _hp <= 0:
 		_die()
 
 func _die() -> void:
 	_dead = true
+	collision_layer = 0
 	var b := preload("res://scenes/spore_burst.tscn").instantiate()
 	b.global_position = global_position + Vector2(0, -26)
 	b.scale = Vector2(0.5, 0.5)
 	get_parent().add_child(b)
+	FX.dissolve(spr)
+	FX.screen_flash(Color(0.7, 1.0, 0.85), 0.3, 0.22)
+	FX.sfx("enemy_die")
 	Juice.shake(8.0)
-	queue_free()
+	get_tree().create_timer(0.25).timeout.connect(queue_free)

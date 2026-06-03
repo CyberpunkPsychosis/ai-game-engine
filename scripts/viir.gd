@@ -37,11 +37,8 @@ extends CharacterBody2D
 @export var ult_jelly := 0.6         ## 放招的果冻拉伸量
 
 const SPORE_BURST := preload("res://scenes/spore_burst.tscn")
-const VIIR_RIG := preload("res://scenes/viir_rig.tscn")
 const HIT_FX := preload("res://scenes/hit_fx.tscn")
 var _ult_cd := 0.0
-var _rig: Node2D
-var _casting := false
 
 @export_group("连招")
 @export var combo_window := 0.45     ## 接招窗口
@@ -84,12 +81,6 @@ func _ready() -> void:
 	spr.scale = Vector2(0.58, 0.58)        # 256px 帧 -> ~148px 高
 	spr.position = Vector2(0, -28)         # 让脚底对齐碰撞底
 	spr.play("idle")
-	# 施法绑骨(默认隐藏，放招时显示)
-	_rig = VIIR_RIG.instantiate()
-	_rig.position = Vector2(0, -28)
-	_rig.visible = false
-	add_child(_rig)
-	_rig.released.connect(_on_rig_released)
 
 func _build_frames() -> SpriteFrames:
 	var man = JSON.parse_string(FileAccess.get_file_as_string("res://assets/anim/manifest.json"))
@@ -159,6 +150,7 @@ func _physics_process(delta: float) -> void:
 		_deform = -jelly_dash      # 横向拉伸(变宽变扁)
 		spr.play("dash")
 		_spawn_afterimage()
+		FX.sfx("dash")
 		return
 
 	# —— 连招 ——
@@ -168,7 +160,7 @@ func _physics_process(delta: float) -> void:
 		_combo = 0
 	if _atk == "dive" and on_floor:
 		_dive_land()
-	if Input.is_action_just_pressed("attack") and _atk_lock <= 0.0 and not _casting:
+	if Input.is_action_just_pressed("attack") and _atk_lock <= 0.0:
 		if on_floor:
 			_combo += 1
 			if _combo >= 3: _launch()
@@ -199,6 +191,7 @@ func _physics_process(delta: float) -> void:
 		_buffer = 0.0
 		_coyote = 0.0
 		_deform = jelly_jump       # 起跳竖向拉长
+		FX.sfx("jump")
 	if Input.is_action_just_released("jump") and velocity.y < 0.0:
 		velocity.y *= jump_cut
 
@@ -232,26 +225,16 @@ func _cast_ultimate() -> void:
 	_ult_cd = ult_cooldown
 	_dashes = 1                          # 放招即刷新冲刺(连段起手)
 	_dashing = 0.0
+	_deform = ult_jelly
 	velocity = Vector2(velocity.x * 0.2, ult_pop)
-	# 切到绑骨播施法动作(孢爆在释放瞬间由 released 信号生成)
-	_casting = true
-	spr.visible = false
-	_rig.visible = true
-	_rig.scale = Vector2(_BASE * _facing, _BASE)
-	_rig.play_cast()
-	get_tree().create_timer(0.6).timeout.connect(_end_cast)
-
-func _on_rig_released() -> void:
+	spr.play("jump")
 	var b := SPORE_BURST.instantiate()
 	b.global_position = global_position
 	get_parent().add_child(b)
+	FX.sfx("cast")
+	FX.screen_flash(Color(0.7, 1.0, 0.85), 0.3, 0.2)
 	Juice.shake(12.0)
 	Juice.hitstop(0.06)
-
-func _end_cast() -> void:
-	_casting = false
-	_rig.visible = false
-	spr.visible = true
 
 # ============ 连招 ============
 func _ground_hit() -> void:
@@ -260,6 +243,7 @@ func _ground_hit() -> void:
 	_deform = 0.16; spr.play("dash")
 	_spawn_hit(Vector2(_facing * 72, -42))
 	_strike("ground")
+	FX.sfx("slash", 0.0, 1.0 + _combo * 0.06)
 	Juice.hitstop(0.04); Juice.shake(4.0)
 
 func _launch() -> void:
@@ -268,6 +252,7 @@ func _launch() -> void:
 	_dashes = 1; _air_hits = 0; _deform = 0.5; spr.play("jump")
 	_spawn_hit(Vector2(_facing * 40, -96))
 	_strike("launch")
+	FX.sfx("slash", 0.0, 1.2)
 	Juice.hitstop(0.07); Juice.shake(8.0)
 
 func _air_hit() -> void:
@@ -277,6 +262,7 @@ func _air_hit() -> void:
 	_deform = 0.24; spr.play("jump")
 	_spawn_hit(Vector2(_facing * 74, -30))
 	_strike("air")
+	FX.sfx("slash", 0.0, 1.1 + _air_hits * 0.08)
 	Juice.hitstop(0.04); Juice.shake(4.0)
 
 func _strike(kind: String) -> void:
@@ -307,6 +293,8 @@ func _dive_land() -> void:
 	b.global_position = global_position
 	b.scale = Vector2(0.75, 0.75)
 	get_parent().add_child(b)
+	FX.sfx("slam")
+	FX.screen_flash(Color(0.8, 1.0, 0.85), 0.22, 0.18)
 	Juice.hitstop(0.09); Juice.shake(13.0)
 
 func _spawn_hit(offset: Vector2) -> void:

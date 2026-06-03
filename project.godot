@@ -18,6 +18,7 @@ SceneManager="*res://scripts/autoload/scene_manager.gd"
 AudioManager="*res://scripts/autoload/audio_manager.gd"
 Juice="*res://scripts/autoload/juice.gd"
 DevTools="*res://scripts/autoload/dev_tools.gd"
+FX="*res://scripts/autoload/fx.gd"
 
 [audio]
 

@@ -12,7 +12,9 @@
   - `shaders/flash.gdshader`：受击闪白着色器（FX 用）
 - **工具** `tools/`
   - `uploader/`：手机上传页（把素材推进仓库 `incoming/`）
-  - `composer/`：像素拼接/关卡编辑器（拖摆零件、景深视差、导出 scene.json）
+  - `composer/`：自由摆放式关卡编辑器（拖摆零件、景深视差、导出 scene.json）
+  - `tilemap/`：瓦片地图编辑器（规整 tileset 刷格子、3 层 BG/主层(碰撞)/前景、导出 tilemap.json）
+    · 单指画/擦、双指平移缩放；运行时待接成 Godot TileMapLayer（重开做新游戏时补）
   - `sprite-rigger/`：给角色立绘绑骨/标锚点
   - `char_intake/intake.py`：把"姿势_序号.png"按脚底锚点对齐入库
 - **构建**：`.github/workflows/build.yml`（CI 导出网页版到 GitHub Pages）、`export_presets.cfg`

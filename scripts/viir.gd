@@ -206,6 +206,7 @@ func _physics_process(delta: float) -> void:
 	if _atk == "dive" and not on_floor:
 		velocity.y = dive_speed
 		_spawn_afterimage_throttled(delta)
+		_strike("dive")
 	else:
 		var soft := 0.35 if (_atk == "air" and _atk_lock > 0.0) else (fall_mult if velocity.y > 0.0 else 1.0)
 		velocity.y = min(velocity.y + gravity * soft * delta, max_fall)
@@ -258,6 +259,7 @@ func _ground_hit() -> void:
 	velocity.x = _facing * ground_lunge
 	_deform = 0.16; spr.play("dash")
 	_spawn_hit(Vector2(_facing * 72, -42))
+	_strike("ground")
 	Juice.hitstop(0.04); Juice.shake(4.0)
 
 func _launch() -> void:
@@ -265,6 +267,7 @@ func _launch() -> void:
 	velocity = Vector2(_facing * 150, launch_velocity)
 	_dashes = 1; _air_hits = 0; _deform = 0.5; spr.play("jump")
 	_spawn_hit(Vector2(_facing * 40, -96))
+	_strike("launch")
 	Juice.hitstop(0.07); Juice.shake(8.0)
 
 func _air_hit() -> void:
@@ -273,8 +276,23 @@ func _air_hit() -> void:
 	velocity.x = _facing * 130
 	_deform = 0.24; spr.play("jump")
 	_spawn_hit(Vector2(_facing * 74, -30))
-	_spawn_afterimage()
+	_strike("air")
 	Juice.hitstop(0.04); Juice.shake(4.0)
+
+func _strike(kind: String) -> void:
+	for e in get_tree().get_nodes_in_group("enemy"):
+		if not is_instance_valid(e) or not e.has_method("hurt"): continue
+		var to: Vector2 = e.global_position - global_position
+		if kind == "dive":
+			if to.y > -30.0 and to.y < 180.0 and absf(to.x) < 100.0:
+				e.hurt(1, Vector2(_facing * 80.0, 560.0))
+		elif absf(to.y) < 95.0 and to.x * _facing > -25.0 and absf(to.x) < 120.0:
+			var kb := Vector2.ZERO
+			match kind:
+				"ground": kb = Vector2(_facing * 280.0, -140.0)
+				"launch": kb = Vector2(_facing * 130.0, -740.0)
+				"air":    kb = Vector2(_facing * 190.0, -320.0)
+			e.hurt(1, kb)
 
 func _dive() -> void:
 	_atk = "dive"; _atk_lock = 0.6

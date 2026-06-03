@@ -132,10 +132,15 @@ func _build_player() -> void:
 
 # —— 标记：敌人(弹跳)/机关(致死)/出口(过关) ——
 func _build_markers() -> void:
+	var slime_i := 0
 	for m in data["markers"]:
 		match m["type"]:
 			"enemy":
-				_make_area(m, Vector2(150, 80), Color(1, 0.4, 0.4, 0.0), "_on_bounce")
+				var s := preload("res://scenes/slime.tscn").instantiate()
+				s.clip = "SlimeGreen" if slime_i % 2 == 0 else "SlimeOrange"
+				s.global_position = Vector2(m["x"], m["y"] - 30)
+				layers["play"].add_child(s)
+				slime_i += 1
 			"hazard":
 				_make_area(m, Vector2(150, 150), Color(1, 0.7, 0.2, 0.0), "_on_hazard")
 			"exit":

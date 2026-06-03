@@ -38,9 +38,25 @@ extends CharacterBody2D
 
 const SPORE_BURST := preload("res://scenes/spore_burst.tscn")
 const VIIR_RIG := preload("res://scenes/viir_rig.tscn")
+const HIT_FX := preload("res://scenes/hit_fx.tscn")
 var _ult_cd := 0.0
 var _rig: Node2D
 var _casting := false
+
+@export_group("连招")
+@export var combo_window := 0.45     ## 接招窗口
+@export var ground_lunge := 210.0    ## 地面挥击前冲
+@export var launch_velocity := -820.0 ## 挑空初速
+@export var air_hit_float := -220.0  ## 空中每击重新上浮(滞空连击)
+@export var dive_speed := 1150.0     ## 俯冲下砸速度
+@export var dive_bounce := -580.0    ## 砸地反弹
+@export var air_hits_max := 3        ## 空中连击上限
+var _combo := 0
+var _combo_win := 0.0
+var _atk := ""                       # "" / g / launch / air / dive
+var _atk_lock := 0.0
+var _air_hits := 0
+var _ai_throttle := 0.0
 
 const _BASE := 0.58
 var _deform := 0.0       # >0 竖向拉长, <0 压扁变宽
@@ -142,16 +158,36 @@ func _physics_process(delta: float) -> void:
 		velocity = _dash_dir * dash_speed
 		_deform = -jelly_dash      # 横向拉伸(变宽变扁)
 		spr.play("dash")
+		_spawn_afterimage()
 		return
 
-	# —— 水平移动 ——
+	# —— 连招 ——
+	_combo_win = maxf(_combo_win - delta, 0.0)
+	_atk_lock = maxf(_atk_lock - delta, 0.0)
+	if on_floor and _combo_win <= 0.0:
+		_combo = 0
+	if _atk == "dive" and on_floor:
+		_dive_land()
+	if Input.is_action_just_pressed("attack") and _atk_lock <= 0.0 and not _casting:
+		if on_floor:
+			_combo += 1
+			if _combo >= 3: _launch()
+			else: _ground_hit()
+		elif Input.is_action_pressed("move_down"):
+			_dive()
+		elif _air_hits < air_hits_max:
+			_air_hit()
+		return
+
+	# —— 水平移动(出招锁定时不接受普通操控，让前冲/滞空生效) ——
 	var dir := Input.get_axis("move_left", "move_right")
-	if dir != 0.0:
-		_facing = sign(dir)
-		var a := accel if on_floor else air_accel
-		velocity.x = move_toward(velocity.x, dir * max_speed, a * delta)
-	else:
-		velocity.x = move_toward(velocity.x, 0.0, friction * delta)
+	if _atk_lock <= 0.0:
+		if dir != 0.0:
+			_facing = sign(dir)
+			var a := accel if on_floor else air_accel
+			velocity.x = move_toward(velocity.x, dir * max_speed, a * delta)
+		else:
+			velocity.x = move_toward(velocity.x, 0.0, friction * delta)
 
 	# —— 跳跃缓冲 ——
 	if Input.is_action_just_pressed("jump"):
@@ -166,14 +202,21 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_released("jump") and velocity.y < 0.0:
 		velocity.y *= jump_cut
 
-	# —— 重力 ——
-	var g := gravity * (fall_mult if velocity.y > 0.0 else 1.0)
-	velocity.y = min(velocity.y + g * delta, max_fall)
+	# —— 重力 / 俯冲 ——
+	if _atk == "dive" and not on_floor:
+		velocity.y = dive_speed
+		_spawn_afterimage_throttled(delta)
+	else:
+		var soft := 0.35 if (_atk == "air" and _atk_lock > 0.0) else (fall_mult if velocity.y > 0.0 else 1.0)
+		velocity.y = min(velocity.y + gravity * soft * delta, max_fall)
 
 	move_and_slide()
 	_update_anim(on_floor)
 
 func _update_anim(on_floor: bool) -> void:
+	if _atk_lock > 0.0:
+		spr.flip_h = _facing < 0
+		return
 	if _dashing > 0.0:
 		if spr.animation != "dash": spr.play("dash")
 	elif not on_floor:
@@ -208,6 +251,65 @@ func _end_cast() -> void:
 	_casting = false
 	_rig.visible = false
 	spr.visible = true
+
+# ============ 连招 ============
+func _ground_hit() -> void:
+	_atk = "g"; _atk_lock = 0.20; _combo_win = combo_window
+	velocity.x = _facing * ground_lunge
+	_deform = 0.16; spr.play("dash")
+	_spawn_hit(Vector2(_facing * 72, -42))
+	Juice.hitstop(0.04); Juice.shake(4.0)
+
+func _launch() -> void:
+	_atk = "launch"; _atk_lock = 0.28; _combo = 0; _combo_win = 0.0
+	velocity = Vector2(_facing * 150, launch_velocity)
+	_dashes = 1; _air_hits = 0; _deform = 0.5; spr.play("jump")
+	_spawn_hit(Vector2(_facing * 40, -96))
+	Juice.hitstop(0.07); Juice.shake(8.0)
+
+func _air_hit() -> void:
+	_atk = "air"; _atk_lock = 0.18; _air_hits += 1
+	velocity.y = air_hit_float                 # 重新上浮制造滞空连击
+	velocity.x = _facing * 130
+	_deform = 0.24; spr.play("jump")
+	_spawn_hit(Vector2(_facing * 74, -30))
+	_spawn_afterimage()
+	Juice.hitstop(0.04); Juice.shake(4.0)
+
+func _dive() -> void:
+	_atk = "dive"; _atk_lock = 0.6
+	velocity = Vector2(_facing * 60, dive_speed)
+	_deform = -0.3; spr.play("jump")
+	Juice.shake(3.0)
+
+func _dive_land() -> void:
+	velocity.y = dive_bounce
+	_atk = ""; _atk_lock = 0.0; _dashes = 1; _air_hits = 0; _deform = -0.55
+	var b := SPORE_BURST.instantiate()
+	b.global_position = global_position
+	b.scale = Vector2(0.75, 0.75)
+	get_parent().add_child(b)
+	Juice.hitstop(0.09); Juice.shake(13.0)
+
+func _spawn_hit(offset: Vector2) -> void:
+	var f := HIT_FX.instantiate()
+	f.dir = _facing
+	f.position = offset
+	add_child(f)
+
+func _spawn_afterimage_throttled(delta: float) -> void:
+	_ai_throttle -= delta
+	if _ai_throttle <= 0.0:
+		_spawn_afterimage(); _ai_throttle = 0.035
+
+func _spawn_afterimage() -> void:
+	if spr.sprite_frames == null: return
+	var tex := spr.sprite_frames.get_frame_texture(spr.animation, spr.frame)
+	if tex == null: return
+	var a := Sprite2D.new()
+	a.set_script(load("res://scripts/after_image.gd"))
+	get_parent().add_child(a)
+	a.setup(tex, spr.global_position, spr.scale, spr.flip_h)
 
 func ult_ratio() -> float:
 	return clampf(1.0 - _ult_cd / ult_cooldown, 0.0, 1.0)

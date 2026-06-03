@@ -2,7 +2,7 @@ extends Node2D
 ## 《苔光》运行时：读 scene.json → 视差层 + 装饰 + 碰撞 + 标记(出生/弹跳/机关/出口) + 玩家 + 相机 + HUD。
 
 const LEVEL := "res://scenes/level1.json"
-const VIIR := preload("res://scenes/viir.tscn")
+const VIIR := preload("res://scenes/hero.tscn")
 const MOSSY_BASE := "res://assets/packs/mossy/"
 const ANIM_BASE := "res://assets/anim/"
 const PARALLAX := {"far":0.30, "back":0.60, "play":1.00, "fore":1.18}
@@ -235,9 +235,12 @@ func _process(delta: float) -> void:
 		time += delta
 		lbl_time.text = "时间 %.2f" % time
 		lbl_death.text = "死亡 %d" % deaths
-		var r: float = player.ult_ratio()
-		lbl_ult.text = "大招 ●就绪 (J)" if r >= 1.0 else "大招 充能 %d%%" % int(r * 100)
-		lbl_ult.add_theme_color_override("font_color", Color(1, 0.95, 0.5) if r >= 1.0 else Color(0.6, 0.7, 0.7))
+		if player.has_method("ult_ratio"):
+			var r: float = player.ult_ratio()
+			lbl_ult.text = "大招 ●就绪" if r >= 1.0 else "大招 充能 %d%%" % int(r * 100)
+		elif "max_hp" in player:
+			lbl_ult.text = "HP %d/%d" % [player._hp, player.max_hp]
+			lbl_ult.add_theme_color_override("font_color", Color(1, 0.5, 0.5))
 	# 重开
 	if Input.is_action_just_pressed("ui_cancel"):
 		get_tree().reload_current_scene()

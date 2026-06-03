@@ -1,0 +1,55 @@
+{
+  "name": "hero",
+  "frame": 200,
+  "dir": "Sprites/",
+  "actions": {
+    "idle": {
+      "file": "Sprites/Idle.png",
+      "count": 4,
+      "fps": 8,
+      "loop": true
+    },
+    "run": {
+      "file": "Sprites/Run.png",
+      "count": 8,
+      "fps": 12,
+      "loop": true
+    },
+    "jump": {
+      "file": "Sprites/Jump.png",
+      "count": 2,
+      "fps": 8,
+      "loop": false
+    },
+    "fall": {
+      "file": "Sprites/Fall.png",
+      "count": 2,
+      "fps": 8,
+      "loop": false
+    },
+    "attack1": {
+      "file": "Sprites/Attack1.png",
+      "count": 4,
+      "fps": 16,
+      "loop": false
+    },
+    "attack2": {
+      "file": "Sprites/Attack2.png",
+      "count": 4,
+      "fps": 16,
+      "loop": false
+    },
+    "hurt": {
+      "file": "Sprites/Take_hit.png",
+      "count": 3,
+      "fps": 12,
+      "loop": false
+    },
+    "death": {
+      "file": "Sprites/Death.png",
+      "count": 7,
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

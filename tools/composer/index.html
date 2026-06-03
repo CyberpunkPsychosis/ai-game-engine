@@ -544,7 +544,10 @@ async function loadManifest(){
         items:groups[role].map(clip=>({clip}))});
     });
   }catch(e){/* 动画可选 */}
-  if(!PAL.length)return;
+  if(!PAL.length){
+    const c=$("cats"); if(c) c.innerHTML='<span style="color:#9a958a;font-size:12px;padding:6px">暂无素材（这是自由摆放编辑器，需要素材包）。瓦片关卡请用 tools/tilemap/</span>';
+    return;
+  }
   palCat=PAL[0].key;buildCats();buildPieces();
 }
 function curCat(){return PAL.find(c=>c.key===palCat);}

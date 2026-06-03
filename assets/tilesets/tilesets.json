@@ -1,0 +1,14 @@
+[
+  {
+    "name": "灰盒 Greybox(设计草稿)",
+    "file": "greybox.png",
+    "tile": 16,
+    "cols": 6
+  },
+  {
+    "name": "草地 Terrain",
+    "file": "terrain.png",
+    "tile": 16,
+    "cols": 4
+  }
+]

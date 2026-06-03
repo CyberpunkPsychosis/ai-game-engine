@@ -59,6 +59,9 @@
 <div class="scrim" id="scrim"></div>
 <div class="panel" id="tsPanel">
   <h3>载入瓦片集</h3>
+  <div class="pill">内置(点一下即用,适合先画灰盒草稿):</div>
+  <div id="tsBuiltin" style="margin:6px 0"></div>
+  <div class="pill" style="margin-top:10px">或自定义上传:</div>
   <div class="row"><label>瓦片宽</label><input id="tsW" type="number" value="16"></div>
   <div class="row"><label>瓦片高</label><input id="tsH" type="number" value="16"></div>
   <div class="row"><label>图片</label><input id="tsFile" type="file" accept="image/png,image/*"></div>
@@ -172,8 +175,24 @@ function closeMenu(){$("menu").classList.remove("show");}
 function openPanel(id){$("scrim").classList.add("show");$(id).classList.add("show");closeMenu();}
 function closePanels(){$("scrim").classList.remove("show");document.querySelectorAll(".panel").forEach(p=>p.classList.remove("show"));}
 $("scrim").onclick=closePanels;
-$("mTileset").onclick=()=>openPanel("tsPanel");
+$("mTileset").onclick=()=>{openPanel("tsPanel");loadBuiltinList();};
 $("tsClose").onclick=closePanels;
+async function loadBuiltinList(){
+  const box=$("tsBuiltin");box.innerHTML='<span class="pill">加载中…</span>';
+  try{const list=await (await fetch("../../assets/tilesets/tilesets.json?_="+Date.now())).json();
+    box.innerHTML="";
+    list.forEach(m=>{const b=document.createElement("button");b.className="btn";
+      b.style.cssText="width:100%;margin:4px 0;text-align:left";b.textContent="🧩 "+m.name+"  ("+m.tile+"px)";
+      b.onclick=()=>loadBuiltin(m);box.appendChild(b);});
+  }catch(e){box.innerHTML='<span class="pill">(内置列表部署后生效)</span>';}
+}
+function loadBuiltin(m){
+  const img=new Image();
+  img.onload=()=>{const cols=Math.floor(img.width/m.tile),rows=Math.floor(img.height/m.tile);
+    ts={img,tw:m.tile,th:m.tile,cols,rows,name:m.file};curTile=0;buildPalette();closePanels();hint("内置："+m.name);};
+  img.onerror=()=>hint("内置瓦片集加载失败(部署后再试)");
+  img.src="../../assets/tilesets/"+m.file;
+}
 $("tsFile").onchange=e=>{
   const f=e.target.files[0];if(!f)return;
   const tW=Math.max(1,parseInt($("tsW").value)||16), tH=Math.max(1,parseInt($("tsH").value)||16);

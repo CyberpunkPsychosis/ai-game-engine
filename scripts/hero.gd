@@ -153,7 +153,7 @@ func _on_anim_done() -> void:
 		"hurt":
 			_state = "idle"
 		"death":
-			_respawn()
+			respawn()
 
 func _strike(kind: String) -> void:
 	_spawn_hit(Vector2(_facing * 86, -48))
@@ -193,7 +193,7 @@ func take_damage(amount: int, from_x: float) -> void:
 	else:
 		_state = "hurt"; spr.play("hurt")
 
-func _respawn() -> void:
+func respawn() -> void:
 	_hp = max_hp; _inv = 1.0; _state = "idle"
 	velocity = Vector2.ZERO
 	global_position = spawn_point

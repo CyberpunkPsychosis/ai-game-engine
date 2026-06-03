@@ -2,7 +2,7 @@ extends Node2D
 ## 《苔光》运行时：读 scene.json → 视差层 + 装饰 + 碰撞 + 标记(出生/弹跳/机关/出口) + 玩家 + 相机 + HUD。
 
 const LEVEL := "res://scenes/level1.json"
-const VIIR := preload("res://scenes/hero.tscn")
+const VIIR := preload("res://scenes/cyber.tscn")
 const MOSSY_BASE := "res://assets/packs/mossy/"
 const ANIM_BASE := "res://assets/anim/"
 const PARALLAX := {"far":0.30, "back":0.60, "play":1.00, "fore":1.18}

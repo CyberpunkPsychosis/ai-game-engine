@@ -14,16 +14,16 @@ const ST_TELE := 1      # 出矛预警(读招点)
 const ST_THRUST := 2    # 刺击中 / 等动画收尾(连段在此推进)
 const ST_PAUSE := 3     # 收招停顿 = 惩罚窗口
 
-const STRIKE := 96.0    # 进入此距离才出手
-const KEEP := 54.0      # 近于此 → 后撤拉开(怕贴身)
+const STRIKE := 58.0    # 只在矛真够得到的距离才出手(矛尖≈52，别从够不到的地方乱戳)
+const KEEP := 36.0      # 近于此 → 后撤拉开(怕贴身)
 const TELE_T := 0.8     # 单刺预警时长(持矛后拉摆明了再刺)
 const TELE_COMBO_T := 0.62  # 三连预警时长
 const PAUSE_T := 1.2    # 收招停顿(给你打的窗口)
 const GAP_T := 0.16     # 三连里两刺之间的间隔
 
-# 一记突刺：攻击框贴着"真正扎出来的矛"(矛尖≈+52，框前沿+56，不再没碰到就吃伤)
+# 一记突刺：攻击框贴着"真正扎出来的矛"(矛尖≈+52，框前沿+60，留一点容错好弹反)
 const THRUST := {
-	"anim": "attack", "reach": 34.0, "size": Vector2(44, 22), "from": 2, "to": 3,
+	"anim": "attack", "reach": 35.0, "size": Vector2(50, 22), "from": 2, "to": 3,
 	"dmg": 11.0, "posture": 16.0,
 }
 

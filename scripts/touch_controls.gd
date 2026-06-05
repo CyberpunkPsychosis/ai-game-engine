@@ -1,17 +1,17 @@
 extends Control
 class_name TouchControls
-## 手机虚拟操作层：左摇杆走位(模拟量) + 右侧菱形四键(跳/攻/弹反/闪)。
+## 手机虚拟操作层：左摇杆走位(模拟量) + 右侧三键(跳/闪/斩)。
 ## 全自绘、支持多点触控(走位同时出招)。把触摸映射到现有 InputMap 动作，
 ## 玩家脚本完全不用改（player.gd 照常读 Input）。
 ##
 ## 用法：放进一个 CanvasLayer，set_anchors_preset(PRESET_FULL_RECT)。
 
-# 菱形四键：动作名 -> 显示文字（用英文，免内置字体缺中文字形显示成方块）
+# 右手三键。SLASH 一个键同时按 attack+dash —— 挥刀即拼刀：挥得正好就把箭/招架开，
+# 不用再分"攻击"和"弹反"两个键。off 单位=_ui，r=半径倍数，hot=招牌高亮。
 const BTNS := [
-	{"act": "jump",    "lab": "JUMP"},    # 上
-	{"act": "special", "lab": "DODGE"},   # 左
-	{"act": "attack",  "lab": "ATK"},     # 右
-	{"act": "dash",    "lab": "PARRY"},   # 下(拇指常驻 = 招牌弹反)
+	{"off": Vector2(0.35, -1.05), "r": 0.46, "lab": "JUMP",  "acts": ["jump"]},
+	{"off": Vector2(-1.05, 0.45), "r": 0.46, "lab": "DODGE", "acts": ["special"]},
+	{"off": Vector2(0.35, 0.45),  "r": 0.64, "lab": "SLASH", "acts": ["attack", "dash"], "hot": true},
 ]
 
 var _font: Font
@@ -49,19 +49,13 @@ func _joy_radius() -> float:
 	return _ui() * 0.9
 
 func _btn_center() -> Vector2:
-	return Vector2(size.x - _ui() * 1.9, size.y - _ui() * 1.9)
-
-func _btn_radius() -> float:
-	return _ui() * 0.5
+	return Vector2(size.x - _ui() * 1.7, size.y - _ui() * 1.7)
 
 func _btn_pos(i: int) -> Vector2:
-	var c := _btn_center()
-	var s := _ui() * 1.05
-	match i:
-		0: return c + Vector2(0, -s)   # 跳(上)
-		1: return c + Vector2(-s, 0)   # 闪(左)
-		2: return c + Vector2(s, 0)    # 攻(右)
-		_: return c + Vector2(0, s)    # 弹反(下)
+	return _btn_center() + (BTNS[i]["off"] as Vector2) * _ui()
+
+func _btn_radius(i: int) -> float:
+	return _ui() * float(BTNS[i]["r"])
 
 # ---------------------------------------------------------------- 输入
 func _gui_input(event: InputEvent) -> void:
@@ -95,12 +89,12 @@ func _gui_input(event: InputEvent) -> void:
 			accept_event()
 
 func _press(idx: int, pos: Vector2) -> void:
-	# 命中某个按钮？
+	# 命中某个按钮？(存按钮下标；SLASH 会一次按下多个动作)
 	for i in BTNS.size():
-		if pos.distance_to(_btn_pos(i)) <= _btn_radius() * 1.15:
-			var act: String = BTNS[i]["act"]
-			_active[idx] = act
-			Input.action_press(act)        # 触发 just_pressed(弹反/攻击/跳 都靠它)
+		if pos.distance_to(_btn_pos(i)) <= _btn_radius(i) * 1.12:
+			_active[idx] = i
+			for a in BTNS[i]["acts"]:
+				Input.action_press(a)      # 触发 just_pressed(攻击/弹反/跳 都靠它)
 			queue_redraw()
 			return
 	# 否则按在左半屏 → 摇杆(基座落在按下处，跟手)
@@ -123,16 +117,17 @@ func _drag(idx: int, pos: Vector2) -> void:
 	queue_redraw()
 
 func _release(idx: int) -> void:
-	var role: String = _active.get(idx, "")
-	if role == "":
+	if not _active.has(idx):
 		return
+	var role = _active[idx]
 	_active.erase(idx)
-	if role == "joy":
+	if role is String and role == "joy":
 		_joy_active = false
 		_joy_vec = Vector2.ZERO
 		_clear_move()
-	else:
-		Input.action_release(role)        # 松开 → 触发 just_released(变跳高度靠它)
+	elif role is int:
+		for a in BTNS[role]["acts"]:
+			Input.action_release(a)       # 松开 → just_released(变跳高度靠它)
 	queue_redraw()
 
 # 摇杆 x 偏移 → 模拟量走位(player 用 get_axis 读 strength)
@@ -164,9 +159,10 @@ func _exit_tree() -> void:
 	# 离场清掉所有按住的键，免得卡键
 	_clear_move()
 	for idx in _active.keys():
-		var role: String = _active[idx]
-		if role != "joy":
-			Input.action_release(role)
+		var role = _active[idx]
+		if role is int:
+			for a in BTNS[role]["acts"]:
+				Input.action_release(a)
 	_active.clear()
 
 # ---------------------------------------------------------------- 自绘
@@ -181,20 +177,20 @@ func _draw() -> void:
 	var knob := jb + (_joy_vec if _joy_active else Vector2.ZERO)
 	draw_circle(knob, jr * 0.42, Color(1, 1, 1, 0.22))
 	draw_arc(knob, jr * 0.42, 0, TAU, 32, Color(1, 0.95, 0.7, 0.55), 3.0, true)
-	# 四键
+	# 三键
 	for i in BTNS.size():
 		var p := _btn_pos(i)
-		var br := _btn_radius()
+		var br := _btn_radius(i)
 		var held := false
 		for v in _active.values():
-			if v == BTNS[i]["act"]:
+			if v is int and int(v) == i:
 				held = true
 				break
-		var fill := Color(1, 0.9, 0.6, 0.28) if held else Color(1, 1, 1, 0.12)
-		var ring := Color(1, 0.9, 0.6, 0.85) if held else Color(1, 1, 1, 0.34)
-		# 弹反键(i==3)高亮一点：招牌机制
-		if i == 3 and not held:
-			ring = Color(1.0, 0.85, 0.4, 0.6)
+		var fill := Color(1, 0.9, 0.6, 0.30) if held else Color(1, 1, 1, 0.12)
+		var ring := Color(1, 0.9, 0.6, 0.9) if held else Color(1, 1, 1, 0.34)
+		# 招牌键(SLASH)高亮一点
+		if bool(BTNS[i].get("hot", false)) and not held:
+			ring = Color(1.0, 0.85, 0.4, 0.7)
 		draw_circle(p, br, fill)
 		draw_arc(p, br, 0, TAU, 40, ring, 3.0, true)
 		if _font:

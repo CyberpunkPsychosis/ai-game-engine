@@ -16,14 +16,14 @@ const ST_PAUSE := 3     # 收招停顿 = 惩罚窗口
 
 const STRIKE := 96.0    # 进入此距离才出手
 const KEEP := 54.0      # 近于此 → 后撤拉开(怕贴身)
-const TELE_T := 0.5     # 单刺预警时长
-const TELE_COMBO_T := 0.55  # 三连预警时长
+const TELE_T := 0.8     # 单刺预警时长(持矛后拉摆明了再刺)
+const TELE_COMBO_T := 0.62  # 三连预警时长
 const PAUSE_T := 1.2    # 收招停顿(给你打的窗口)
 const GAP_T := 0.16     # 三连里两刺之间的间隔
 
-# 一记突刺(细长框，可弹)
+# 一记突刺：攻击框贴着"真正扎出来的矛"(矛尖≈+52，框前沿+56，不再没碰到就吃伤)
 const THRUST := {
-	"anim": "attack", "reach": 66.0, "size": Vector2(92, 24), "from": 2, "to": 3,
+	"anim": "attack", "reach": 34.0, "size": Vector2(44, 22), "from": 2, "to": 3,
 	"dmg": 11.0, "posture": 16.0,
 }
 
@@ -49,7 +49,7 @@ func _setup() -> void:
 			"idle":    {"tex": load(A + "idle.png"),    "fps": 8.0,  "loop": true},
 			"walk":    {"tex": load(A + "walk.png"),    "fps": 9.0,  "loop": true},
 			"run":     {"tex": load(A + "run.png"),     "fps": 11.0, "loop": true},
-			"attack":  {"tex": load(A + "attack1.png"), "fps": 11.0, "loop": false},
+			"attack":  {"tex": load(A + "attack1.png"), "fps": 10.0, "loop": false},
 			"hurt":    {"tex": load(A + "hurt.png"),    "fps": 10.0, "loop": false},
 			"death":   {"tex": load(A + "dead.png"),    "fps": 10.0, "loop": false},
 		}, CELL)
@@ -84,6 +84,8 @@ func _gather_intent(delta: float) -> void:
 				_begin_windup()
 		ST_TELE:
 			if _tele_t <= 0.0:
+				if sprite:
+					sprite.modulate = Color.WHITE      # 收掉预警染色
 				_fire_thrust()
 				_st = ST_THRUST
 		ST_THRUST:
@@ -109,13 +111,23 @@ func _begin_windup() -> void:
 		_in_combo = true
 		_tele_t = TELE_COMBO_T
 		if sprite:
-			FX.flash(sprite, TELE_COMBO_T, Color(1.0, 0.55, 0.2))  # 橙=三连预警
+			sprite.modulate = Color(1.0, 0.5, 0.2)    # 橙=三连预警(更凶)
 	else:
 		_pending = 1
 		_in_combo = false
 		_tele_t = TELE_T
 		if sprite:
-			FX.flash(sprite, TELE_T, Color(1.0, 0.95, 0.5))        # 黄=单刺预警
+			sprite.modulate = Color(1.0, 0.85, 0.35)  # 黄=单刺预警
+
+# 预警期间定住"持矛后拉"的预备姿势(attack 第0帧)，把要刺的方向/时机摆明白
+func _update_anim() -> void:
+	if _st == ST_TELE and sprite and sprite.sprite_frames:
+		if sprite.animation != "attack":
+			sprite.play("attack")
+		sprite.pause()
+		sprite.frame = 0
+		return
+	super._update_anim()
 
 func _fire_thrust() -> void:
 	start_attack(THRUST)
@@ -127,6 +139,8 @@ func flinch(push_dir: float) -> void:
 	if _in_combo:
 		return
 	super.flinch(push_dir)
+	if sprite:
+		sprite.modulate = Color.WHITE
 	_enrage = true
 	_pending = 0
 	_st = ST_IDLE

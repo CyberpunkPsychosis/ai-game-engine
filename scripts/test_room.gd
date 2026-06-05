@@ -174,7 +174,7 @@ func _demo_tick(_delta: float) -> void:
 			get_tree().quit()
 			return
 		var arr := _incoming_arrow()
-		var parry_now := arr != null and absf(arr.global_position.x - player.global_position.x) < 42.0
+		var parry_now := arr != null and absf(arr.global_position.x - player.global_position.x) < 120.0  # 提前弹(箭快了)，接箭尖
 		_demo_set("dash", parry_now)
 		return
 

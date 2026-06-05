@@ -28,6 +28,7 @@ func setup(dir: Vector2, speed := 330.0) -> void:
 	var r := RectangleShape2D.new()
 	r.size = Vector2(24, 8)
 	cs.shape = r
+	cs.position = Vector2(12, 0)   # 判定前移到箭尖：箭尖一到就触发(弹反/命中)，不用等箭身压上
 	add_child(cs)
 	add_to_group("arrow")
 

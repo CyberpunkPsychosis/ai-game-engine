@@ -75,7 +75,7 @@ func _fire_arrow() -> void:
 	if pl:
 		target = pl.global_position + Vector2(0.0, -30.0)               # 瞄准玩家躯干
 	var a := Arrow.new()
-	a.setup(target - from, 330.0)
+	a.setup(target - from, 560.0)   # 箭提速(330->560)，更利落
 	var scene := get_tree().current_scene
 	if scene:
 		scene.add_child(a)

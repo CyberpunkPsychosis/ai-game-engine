@@ -17,6 +17,14 @@ func _on_area_entered(area: Area2D) -> void:
 	var hitbox := area as Hitbox
 	if hitbox == null:
 		return
-	if _health != null:
+	# 若拥有者实现了 on_hit()（如 Actor2D 的弹反/格挡/架势结算），交给它处理。
+	var defender := get_parent()
+	var handled := false
+	if defender != null and defender.has_method("on_hit"):
+		handled = defender.on_hit(hitbox)
+	if not handled and _health != null:
 		_health.take_damage(hitbox.damage, hitbox)
 	hit_by.emit(hitbox)
+	# 弹道（箭矢）命中/被弹后销毁
+	if hitbox.consumable and is_instance_valid(hitbox):
+		hitbox.queue_free()

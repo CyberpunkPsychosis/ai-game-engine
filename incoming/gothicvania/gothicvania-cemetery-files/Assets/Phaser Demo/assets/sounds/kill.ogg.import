@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://yxlwgc78ukbh"
+path="res://.godot/imported/kill.ogg-3e967203609d0bf5e00b80f10e507750.oggvorbisstr"
+
+[deps]
+
+source_file="res://incoming/gothicvania/gothicvania-cemetery-files/Assets/Phaser Demo/assets/sounds/kill.ogg"
+dest_files=["res://.godot/imported/kill.ogg-3e967203609d0bf5e00b80f10e507750.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

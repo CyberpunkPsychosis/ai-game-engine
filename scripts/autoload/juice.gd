@@ -25,6 +25,14 @@ func hitstop(duration := 0.08, scale := 0.0) -> void:
 	await t.timeout
 	Engine.time_scale = 1.0
 
+## 拼刀演出：极短定格 → 慢动作 → 恢复（按真实时间，不受 time_scale 影响）。
+func clash(freeze := 0.06, slow_dur := 0.30, slow_scale := 0.18) -> void:
+	Engine.time_scale = 0.0
+	await get_tree().create_timer(freeze, true, false, true).timeout
+	Engine.time_scale = slow_scale
+	await get_tree().create_timer(slow_dur, true, false, true).timeout
+	Engine.time_scale = 1.0
+
 func _process(delta: float) -> void:
 	if not is_instance_valid(_camera):
 		return

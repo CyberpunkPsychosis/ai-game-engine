@@ -39,6 +39,55 @@ func dissolve(spr: CanvasItem, dur := 0.2) -> void:
 	tw.tween_property(spr, "scale", spr.scale * 1.4, dur)
 	tw.tween_property(spr, "modulate:a", 0.0, dur)
 
+const HOLY_NOVA := preload("res://art/fx/holy_nova.png")
+const HOLY_SLASH := preload("res://art/fx/holy_slash.png")
+
+## 在世界坐标播一张序列帧特效（播完自动销毁）。
+func play_sheet(tex: Texture2D, cell: Vector2i, fps: float, pos: Vector2, scale := 1.0, flip := false) -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var spr := AnimatedSprite2D.new()
+	spr.sprite_frames = SpriteSheet.build_from_strips({"e": {"tex": tex, "fps": fps, "loop": false}}, cell)
+	spr.animation = "e"
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	spr.position = pos
+	spr.scale = Vector2(scale, scale)
+	spr.flip_h = flip
+	spr.z_index = 200
+	scene.add_child(spr)
+	spr.play("e")
+	spr.animation_finished.connect(spr.queue_free)
+
+## 弹反/拼刀：金色圆形新星
+func nova(pos: Vector2, scale := 1.0) -> void:
+	play_sheet(HOLY_NOVA, Vector2i(128, 64), 26.0, pos, scale)
+
+## 攻击命中：金色斩光
+func slash(pos: Vector2, flip := false, scale := 1.0) -> void:
+	play_sheet(HOLY_SLASH, Vector2i(64, 64), 24.0, pos, scale, flip)
+
+## 在世界坐标放一个一次性火花（程序生成，备用）。
+func spark(world_pos: Vector2, color := Color(1, 1, 0.7), rays := 6, length := 11.0) -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var n := Node2D.new()
+	n.position = world_pos
+	n.z_index = 200
+	scene.add_child(n)
+	for i in range(rays):
+		var ln := Line2D.new()
+		var ang := TAU * float(i) / float(rays)
+		ln.points = PackedVector2Array([Vector2.ZERO, Vector2.RIGHT.rotated(ang) * length])
+		ln.width = 2.0
+		ln.default_color = color
+		n.add_child(ln)
+	var tw := n.create_tween().set_parallel(true)
+	tw.tween_property(n, "scale", Vector2(2.3, 2.3), 0.18).set_ease(Tween.EASE_OUT)
+	tw.tween_property(n, "modulate:a", 0.0, 0.18)
+	tw.chain().tween_callback(n.queue_free)
+
 func sfx(name: String, vol := 0.0, pitch := 1.0) -> void:
 	var path := "res://assets/sfx/%s.wav" % name
 	if ResourceLoader.exists(path):

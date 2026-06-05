@@ -4,6 +4,9 @@ class_name Hitbox
 ## 通过碰撞层与对方的 Hurtbox 配对：玩家攻击框 监听 敌人受击框，反之亦然。
 
 @export var damage := 10.0
+@export var posture_damage := 16.0      ## 架势伤害（弹反/格挡/中招都按它算）
+@export var perilous := false           ## 危攻击（红光）：不可弹，必须闪/跳
+@export var consumable := false          ## 命中/被弹后销毁（弹道/箭矢用）
 @export var knockback := 220.0          ## 击退力度（像素/秒）
 @export var hitstop := 0.07             ## 命中顿帧时长（秒）
 @export var shake := 6.0                ## 命中镜头震动强度

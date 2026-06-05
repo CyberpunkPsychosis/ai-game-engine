@@ -18,7 +18,10 @@
   .layers{position:fixed;top:46px;left:0;right:0;height:36px;display:flex;z-index:19;background:rgba(20,25,29,.9);border-bottom:1px solid var(--line);}
   .layers .lt{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--muted);border-right:1px solid var(--line);cursor:pointer;}
   .layers .lt.active{color:var(--ink);background:var(--panel2);box-shadow:inset 0 -2px 0 var(--accent);}
-  .palette{position:fixed;left:0;right:0;bottom:0;max-height:170px;background:rgba(20,25,29,.97);border-top:1px solid var(--line);z-index:18;overflow:auto;padding:8px;}
+  .palette{position:fixed;left:0;right:0;bottom:0;height:170px;max-height:85vh;background:rgba(20,25,29,.97);border-top:1px solid var(--line);z-index:18;display:flex;flex-direction:column;}
+  #palHandle{flex:0 0 20px;display:flex;align-items:center;justify-content:center;cursor:row-resize;touch-action:none;}
+  #palHandle::before{content:"";width:46px;height:4px;border-radius:3px;background:var(--muted);opacity:.65;}
+  #palBody{flex:1 1 auto;overflow:auto;padding:8px;}
   #palCanvasWrap{display:inline-block;}
   #palCanvas{image-rendering:pixelated;display:block;}
   .hint{position:fixed;top:88px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:6px 12px;border-radius:20px;z-index:15;pointer-events:none;opacity:0;transition:opacity .3s;}
@@ -56,7 +59,7 @@
 </div>
 
 <div class="hint" id="hint"></div>
-<div class="palette" id="palette"><div id="palEmpty" class="pill">先 ⋯ → 载入瓦片集</div><div id="palCanvasWrap" style="display:none"><canvas id="palCanvas"></canvas></div></div>
+<div class="palette" id="palette"><div id="palHandle" title="上拉/下拉调整高度"></div><div id="palBody"><div id="palEmpty" class="pill">先 ⋯ → 载入瓦片集</div><div id="palCanvasWrap" style="display:none"><canvas id="palCanvas"></canvas></div></div></div>
 
 <div class="scrim" id="scrim"></div>
 <div class="panel" id="tsPanel">
@@ -198,6 +201,15 @@ addEventListener("keydown",e=>{
 });
 addEventListener("keyup",e=>{if(e.code==="Space"){spaceHeld=false;cv.style.cursor="";}});
 cv.addEventListener("contextmenu",e=>e.preventDefault());
+
+// 底部素材面板：拖动顶部把手上拉/下拉调整高度
+(function(){
+  const pal=$("palette"),h=$("palHandle");let st=null;
+  h.addEventListener("pointerdown",e=>{h.setPointerCapture(e.pointerId);st={y:e.clientY,h:pal.offsetHeight};e.preventDefault();});
+  h.addEventListener("pointermove",e=>{if(!st)return;const nh=Math.max(70,Math.min(innerHeight*0.85,st.h+(st.y-e.clientY)));pal.style.height=nh+"px";});
+  const end=()=>{st=null;};
+  h.addEventListener("pointerup",end);h.addEventListener("pointercancel",end);
+})();
 
 // ---- 工具按钮 ----
 function setMode(m){mode=m;$("btnPaint").classList.toggle("on",m==="paint");$("btnErase").classList.toggle("on",m==="erase");$("btnPan").classList.toggle("on",m==="pan");}

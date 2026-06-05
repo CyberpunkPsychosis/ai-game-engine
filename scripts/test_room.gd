@@ -20,6 +20,7 @@ var _hold := ""
 var _demo := false
 var _force_touch := false
 var _archer_only := false
+var _spear_only := false
 var _boss_only := false
 var _boss_show := false
 var _playtest := false        # 试玩演示：有界场地 + 一个一个出怪(先弓骷髅)
@@ -49,6 +50,9 @@ func _ready() -> void:
 		elif a == "--archerdemo":
 			_demo = true
 			_archer_only = true
+		elif a == "--speardemo":
+			_demo = true
+			_spear_only = true
 		elif a == "--boss":
 			_boss_only = true
 		elif a == "--bossdemo":
@@ -81,6 +85,8 @@ func _ready() -> void:
 	elif _archer_only:
 		player.facing = 1                              # 面向右边的弓箭手
 		enemy = _spawn_enemy(SkelArcher.new(), 300.0)
+	elif _spear_only:
+		enemy = _spawn_enemy(SkelSpearman.new(), 200.0)
 	elif _playtest:
 		_spawn_wave()                  # 先出弓骷髅，打完自动换下一个
 	else:
@@ -287,7 +293,7 @@ func _demo_tick(_delta: float) -> void:
 		print("DEMO parries=%d" % _parry_count)
 		get_tree().quit()
 		return
-	if _demo_frames > 2400:
+	if _demo_frames > (760 if _spear_only else 2400):
 		print("DEMO parries=%d" % _parry_count)
 		get_tree().quit()
 		return

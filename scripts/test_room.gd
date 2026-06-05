@@ -8,6 +8,11 @@ const BAR := preload("res://scripts/status_bar.gd")
 
 const GROUND_Y := 220.0
 
+# 试玩(演示)模式：左右挡墙的有界场地 + 一个一个出怪
+const ARENA_L := -340.0   # 左挡墙
+const ARENA_R := 640.0    # 右挡墙
+const PLAY_START := -180.0
+
 var _shot_path := ""
 var _shot_frames := 40
 var _frame := 0
@@ -17,6 +22,9 @@ var _force_touch := false
 var _archer_only := false
 var _boss_only := false
 var _boss_show := false
+var _playtest := false        # 试玩演示：有界场地 + 一个一个出怪(先弓骷髅)
+var _wave := 0
+var _wave_busy := false
 var _demo_frames := 0
 var _dead_count := 0
 var _parry_count := 0
@@ -51,11 +59,20 @@ func _ready() -> void:
 			_boss_show = true
 		elif a == "--touch":
 			_force_touch = true   # 强制显示虚拟操作层（桌面预览用）
+		elif a == "--playtest":
+			_playtest = true
+
+	# 网页/手机端默认走"试玩演示"模式：有界场地、一个一个出怪
+	if not _demo and not _boss_only and _shot_path == "" and not ("--probe" in args):
+		if _force_touch or _playtest or DisplayServer.is_touchscreen_available() or OS.has_feature("web"):
+			_playtest = true
 
 	_make_ground()
+	if _playtest:
+		_make_walls()                 # 左右挡墙：人和怪都掉不下去/跑不出场
 
 	player = PLAYER.instantiate()
-	player.position = Vector2(-40, GROUND_Y - 2)
+	player.position = Vector2(PLAY_START if _playtest else -40.0, GROUND_Y - 2)
 	add_child(player)
 	_attach_bar(player, 62.0)
 
@@ -64,11 +81,15 @@ func _ready() -> void:
 	elif _archer_only:
 		player.facing = 1                              # 面向右边的弓箭手
 		enemy = _spawn_enemy(SkelArcher.new(), 300.0)
+	elif _playtest:
+		_spawn_wave()                  # 先出弓骷髅，打完自动换下一个
 	else:
 		enemy = _spawn_enemy(SkelWarrior.new(), 120.0) # enemy=第一个，给 probe 用
 		_spawn_enemy(SkelSpearman.new(), 280.0)
 		_spawn_enemy(SkelArcher.new(), 440.0)
 	player.parried.connect(func(_a): _parry_count += 1)
+	if _playtest:
+		player.died.connect(_on_player_down)   # 主角倒了 → 稍后自动重开
 	if _boss_show:
 		player.invulnerable = true   # 主角锁血当沙包
 
@@ -79,6 +100,9 @@ func _ready() -> void:
 	elif _archer_only:
 		_cam.position = Vector2(130.0, 150.0)   # 跟"玩家+弓手"中点，看全追逐/后跃/箭的来回
 		_cam.zoom = Vector2(1.5, 1.5)
+	elif _playtest:
+		_cam.position = Vector2(player.position.x, 150.0)
+		_cam.zoom = Vector2(1.8, 1.8)           # 拉远些，开局就能看到来的怪
 	else:
 		_cam.position = Vector2(player.position.x, 150.0)
 		_cam.zoom = Vector2(2.4, 2.4)
@@ -133,6 +157,62 @@ func _make_ground() -> void:
 	vis.size = Vector2(2000, 80)
 	vis.position = Vector2(-1000, -40)
 	ground.add_child(vis)
+
+# 试玩场地左右挡墙：玩家和怪都跑不出去/掉不下去
+func _make_walls() -> void:
+	for wx in [ARENA_L, ARENA_R]:
+		var w := StaticBody2D.new()
+		var cs := CollisionShape2D.new()
+		var r := RectangleShape2D.new()
+		r.size = Vector2(40, 420)
+		cs.shape = r
+		w.add_child(cs)
+		w.position = Vector2(wx, GROUND_Y - 190)
+		add_child(w)
+		# 半透明立柱，给个边界提示
+		var vis := ColorRect.new()
+		vis.color = Color(0.30, 0.28, 0.40, 0.35)
+		vis.size = Vector2(14, 200)
+		vis.position = Vector2(-7, -20)
+		w.add_child(vis)
+
+# 一个一个出怪的顺序：弓骷髅(先) → 矛 → 剑 → 恶魔史莱姆 → 霜卫 → 循环
+const WAVE_SEQ := ["archer", "spearman", "warrior", "demon", "frost"]
+
+func _make_wave_enemy(kind: String) -> Enemy:
+	match kind:
+		"spearman": return SkelSpearman.new()
+		"warrior":  return SkelWarrior.new()
+		"demon":    return EliteDemon.new()
+		"frost":    return EliteFrost.new()
+		_:          return SkelArcher.new()
+
+func _spawn_wave() -> void:
+	var kind: String = WAVE_SEQ[_wave % WAVE_SEQ.size()]
+	var e := _make_wave_enemy(kind)
+	var x := clampf(player.global_position.x + 280.0, ARENA_L + 100.0, ARENA_R - 80.0)
+	e.position = Vector2(x, GROUND_Y - 2)
+	add_child(e)
+	_attach_bar(e, 70.0)
+	enemy = e
+	_wave_busy = false
+	e.died.connect(_on_enemy_down)
+
+func _on_enemy_down() -> void:
+	if _wave_busy:
+		return
+	_wave_busy = true
+	var old := enemy
+	await get_tree().create_timer(1.4).timeout    # 留点时间看死亡动作
+	if is_instance_valid(old):
+		old.queue_free()
+	_wave += 1
+	if is_instance_valid(player) and player.hp > 0.0:
+		_spawn_wave()
+
+func _on_player_down() -> void:
+	await get_tree().create_timer(1.6).timeout    # 主角倒了 → 自动重开，方便连着演示
+	get_tree().reload_current_scene()
 
 func _spawn_enemy(e: Enemy, x: float) -> Enemy:
 	e.position = Vector2(x, GROUND_Y - 2)

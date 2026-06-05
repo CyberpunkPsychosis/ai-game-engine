@@ -1,39 +1,36 @@
 extends Enemy
 class_name SkelSpearman
-## 长矛骷髅（新机制 · 弹反拼刀进阶）：
-##  · 出矛前有「预警」读招点（黄闪）。
-##  · 单刺：可弹反；打完有「停顿」(惩罚窗口)。弹反成功 → 怪硬直，且激怒。
-##  · 激怒后下一次变「连续三刺」：想全躲只能闪避；格挡只挡当下那一刺，后面照刺；
-##    手稳可连按三次全挡。三刺有霸体——被弹不硬直、不涨架势。放完同样进「停顿」。
+## 长矛骷髅（弹反拼刀进阶）：
+##  · 出矛前有「预警」(持矛后拉+染色)。单刺可弹反，打完有「停顿」(惩罚窗口)。
+##  · 弹反单刺成功 → 怪硬直且激怒 → 下一次「连续三刺」(霸体：弹不打断/不破防；
+##    想全躲只能闪避，或连按三次弹)。三刺放完同样进停顿。
+## 所有手感数值是 var（可被调参工具实时拖动）。
 
 const A := "res://art/spearman/"
 
 # 状态机
-const ST_IDLE := 0      # 站位
-const ST_TELE := 1      # 出矛预警(读招点)
-const ST_THRUST := 2    # 刺击中 / 等动画收尾(连段在此推进)
-const ST_PAUSE := 3     # 收招停顿 = 惩罚窗口
+const ST_IDLE := 0
+const ST_TELE := 1
+const ST_THRUST := 2
+const ST_PAUSE := 3
 
-const STRIKE := 58.0    # 只在矛真够得到的距离才出手(矛尖≈52，别从够不到的地方乱戳)
-const KEEP := 36.0      # 近于此 → 后撤拉开(怕贴身)
-const TELE_T := 0.8     # 单刺预警时长(持矛后拉摆明了再刺)
-const TELE_COMBO_T := 0.62  # 三连预警时长
-const PAUSE_T := 1.2    # 收招停顿(给你打的窗口)
-const GAP_T := 0.16     # 三连里两刺之间的间隔
-
-# 一记突刺：攻击框贴着"真正扎出来的矛"(矛尖≈+52，框前沿+60，留一点容错好弹反)
-const THRUST := {
-	"anim": "attack", "reach": 35.0, "size": Vector2(50, 22), "from": 2, "to": 3,
-	"dmg": 11.0, "posture": 16.0,
-}
+# ── 可调参数(调参工具拖动) ──
+var strike_range := 58.0    # 只在矛够得到的距离才出手
+var keep_range := 36.0      # 近于此 → 后撤(怕贴身)
+var thrust_reach := 35.0    # 矛判定框前伸(矛尖≈52)
+var thrust_width := 50.0    # 矛判定框长度
+var tele_dur := 0.8         # 单刺预警时长
+var tele_combo_dur := 0.62  # 三连预警时长
+var pause_dur := 1.2        # 收招停顿(惩罚窗口)
+var gap_dur := 0.16         # 三连里两刺间隔
 
 var _st := ST_IDLE
 var _tele_t := 0.0
 var _pause_t := 0.0
 var _gap_t := 0.0
-var _pending := 0          # 当前这次出手还剩几刺(单刺=1，三连=3)
-var _in_combo := false     # 正在三连(霸体：弹反不打断/不涨架势)
-var _enrage := false       # 弹反过单刺 → 下次出三连
+var _pending := 0
+var _in_combo := false
+var _enrage := false
 
 func _setup() -> void:
 	team = 1
@@ -55,6 +52,19 @@ func _setup() -> void:
 		}, CELL)
 	add_to_group("enemy")
 
+# 调参工具读这个：每项 = 一个可拖动的属性
+func tunables() -> Array:
+	return [
+		{"name": "strike_range",  "label": "出手距离",   "min": 30.0, "max": 140.0, "step": 1.0},
+		{"name": "keep_range",    "label": "保持距离",   "min": 0.0,  "max": 80.0,  "step": 1.0},
+		{"name": "thrust_reach",  "label": "矛框前伸",   "min": 10.0, "max": 90.0,  "step": 1.0},
+		{"name": "thrust_width",  "label": "矛框长度",   "min": 20.0, "max": 120.0, "step": 1.0},
+		{"name": "tele_dur",      "label": "单刺预警s",  "min": 0.2,  "max": 1.5,   "step": 0.02},
+		{"name": "tele_combo_dur","label": "三连预警s",  "min": 0.2,  "max": 1.5,   "step": 0.02},
+		{"name": "pause_dur",     "label": "收招停顿s",  "min": 0.3,  "max": 2.5,   "step": 0.05},
+		{"name": "gap_dur",       "label": "三连间隔s",  "min": 0.05, "max": 0.5,   "step": 0.01},
+	]
+
 func _gather_intent(delta: float) -> void:
 	if _base_speed < 0.0:
 		_base_speed = speed
@@ -70,35 +80,33 @@ func _gather_intent(delta: float) -> void:
 	var dist := absf(dx)
 
 	if attacking:
-		return                       # 出矛中：锁住，等动画收尾
+		return
 	facing = 1 if dx >= 0.0 else -1
 	move_dir = 0.0
 
 	match _st:
 		ST_IDLE:
-			if dist > STRIKE:
-				move_dir = signf(dx)         # 太远 → 逼近
-			elif dist < KEEP:
-				move_dir = -signf(dx)        # 太近 → 后撤(怕贴身)
+			if dist > strike_range:
+				move_dir = signf(dx)
+			elif dist < keep_range:
+				move_dir = -signf(dx)
 			elif _cd <= 0.0 and _slot_free():
 				_begin_windup()
 		ST_TELE:
 			if _tele_t <= 0.0:
 				if sprite:
-					sprite.modulate = Color.WHITE      # 收掉预警染色
+					sprite.modulate = Color.WHITE
 				_fire_thrust()
 				_st = ST_THRUST
 		ST_THRUST:
-			# 走到这=上一刺动画已收尾
 			if _pending > 0:
 				if _gap_t <= 0.0:
-					_fire_thrust()           # 连段：补下一刺
+					_fire_thrust()
 			else:
 				_in_combo = false
 				_st = ST_PAUSE
-				_pause_t = PAUSE_T
+				_pause_t = pause_dur
 		ST_PAUSE:
-			# 站定挨打的惩罚窗口
 			if _pause_t <= 0.0:
 				_st = ST_IDLE
 				_cd = 0.3
@@ -109,17 +117,16 @@ func _begin_windup() -> void:
 		_enrage = false
 		_pending = 3
 		_in_combo = true
-		_tele_t = TELE_COMBO_T
+		_tele_t = tele_combo_dur
 		if sprite:
-			sprite.modulate = Color(1.0, 0.5, 0.2)    # 橙=三连预警(更凶)
+			sprite.modulate = Color(1.0, 0.5, 0.2)
 	else:
 		_pending = 1
 		_in_combo = false
-		_tele_t = TELE_T
+		_tele_t = tele_dur
 		if sprite:
-			sprite.modulate = Color(1.0, 0.85, 0.35)  # 黄=单刺预警
+			sprite.modulate = Color(1.0, 0.85, 0.35)
 
-# 预警期间定住"持矛后拉"的预备姿势(attack 第0帧)，把要刺的方向/时机摆明白
 func _update_anim() -> void:
 	if _st == ST_TELE and sprite and sprite.sprite_frames:
 		if sprite.animation != "attack":
@@ -130,11 +137,13 @@ func _update_anim() -> void:
 	super._update_anim()
 
 func _fire_thrust() -> void:
-	start_attack(THRUST)
+	start_attack({
+		"anim": "attack", "reach": thrust_reach, "size": Vector2(thrust_width, 22),
+		"from": 2, "to": 3, "dmg": 11.0, "posture": 16.0,
+	})
 	_pending -= 1
-	_gap_t = GAP_T
+	_gap_t = gap_dur
 
-## 被弹反：单刺 → 硬直+激怒(下次三连)；三连 → 霸体，不硬直、不被打断
 func flinch(push_dir: float) -> void:
 	if _in_combo:
 		return
@@ -145,8 +154,21 @@ func flinch(push_dir: float) -> void:
 	_pending = 0
 	_st = ST_IDLE
 
-## 三连霸体期间：弹反/格挡不给它涨架势(=不会破防硬直)
 func _add_posture(amount: float) -> void:
 	if _in_combo and amount > 0.0:
 		return
 	super._add_posture(amount)
+
+# 调参可视化：画出手/保持距离线 + 矛判定框预览
+func _draw() -> void:
+	super._draw()
+	if not _dbg:
+		return
+	var c_strike := Color(1.0, 0.8, 0.2, 0.55)
+	var c_keep := Color(0.4, 0.7, 1.0, 0.5)
+	for s in [1.0, -1.0]:
+		draw_line(Vector2(strike_range * s, 4), Vector2(strike_range * s, -80), c_strike, 1.5)
+		draw_line(Vector2(keep_range * s, 4), Vector2(keep_range * s, -66), c_keep, 1.5)
+	var cx := float(facing) * thrust_reach
+	var cy := -body_size.y * 0.5
+	draw_rect(Rect2(cx - thrust_width * 0.5, cy - 11, thrust_width, 22), Color(1.0, 0.3, 0.3, 0.22))

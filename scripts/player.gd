@@ -36,6 +36,13 @@ func _setup() -> void:
 	attack_active_to = 3
 	add_to_group("player")
 
+func tunables() -> Array:
+	return [
+		{"name": "parry_window", "label": "弹反窗口s", "min": 0.04, "max": 0.5,  "step": 0.01},
+		{"name": "dodge_time",   "label": "闪避无敌s", "min": 0.1,  "max": 0.5,  "step": 0.01},
+		{"name": "attack_reach", "label": "主角刀长",  "min": 20.0, "max": 80.0, "step": 1.0},
+	]
+
 func _gather_intent(_delta: float) -> void:
 	move_dir = Input.get_axis("move_left", "move_right")
 	want_jump = Input.is_action_just_pressed("jump")

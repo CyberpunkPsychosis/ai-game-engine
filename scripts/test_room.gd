@@ -13,6 +13,7 @@ var _shot_frames := 40
 var _frame := 0
 var _hold := ""
 var _demo := false
+var _force_touch := false
 var _archer_only := false
 var _boss_only := false
 var _boss_show := false
@@ -48,6 +49,8 @@ func _ready() -> void:
 		elif a == "--bossshow":
 			_boss_only = true     # 主角站桩锁血，纯看 boss 出招
 			_boss_show = true
+		elif a == "--touch":
+			_force_touch = true   # 强制显示虚拟操作层（桌面预览用）
 
 	_make_ground()
 
@@ -82,6 +85,16 @@ func _ready() -> void:
 	add_child(_cam)
 	_cam.make_current()
 	Juice.register_camera(_cam)
+
+	# 手机/网页：挂虚拟操作层（摇杆+四键）。演示/截图/看boss 模式默认不挂；--touch 可强制。
+	var want_touch := _force_touch
+	if not _demo and not _boss_show and _shot_path == "" and not ("--probe" in args):
+		want_touch = want_touch or DisplayServer.is_touchscreen_available() or OS.has_feature("web")
+	if want_touch:
+		var cl := CanvasLayer.new()
+		cl.layer = 100
+		add_child(cl)
+		cl.add_child(TouchControls.new())
 
 	if "--probe" in args:
 		call_deferred("_run_probe")

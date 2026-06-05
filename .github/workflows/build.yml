@@ -62,18 +62,21 @@ jobs:
           ls -la build/web
 
       - name: 导出 Windows 版
+        continue-on-error: true   # 失败不挡网页版部署
         run: |
           mkdir -p build/windows
           godot --headless --export-release "Windows Desktop" build/windows/AIGameEngine.exe
           ls -la build/windows
 
       - name: 上传 Windows 版 (双击即玩)
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: AIGameEngine-Windows
           path: build/windows/
 
       - name: 安装 Node
+        continue-on-error: true
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -81,12 +84,14 @@ jobs:
           cache-dependency-path: tools/sprite-rigger/package-lock.json
 
       - name: 构建像素拼装工具
+        continue-on-error: true
         working-directory: tools/sprite-rigger
         run: |
           npm ci
           npm run build
 
       - name: 把工具并入网页输出 (/tools/sprite-rigger)
+        continue-on-error: true   # 工具是附带品，缺了也要让游戏先上线
         run: |
           mkdir -p build/web/tools/sprite-rigger
           cp -r tools/sprite-rigger/dist/* build/web/tools/sprite-rigger/

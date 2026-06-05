@@ -362,6 +362,10 @@ func _physics_process(delta: float) -> void:
 	if sprite:
 		sprite.flip_h = (facing < 0) != sprite_faces_left
 
+	# 受击框随朝向镜像（身体偏后/偏前，翻面要跟着翻）
+	if _hurt_cs:
+		_hurt_cs.position.x = hurt_dx * float(facing)
+
 	# 攻击命中帧 → 开关攻击框（位置/尺寸按当前这一刀动态变）
 	hit_active = _compute_hit_active()
 	if _attack_hitbox:
@@ -599,8 +603,8 @@ func _process(_delta: float) -> void:
 func _draw() -> void:
 	if not _dbg:
 		return
-	# 受击框（绿）：身体范围（含水平偏移）
-	draw_rect(Rect2(hurt_dx - body_size.x * 0.5, -body_size.y, body_size.x, body_size.y), Color(0, 1, 0, 0.22))
+	# 受击框（绿）：身体范围（含随朝向镜像的水平偏移）
+	draw_rect(Rect2(hurt_dx * float(facing) - body_size.x * 0.5, -body_size.y, body_size.x, body_size.y), Color(0, 1, 0, 0.22))
 	# 攻击框（红）：命中帧才显示
 	if hit_active:
 		var cx := float(facing) * attack_reach

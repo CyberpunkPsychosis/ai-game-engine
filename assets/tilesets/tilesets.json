@@ -10,5 +10,17 @@
     "file": "terrain.png",
     "tile": 16,
     "cols": 4
+  },
+  {
+    "name": "哥特墓地·地形 Gothicvania",
+    "file": "gothic_cemetery.png",
+    "tile": 32,
+    "cols": 14
+  },
+  {
+    "name": "哥特墓地·装饰 Objects",
+    "file": "gothic_objects.png",
+    "tile": 32,
+    "cols": 31
   }
 ]

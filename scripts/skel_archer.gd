@@ -6,8 +6,8 @@ class_name SkelArcher
 const A := "res://art/archer/"
 const SHOT_FRAME := 9       # shot 动画第几帧放箭
 const HOP_TRIGGER := 130.0  # 玩家近于此 → 向后跃开
-const HOP_SPEED := 300.0    # 后跃水平速度（比走位快得多，是"跳"不是"退"）
-const HOP_COOLDOWN := 0.5   # 两次后跃间隔
+const HOP_SPEED := 430.0    # 后跃水平速度（跃得远，一跳拉开整段距离）
+const HOP_COOLDOWN := 1.6   # 跳一次就够：落地先放箭，这段时间内不再跳
 const SHOOT_MAX := 340.0    # 进入此距离开始射
 const BOW_Y := -48.0        # 弓口高度（相对脚底）
 
@@ -22,10 +22,10 @@ func _setup() -> void:
 	body_size = Vector2(20, 56)
 	speed = 90.0
 	aggro_range = 560.0
-	# 后跃手感：起跳干脆、落得快，跃距≈一个身位多
-	jump_velocity = -360.0
-	gravity_up = 1500.0
-	gravity_down = 2000.0
+	# 后跃手感：跳高一点、滞空久一点 → 一跳拉开整段距离
+	jump_velocity = -420.0
+	gravity_up = 1350.0
+	gravity_down = 1700.0
 	anim_jump = "evasion"    # 腾空就放闪避动作 → 后跃看着像翻身跳
 	anim_fall = "evasion"
 	if sprite:

@@ -267,7 +267,7 @@ func _demo_tick(_delta: float) -> void:
 			get_tree().quit()
 			return
 		var arr := _incoming_arrow()
-		if arr != null and absf(arr.global_position.x - player.global_position.x) < 120.0:
+		if arr != null and absf(arr.global_position.x - player.global_position.x) < 90.0:
 			# 有箭飞来 → 站定接箭尖弹反
 			_demo_set("move_left", false)
 			_demo_set("move_right", false)
@@ -314,8 +314,8 @@ func _demo_tick(_delta: float) -> void:
 		if peril:
 			if fr >= maxi(1, tgt.attack_active_from - 2):
 				do_dodge = true       # 红光危 → 临近命中帧闪(i-frame 盖住)
-		elif fr >= maxi(1, tgt.attack_active_from - 3):
-			do_parry = true           # 普通 → 命中帧前点弹反(窗口 0.32 兜)
+		elif fr >= maxi(1, tgt.attack_active_from - 1):
+			do_parry = true           # 普通 → 贴命中帧弹反(窗口收紧到 0.16)
 	elif dist > 56.0:
 		go_right = dx > 0.0
 		go_left = dx < 0.0

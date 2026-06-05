@@ -107,6 +107,10 @@ var _dodge_dir := 1
 var _attack_hitbox: Hitbox
 var _attack_shape: RectangleShape2D
 var _hurtbox: Hurtbox
+var _hurt_cs: CollisionShape2D
+var _hurt_rect: RectangleShape2D
+var lock_hp := false            ## 锁血：受击有反馈但不掉血（测试用）
+var hurt_dx := 0.0              ## 受击框水平偏移（对齐身体用，可在调参工具拖）
 var current_attack_anim := ""   # 当前这一刀用的动画名（用于判断收招）
 var _dbg := false   # 调试：画攻击/受击框（--boxes 开启）
 
@@ -217,12 +221,12 @@ func _build_combat_boxes() -> void:
 	_hurtbox.collision_layer = 0
 	_hurtbox.collision_mask = their_hit
 	_hurtbox.monitorable = false
-	var hcs := CollisionShape2D.new()
-	var hrect := RectangleShape2D.new()
-	hrect.size = body_size
-	hcs.shape = hrect
-	hcs.position = Vector2(0, -body_size.y * 0.5)
-	_hurtbox.add_child(hcs)
+	_hurt_cs = CollisionShape2D.new()
+	_hurt_rect = RectangleShape2D.new()
+	_hurt_rect.size = body_size
+	_hurt_cs.shape = _hurt_rect
+	_hurt_cs.position = Vector2(hurt_dx, -body_size.y * 0.5)
+	_hurtbox.add_child(_hurt_cs)
 	add_child(_hurtbox)
 
 	# 攻击框：自己的攻击层，默认关闭（命中帧才开）
@@ -239,6 +243,35 @@ func _build_combat_boxes() -> void:
 	acs.shape = _attack_shape
 	_attack_hitbox.add_child(acs)
 	add_child(_attack_hitbox)
+
+## 实时调整受击框（调参工具用）：宽 / 高 / 水平偏移
+func set_hurt(w: float, h: float, dx: float) -> void:
+	body_size = Vector2(w, h)
+	hurt_dx = dx
+	if _hurt_rect:
+		_hurt_rect.size = body_size
+	if _hurt_cs:
+		_hurt_cs.position = Vector2(hurt_dx, -body_size.y * 0.5)
+	queue_redraw()
+
+## 受击框三个可调项（每个角色都有；调参工具统一加这一组）
+func body_tunables() -> Array:
+	return [
+		{"name": "_hw", "label": "受击框宽", "min": 8.0,  "max": 90.0, "step": 1.0},
+		{"name": "_hh", "label": "受击框高", "min": 20.0, "max": 120.0, "step": 1.0},
+		{"name": "_hdx","label": "受击框横移","min": -40.0,"max": 40.0, "step": 1.0},
+	]
+
+# 给调参工具用的标量读写（body_size 是 Vector2，拆成可拖的标量）
+var _hw: float:
+	get: return body_size.x
+	set(v): set_hurt(v, body_size.y, hurt_dx)
+var _hh: float:
+	get: return body_size.y
+	set(v): set_hurt(body_size.x, v, hurt_dx)
+var _hdx: float:
+	get: return hurt_dx
+	set(v): set_hurt(body_size.x, body_size.y, v)
 
 # ---------------------------------------------------------------- 主循环
 func _physics_process(delta: float) -> void:
@@ -430,7 +463,7 @@ func flinch(push_dir: float) -> void:
 		sprite.play(anim_hurt)
 
 func _take_hp(amount: float) -> void:
-	if amount <= 0.0:
+	if amount <= 0.0 or lock_hp:
 		return
 	hp = maxf(hp - amount, 0.0)
 	took_hit.emit(amount)
@@ -566,8 +599,8 @@ func _process(_delta: float) -> void:
 func _draw() -> void:
 	if not _dbg:
 		return
-	# 受击框（绿）：身体范围
-	draw_rect(Rect2(-body_size.x * 0.5, -body_size.y, body_size.x, body_size.y), Color(0, 1, 0, 0.22))
+	# 受击框（绿）：身体范围（含水平偏移）
+	draw_rect(Rect2(hurt_dx - body_size.x * 0.5, -body_size.y, body_size.x, body_size.y), Color(0, 1, 0, 0.22))
 	# 攻击框（红）：命中帧才显示
 	if hit_active:
 		var cx := float(facing) * attack_reach

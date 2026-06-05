@@ -31,8 +31,7 @@ func _ready() -> void:
 	ver.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layer.add_child(ver)
 
-	if _ui_enabled:
-		_make_corner_buttons()
+	# 网页/手机的开关在触控层右上角(调参/透视/锁血)；桌面用 F1/F3
 	if "--tune" in args:
 		_auto_open()      # 预览/截图用：自动开面板+透视
 
@@ -63,9 +62,23 @@ func _make_corner_buttons() -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F1:
-			_toggle_panel()
+			toggle_panel()
 		elif event.keycode == KEY_F3:
-			_toggle_debug()
+			toggle_debug()
+
+# 给触控层/外部调用的公开开关
+func toggle_panel() -> void:
+	_toggle_panel()
+
+func toggle_debug() -> void:
+	_toggle_debug()
+
+func toggle_player_lock() -> bool:
+	var p := get_tree().get_first_node_in_group("player")
+	if p and "lock_hp" in p:
+		p.lock_hp = not p.lock_hp
+		return p.lock_hp
+	return false
 
 func _process(_delta: float) -> void:
 	# 透视开着时，持续把 _dbg 铺到所有角色（新出的怪也覆盖到）
@@ -167,6 +180,18 @@ func _add_section(vbox: VBoxContainer, header: String, obj: Object) -> void:
 	vbox.add_child(h)
 	for entry in obj.call("tunables"):
 		_add_slider(vbox, obj, entry)
+	# 每个角色都附带受击框三项(对齐身体用)
+	if obj.has_method("body_tunables"):
+		for entry in obj.call("body_tunables"):
+			_add_slider(vbox, obj, entry)
+	# 锁血开关
+	if "lock_hp" in obj:
+		var chk := CheckButton.new()
+		chk.text = "锁血(不掉血)"
+		chk.button_pressed = obj.get("lock_hp")
+		chk.add_theme_font_size_override("font_size", 15)
+		chk.toggled.connect(func(on: bool): obj.set("lock_hp", on))
+		vbox.add_child(chk)
 
 func _add_slider(vbox: VBoxContainer, obj: Object, entry: Dictionary) -> void:
 	var prop: String = entry["name"]

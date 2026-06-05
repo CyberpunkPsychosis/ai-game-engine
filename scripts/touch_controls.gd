@@ -88,7 +88,31 @@ func _gui_input(event: InputEvent) -> void:
 			_drag(-1, (event as InputEventMouseMotion).position)
 			accept_event()
 
+# 右上角系统按钮(调参/透视/锁血)→ 调用 DevTools；瞬发，不进 _active
+func _sys_buttons() -> Array:
+	var w := 84.0
+	var hh := 40.0
+	var y := 10.0
+	var gap := 6.0
+	var x3 := size.x - 10.0 - w
+	var x2 := x3 - gap - w
+	var x1 := x2 - gap - w
+	return [
+		{"id": "panel", "label": "调参", "rect": Rect2(x1, y, w, hh)},
+		{"id": "debug", "label": "透视", "rect": Rect2(x2, y, w, hh)},
+		{"id": "lock",  "label": "锁血", "rect": Rect2(x3, y, w, hh)},
+	]
+
 func _press(idx: int, pos: Vector2) -> void:
+	# 先看右上角系统按钮
+	for sb in _sys_buttons():
+		if (sb["rect"] as Rect2).has_point(pos):
+			match sb["id"]:
+				"panel": DevTools.toggle_panel()
+				"debug": DevTools.toggle_debug()
+				"lock":  DevTools.toggle_player_lock()
+			queue_redraw()
+			return
 	# 命中某个按钮？(存按钮下标；SLASH 会一次按下多个动作)
 	for i in BTNS.size():
 		if pos.distance_to(_btn_pos(i)) <= _btn_radius(i) * 1.12:
@@ -199,3 +223,14 @@ func _draw() -> void:
 			var tw := _font.get_string_size(lab, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
 			draw_string(_font, p - Vector2(tw.x * 0.5, -fs * 0.34), lab,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, 0.92))
+	# 右上角系统按钮
+	for sb in _sys_buttons():
+		var r: Rect2 = sb["rect"]
+		draw_rect(r, Color(0.1, 0.1, 0.16, 0.62))
+		draw_rect(r, Color(1, 1, 1, 0.4), false, 2.0)
+		if _font:
+			var lab2: String = sb["label"]
+			var fs2 := 20
+			var tw2 := _font.get_string_size(lab2, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2)
+			draw_string(_font, r.position + Vector2((r.size.x - tw2.x) * 0.5, r.size.y * 0.5 + fs2 * 0.35),
+				lab2, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color(1, 1, 1, 0.95))

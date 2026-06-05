@@ -15,7 +15,7 @@ const BTNS := [
 ]
 
 var _font: Font
-var _touch := false                 # 设备是否触屏(决定吃触摸还是鼠标)
+var _seen_touch := false            # 见过真触摸后，彻底忽略鼠标(防触屏伪鼠标重复触发)
 var _active := {}                   # 触点 index -> "joy" 或 动作名
 var _joy_origin := Vector2.ZERO     # 当前摇杆基座中心(按下处)
 var _joy_vec := Vector2.ZERO        # 摇杆偏移(像素)
@@ -24,7 +24,6 @@ var _move_pressed := ""             # 当前正按住的走位动作(move_left/m
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	_touch = DisplayServer.is_touchscreen_available()
 	_font = get_theme_default_font()
 	if _font == null:
 		_font = ThemeDB.fallback_font
@@ -66,20 +65,23 @@ func _btn_pos(i: int) -> Vector2:
 
 # ---------------------------------------------------------------- 输入
 func _gui_input(event: InputEvent) -> void:
-	if _touch:
-		if event is InputEventScreenTouch:
-			var t := event as InputEventScreenTouch
-			if t.pressed:
-				_press(t.index, t.position)
-			else:
-				_release(t.index)
-			accept_event()
-		elif event is InputEventScreenDrag:
-			var d := event as InputEventScreenDrag
-			_drag(d.index, d.position)
-			accept_event()
-	else:
-		# 桌面(无触屏)：用鼠标当单指，方便调试
+	# 真触摸：始终走多点逻辑（不依赖 is_touchscreen_available，手机浏览器常误报）
+	if event is InputEventScreenTouch:
+		_seen_touch = true
+		var t := event as InputEventScreenTouch
+		if t.pressed:
+			_press(t.index, t.position)
+		else:
+			_release(t.index)
+		accept_event()
+	elif event is InputEventScreenDrag:
+		_seen_touch = true
+		var d := event as InputEventScreenDrag
+		_drag(d.index, d.position)
+		accept_event()
+	# 鼠标只在"从没见过触摸"时当单指用（纯桌面调试）；见过触摸后一律忽略，
+	# 免得触屏的伪鼠标在手指间乱跳、误点按钮。
+	elif not _seen_touch:
 		if event is InputEventMouseButton:
 			var mb := event as InputEventMouseButton
 			if mb.button_index == MOUSE_BUTTON_LEFT:

@@ -101,7 +101,7 @@ func _ready() -> void:
 		_cam.position = Vector2(130.0, 150.0)   # 跟"玩家+弓手"中点，看全追逐/后跃/箭的来回
 		_cam.zoom = Vector2(1.5, 1.5)
 	elif _playtest:
-		_cam.position = Vector2(player.position.x, 150.0)
+		_cam.position = Vector2(player.position.x + 130.0, 150.0)  # 带前瞻，框住右边来的怪
 		_cam.zoom = Vector2(1.8, 1.8)           # 拉远些，开局就能看到来的怪
 	else:
 		_cam.position = Vector2(player.position.x, 150.0)
@@ -344,6 +344,10 @@ func _process(delta: float) -> void:
 		if _archer_only and is_instance_valid(enemy):
 			var mid := (player.global_position.x + enemy.global_position.x) * 0.5
 			_cam.position.x = lerpf(_cam.position.x, mid, clampf(delta * 5.0, 0.0, 1.0))
+		elif _playtest:
+			# 朝朝向方向带点前瞻 → 正在打的怪不被右侧按钮挡住
+			var tgt_x: float = player.global_position.x + 130.0 * float(player.facing)
+			_cam.position.x = lerpf(_cam.position.x, tgt_x, clampf(delta * 4.0, 0.0, 1.0))
 		elif not _archer_only:
 			_cam.position.x = lerpf(_cam.position.x, player.global_position.x, clampf(delta * 6.0, 0.0, 1.0))
 	if _shot_path == "":

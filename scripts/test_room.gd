@@ -74,8 +74,8 @@ func _ready() -> void:
 		_cam.position = Vector2(20.0, 150.0)    # 固定，框住 boss
 		_cam.zoom = Vector2(1.8, 1.8)
 	elif _archer_only:
-		_cam.position = Vector2(130.0, 150.0)   # 固定宽视角，看全箭的来回
-		_cam.zoom = Vector2(1.9, 1.9)
+		_cam.position = Vector2(130.0, 150.0)   # 跟"玩家+弓手"中点，看全追逐/后跃/箭的来回
+		_cam.zoom = Vector2(1.5, 1.5)
 	else:
 		_cam.position = Vector2(player.position.x, 150.0)
 		_cam.zoom = Vector2(2.4, 2.4)
@@ -174,8 +174,18 @@ func _demo_tick(_delta: float) -> void:
 			get_tree().quit()
 			return
 		var arr := _incoming_arrow()
-		var parry_now := arr != null and absf(arr.global_position.x - player.global_position.x) < 120.0  # 提前弹(箭快了)，接箭尖
-		_demo_set("dash", parry_now)
+		if arr != null and absf(arr.global_position.x - player.global_position.x) < 120.0:
+			# 有箭飞来 → 站定接箭尖弹反
+			_demo_set("move_left", false)
+			_demo_set("move_right", false)
+			_demo_set("dash", true)        # 提前弹(箭快了)，接箭尖
+			return
+		_demo_set("dash", false)
+		# 没箭来 → 逼近弓手逼它后跃；但停在身位外(怪与怪不互相碰撞，贴太近会穿过去)
+		var dx := enemy.global_position.x - player.global_position.x
+		var approach := absf(dx) > 72.0
+		_demo_set("move_right", approach and dx > 0.0)
+		_demo_set("move_left", approach and dx < 0.0)
 		return
 
 	_demo_frames += 1
@@ -236,9 +246,13 @@ func _process(delta: float) -> void:
 		if _demo_frames > 1560:
 			get_tree().quit()
 		return
-	# 相机跟随玩家（水平）；弓箭手 demo 用固定宽视角
-	if _cam and is_instance_valid(player) and not _archer_only:
-		_cam.position.x = lerpf(_cam.position.x, player.global_position.x, clampf(delta * 6.0, 0.0, 1.0))
+	# 相机跟随：弓箭手 demo 框住"玩家+弓手"中点（追逐会跑动），其余跟玩家
+	if _cam and is_instance_valid(player):
+		if _archer_only and is_instance_valid(enemy):
+			var mid := (player.global_position.x + enemy.global_position.x) * 0.5
+			_cam.position.x = lerpf(_cam.position.x, mid, clampf(delta * 5.0, 0.0, 1.0))
+		elif not _archer_only:
+			_cam.position.x = lerpf(_cam.position.x, player.global_position.x, clampf(delta * 6.0, 0.0, 1.0))
 	if _shot_path == "":
 		return
 	if _hold != "":

@@ -1,15 +1,19 @@
 extends Enemy
 class_name SkelArcher
-## 弓箭骷髅：远程风筝。保持距离射箭（箭可被弹反），玩家逼近就后撤。
-## 教"处理远程 / 拉近距离"。
+## 弓箭骷髅：远程风筝。玩家一逼近（不管是闪避还是跳近身）→ 向后跃开（带起跳无敌帧），
+## 落地一回到射程立刻放箭（箭可被弹反）。教"处理远程 / 逼近压制"。
 
 const A := "res://art/archer/"
-const SHOT_FRAME := 9     # shot 动画第几帧放箭
-const FLEE_RANGE := 110.0 # 玩家近于此 → 后撤
-const SHOOT_MAX := 340.0  # 进入此距离开始射
-const BOW_Y := -48.0      # 弓口高度（相对脚底）
+const SHOT_FRAME := 9       # shot 动画第几帧放箭
+const HOP_TRIGGER := 130.0  # 玩家近于此 → 向后跃开
+const HOP_SPEED := 300.0    # 后跃水平速度（比走位快得多，是"跳"不是"退"）
+const HOP_COOLDOWN := 0.5   # 两次后跃间隔
+const SHOOT_MAX := 340.0    # 进入此距离开始射
+const BOW_Y := -48.0        # 弓口高度（相对脚底）
 
 var _shot_fired := false
+var _hopping := false
+var _hop_cd := 0.0
 
 func _setup() -> void:
 	team = 1
@@ -18,6 +22,12 @@ func _setup() -> void:
 	body_size = Vector2(20, 56)
 	speed = 90.0
 	aggro_range = 560.0
+	# 后跃手感：起跳干脆、落得快，跃距≈一个身位多
+	jump_velocity = -360.0
+	gravity_up = 1500.0
+	gravity_down = 2000.0
+	anim_jump = "evasion"    # 腾空就放闪避动作 → 后跃看着像翻身跳
+	anim_fall = "evasion"
 	if sprite:
 		sprite.offset = Vector2(0, -62)
 		sprite.sprite_frames = SpriteSheet.build_from_strips({
@@ -33,6 +43,9 @@ func _setup() -> void:
 
 func _gather_intent(delta: float) -> void:
 	_cd = maxf(_cd - delta, 0.0)
+	_hop_cd = maxf(_hop_cd - delta, 0.0)
+	if _base_speed < 0.0:
+		_base_speed = speed
 	var pl := get_tree().get_first_node_in_group("player") as Node2D
 	if pl == null:
 		return
@@ -45,18 +58,57 @@ func _gather_intent(delta: float) -> void:
 			_fire_arrow()
 			_shot_fired = true
 		return
+
+	# 后跃中：空中持续往后冲、始终面向玩家好接着射；落地即结束
+	if _hopping:
+		facing = 1 if dx >= 0.0 else -1
+		speed = HOP_SPEED
+		move_dir = -signf(dx)
+		# 无敌帧只罩上升段（躲掉贴脸那一下），下落段恢复可被打
+		if velocity.y >= 0.0 and invulnerable:
+			invulnerable = false
+			if sprite:
+				sprite.modulate = Color.WHITE
+		if is_on_floor() and velocity.y >= 0.0:
+			_hopping = false
+			speed = _base_speed
+			_cd = minf(_cd, 0.04)    # 落地几乎立刻可射
+		return
+
 	facing = 1 if dx >= 0.0 else -1
 
-	if dist < FLEE_RANGE:
-		move_dir = -signf(dx)        # 太近 → 后撤
+	# 玩家逼近（含闪避/跳跃贴脸）→ 向后跃开
+	if dist < HOP_TRIGGER and _hop_cd <= 0.0 and is_on_floor():
+		_begin_hop(dx)
 		return
 	if dist > aggro_range:
 		return
 	if dist > SHOOT_MAX:
-		move_dir = signf(dx)         # 进入射程
+		move_dir = signf(dx)         # 太远 → 走近进射程
 		return
+	# 在射程内、冷却好 → 立刻放箭
 	if _cd <= 0.0 and _slot_free():
 		_begin_shot()
+
+func _begin_hop(dx: float) -> void:
+	_hopping = true
+	_hop_cd = HOP_COOLDOWN
+	facing = 1 if dx >= 0.0 else -1  # 跃走也面向玩家
+	want_jump = true                 # 交给基类的跳跃逻辑起跳
+	move_dir = -signf(dx)            # 朝玩家反方向跃
+	speed = HOP_SPEED
+	invulnerable = true              # 起跳带无敌帧，吃掉贴脸那一击
+	if sprite:
+		sprite.modulate = Color(0.7, 0.85, 1.0, 0.7)  # 蓝调=无敌
+		if sprite.sprite_frames and sprite.sprite_frames.has_animation("evasion"):
+			sprite.play("evasion")
+
+func flinch(push_dir: float) -> void:
+	super.flinch(push_dir)
+	_hopping = false                 # 被弹反 → 取消后跃状态
+	invulnerable = false
+	if sprite:
+		sprite.modulate = Color.WHITE
 
 func _begin_shot() -> void:
 	attacking = true

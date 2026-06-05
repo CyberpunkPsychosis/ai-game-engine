@@ -267,7 +267,7 @@ func _demo_tick(_delta: float) -> void:
 			get_tree().quit()
 			return
 		var arr := _incoming_arrow()
-		if arr != null and absf(arr.global_position.x - player.global_position.x) < 90.0:
+		if arr != null and absf(arr.global_position.x - player.global_position.x) < 55.0:
 			# 有箭飞来 → 站定接箭尖弹反
 			_demo_set("move_left", false)
 			_demo_set("move_right", false)

@@ -28,7 +28,7 @@ func _setup() -> void:
 	anim_fall = "jump"     # 没有独立下落帧，下落复用 jump
 	can_parry = true       # 主角能弹反（点 K/Shift）
 	can_dodge = true       # 主角能闪避（点 L）—— 暂代格挡
-	parry_window = 0.16    # 弹反窗口收紧：挥刀得正好迎上那一下才弹，乱挥不行
+	parry_window = 0.10    # 弹反窗口很紧(~6帧)：要算准箭尖到身前那一刻挥刀
 	# 主角是长突刺，攻击框要够长够远（之前太短砍空）
 	attack_reach = 46.0
 	attack_size = Vector2(64, 40)

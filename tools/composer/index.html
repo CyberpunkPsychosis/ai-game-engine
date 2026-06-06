@@ -172,7 +172,7 @@ const OWNER="CyberpunkPsychosis", REPO="ai-game-engine";
 // 保存写入的分支（= 当前开发分支，和 Pages 部署同源一致）
 const BRANCH="claude/game-engine-claude-chat-mbKeN";
 // 素材与场景同源加载（构建时拷进 build/web）—— 读取不需要令牌
-const ASSET_BASE="../../assets/packs/mossy/";
+const ASSET_BASE="../../assets/packs/gothic/";
 const ANIM_BASE="../../assets/anim/";
 const SCENE_BASE="../../scenes/";
 const PARALLAX={far:0.30, back:0.60, play:1.00, fore:1.18};
@@ -584,12 +584,13 @@ function buildPieces(){
 }
 function placeAt(){return screenToWorld(innerWidth/2,innerHeight/2,parallaxOf(curLayer));}
 function addPiece(p){
-  const [wx,wy]=placeAt();
+  const [wx]=placeAt();
   const target=innerHeight*0.5/cam.zoom;
   const sc=Math.min(1,target/Math.max(p.w,p.h));
+  const wy=scene.view.groundY-(p.h*sc)/2;   // 底边落在地面线上(所有物件底边自动齐)
   scene.instances.push({id:uid(),layer:curLayer,asset:p.file,
     x:Math.round(wx),y:Math.round(wy),scale:+sc.toFixed(3),rot:0,flipX:false,z:0});
-  showHint("已放入「"+LAYER_DEF.find(l=>l.id===curLayer).name+"」");
+  showHint("已放到地面线上，左右拖摆位置就行（底边自动齐）");
 }
 function addAnim(clip){
   const c=ANIM[clip];const [wx,wy]=placeAt();

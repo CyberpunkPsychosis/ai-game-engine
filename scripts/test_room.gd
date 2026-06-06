@@ -23,6 +23,7 @@ var _archer_only := false
 var _spear_only := false
 var _war_only := false
 var _demon_only := false
+var _frost_only := false
 var _boss_only := false
 var _boss_show := false
 var _playtest := false        # 试玩演示：有界场地 + 一个一个出怪(先弓骷髅)
@@ -62,6 +63,9 @@ func _ready() -> void:
 		elif a == "--demondemo":
 			_demo = true
 			_demon_only = true
+		elif a == "--frostdemo":
+			_demo = true
+			_frost_only = true
 		elif a == "--boss":
 			_boss_only = true
 		elif a == "--bossdemo":
@@ -100,6 +104,8 @@ func _ready() -> void:
 		enemy = _spawn_enemy(SkelWarrior.new(), 220.0)
 	elif _demon_only:
 		enemy = _spawn_enemy(EliteDemon.new(), 240.0)
+	elif _frost_only:
+		enemy = _spawn_enemy(EliteFrost.new(), 240.0)
 	elif _playtest:
 		_spawn_wave()                  # 先出弓骷髅，打完自动换下一个
 	else:
@@ -302,11 +308,11 @@ func _demo_tick(_delta: float) -> void:
 
 	_demo_frames += 1
 	var tgt := _nearest_enemy()
-	if player == null or tgt == null or ((_war_only or _spear_only) and tgt.hp <= 0.0):
+	if player == null or tgt == null or ((_war_only or _spear_only or _frost_only) and tgt.hp <= 0.0):
 		print("DEMO parries=%d" % _parry_count)
 		get_tree().quit()
 		return
-	if _demo_frames > (760 if (_spear_only or _war_only) else (1100 if _demon_only else 2400)):
+	if _demo_frames > (760 if (_spear_only or _war_only) else (1100 if (_demon_only or _frost_only) else 2400)):
 		print("DEMO parries=%d" % _parry_count)
 		get_tree().quit()
 		return

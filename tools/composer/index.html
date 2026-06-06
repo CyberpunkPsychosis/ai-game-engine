@@ -114,7 +114,7 @@
 <canvas id="stage"></canvas>
 
 <div class="topbar">
-  <div class="title">关卡编辑器·对齐b6</div>
+  <div class="title">关卡编辑器·对齐b7</div>
   <div class="modesw" id="modesw">
     <button data-m="free" class="on">自由摆放</button>
     <button data-m="tile">瓦片铺</button>
@@ -859,11 +859,24 @@ function findTileAt(cell){
     JSON.stringify(i.crop||null)===JSON.stringify(brush.crop||null) &&
     Math.abs(i.x-cell.x)<tx && Math.abs(i.y-cell.y)<ty);
 }
+// 严格按世界格:删"覆盖此格中心、且本层、且是瓦片"的最上面那块
+function eraseAtCell(sx,sy){
+  const p=parallaxOf(curLayer),cw=gridStepWorld(),gy=scene.view.groundY;
+  const [wx,wy]=screenToWorld(sx,sy,p);
+  const col=Math.floor(wx/cw), row=Math.floor((gy-wy)/cw);
+  const ccx=(col+0.5)*cw, ccy=gy-row*cw-cw/2;          // 该格中心(世界)
+  const order=[...scene.instances].sort((a,b)=>layerIndex(a.layer)-layerIndex(b.layer)||(a.z||0)-(b.z||0));
+  for(let i=order.length-1;i>=0;i--){
+    const ins=order[i]; if(ins.layer!==curLayer||!ins.tile)continue;
+    const d=srcDims(ins),hw=d.fw*ins.scale/2,hh=d.fh*ins.scale/2;
+    if(ccx>=ins.x-hw && ccx<ins.x+hw && ccy>=ins.y-hh && ccy<ins.y+hh) return ins;
+  }
+  return null;
+}
 function stampTile(sx,sy,erase){
   if(erase===undefined) erase=eraseMode;
-  if(erase){                                           // 擦除:以世界格为准,删该格里的那块(不按素材范围)
-    const [csx,csy]=cellCenterScreen(sx,sy);
-    const t=topInstanceAt(csx,csy,true);
+  if(erase){                                           // 擦除:以世界格为准,只删该格里的瓦片
+    const t=eraseAtCell(sx,sy);
     if(t) scene.instances=scene.instances.filter(i=>i!==t);
     return;
   }

@@ -571,6 +571,26 @@ function hitMarker(sx,sy){
   return null;
 }
 
+//==================== 撤销(Ctrl+Z) ====================
+let undoStack=[];
+function snapshot(){return {ins:JSON.parse(JSON.stringify(scene.instances)), mk:JSON.parse(JSON.stringify(scene.markers))};}
+function pushUndo(){undoStack.push(snapshot()); if(undoStack.length>80)undoStack.shift();}
+function undo(){
+  if(!undoStack.length){showHint("没有可撤销的了");return;}
+  const s=undoStack.pop(); scene.instances=s.ins; scene.markers=s.mk;
+  sel=null;selMarker=null;selTiles=[];grabSel=null;updateActions();showHint("已撤销");
+}
+// 把某瓦片中心对齐到世界网格后的坐标(切回按格移动时用,消除像素错位)
+function snapCenterX(i,cxCand){const tw=srcDims(i).fw*i.scale,cw=gridStepWorld();const left=cxCand-tw/2;return Math.round(left/cw)*cw+tw/2;}
+function snapCenterY(i,cyCand){const th=srcDims(i).fh*i.scale,ch=gridStepWorld(),gy=scene.view.groundY;const bottom=cyCand+th/2;return gy-Math.round((gy-bottom)/ch)*ch-th/2;}
+// 屏幕点吸附到所在世界格中心(屏幕坐标),用于按格擦除
+function cellCenterScreen(sx,sy){
+  const p=parallaxOf(curLayer),cw=gridStepWorld(),ch=cw,gy=scene.view.groundY;
+  const [wx,wy]=screenToWorld(sx,sy,p);
+  const col=Math.floor(wx/cw),row=Math.floor((gy-wy)/ch);
+  return worldToScreen((col+0.5)*cw, gy-row*ch-ch/2, p);
+}
+
 //==================== 指针交互 ====================
 const ptrs=new Map();
 let drag=null;        // {type:'pan'|'move'|'pending', ...}
@@ -595,14 +615,14 @@ cv.addEventListener("pointerdown",e=>{
   if(e.button===1){ drag={type:"pan",camx:cam.x,camy:cam.y,sx,sy}; return; } // 中键拖=平移(各模式通用)
   if(mode==="marker"){
     const [wx,wy]=screenToWorld(sx,sy,1);
-    scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
+    pushUndo(); scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
     return;
   }
   // 瓦片·选移模式：框选已放瓦片 → 拖动整体移动
   if(placeMode==="tile" && mode==="edit" && tileAct==="select" && e.button!==2){
     const hit=topInstanceAt(sx,sy,true);
     if(hit && selTiles.includes(hit)){               // 点中已选 → 整体移动
-      drag={type:"selmove",sx,sy,orig:selTiles.map(i=>({i,x:i.x,y:i.y}))}; return;
+      drag={type:"selmove",sx,sy,orig:selTiles.map(i=>({i,x:i.x,y:i.y}))}; return;  // undo 在首次移动时记
     }
     drag={type:"selbox",sx0:sx,sy0:sy}; selBox={x0:sx,y0:sy,x1:sx,y1:sy}; selTiles=[]; return;
   }
@@ -616,12 +636,12 @@ cv.addEventListener("pointerdown",e=>{
   if(placeMode==="tile" && mode==="edit"){
     if(!brush){showHint("先把素材拖到画布(自动选中),或切「✋取」框选取块");return;}
     const erasing=eraseMode||e.button===2;           // 右键=擦除
-    painting=true; lastCell=null; stampTile(sx,sy,erasing); drag={type:"tile",erase:erasing}; return;
+    pushUndo(); painting=true; lastCell=null; stampTile(sx,sy,erasing); drag={type:"tile",erase:erasing}; return;
   }
   // 自由摆放:右键 = 删除当前层点下方的零件
   if(e.button===2){
     const t=topInstanceAt(sx,sy,true);
-    if(t){scene.instances=scene.instances.filter(i=>i!==t);sel=null;selMarker=null;updateActions();showHint("已删除");}
+    if(t){pushUndo();scene.instances=scene.instances.filter(i=>i!==t);sel=null;selMarker=null;updateActions();showHint("已删除");}
     else showHint("右键删本层零件:这里没有");
     return;
   }
@@ -660,10 +680,12 @@ cv.addEventListener("pointermove",e=>{
   if(drag&&drag.type==="grab"){ updateGrabSel(drag.inst,drag.sx0,drag.sy0,e.clientX,e.clientY); return; }
   if(drag&&drag.type==="selbox"){ selBox={x0:drag.sx0,y0:drag.sy0,x1:e.clientX,y1:e.clientY}; return; }
   if(drag&&drag.type==="selmove"){
-    let dwx=(e.clientX-drag.sx)/cam.zoom, dwy=(e.clientY-drag.sy)/cam.zoom;
-    if(moveSnap){const g=gridStepWorld(); dwx=Math.round(dwx/g)*g; dwy=Math.round(dwy/g)*g;}
-    else{dwx=Math.round(dwx); dwy=Math.round(dwy);}
-    drag.orig.forEach(o=>{o.i.x=o.x+dwx; o.i.y=o.y+dwy;}); return;
+    if(!drag.undone){pushUndo();drag.undone=true;}
+    const dwx=(e.clientX-drag.sx)/cam.zoom, dwy=(e.clientY-drag.sy)/cam.zoom;
+    drag.orig.forEach(o=>{
+      if(moveSnap){ o.i.x=snapCenterX(o.i,o.x+dwx); o.i.y=snapCenterY(o.i,o.y+dwy); } // 按格:结果对齐网格(消除之前像素错位)
+      else{ o.i.x=Math.round(o.x+dwx); o.i.y=Math.round(o.y+dwy); }
+    }); return;
   }
   if(painting&&drag&&drag.type==="tile"&&ptrs.size<2){ stampTile(e.clientX,e.clientY,drag.erase); return; }
   if(pinch&&ptrs.size>=2){
@@ -687,10 +709,12 @@ cv.addEventListener("pointermove",e=>{
     cam.x=drag.camx-(e.clientX-drag.sx)/cam.zoom;
     cam.y=drag.camy-(e.clientY-drag.sy)/cam.zoom;
   }else if(drag.type==="move"){
+    if(!drag.undone){pushUndo();drag.undone=true;}
     const o=drag.tgt.obj;
     o.x=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom);
     o.y=Math.round(drag.oy+(e.clientY-drag.sy)/cam.zoom);
   }else if(drag.type==="resize"){
+    if(!drag.undone){pushUndo();drag.undone=true;}
     const d=Math.hypot(e.clientX-drag.cx,e.clientY-drag.cy);
     drag.ins.scale=Math.max(0.05,Math.min(12, +(drag.startScale*d/drag.startDist).toFixed(3)));
     drag.ins.y=Math.round(drag.bottom-drag.fh*drag.ins.scale/2);   // 底边固定,向上长
@@ -717,12 +741,13 @@ cv.addEventListener("pointercancel",endPtr);
 // Del/方向键:操作选中的瓦片
 addEventListener("keydown",e=>{
   const ae=document.activeElement; if(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"))return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){undo();e.preventDefault();return;}
   if(!selTiles.length)return;
-  if(e.key==="Delete"||e.key==="Backspace"){scene.instances=scene.instances.filter(i=>!selTiles.includes(i));selTiles=[];e.preventDefault();}
+  if(e.key==="Delete"||e.key==="Backspace"){pushUndo();scene.instances=scene.instances.filter(i=>!selTiles.includes(i));selTiles=[];e.preventDefault();}
   else if(e.key.startsWith("Arrow")){
     const g=moveSnap?gridStepWorld():1;
     const dx=(e.key==="ArrowLeft"?-g:e.key==="ArrowRight"?g:0), dy=(e.key==="ArrowUp"?-g:e.key==="ArrowDown"?g:0);
-    if(dx||dy){selTiles.forEach(i=>{i.x+=dx;i.y+=dy;});e.preventDefault();}
+    if(dx||dy){pushUndo();selTiles.forEach(i=>{ if(moveSnap){i.x=snapCenterX(i,i.x+dx);i.y=snapCenterY(i,i.y+dy);} else {i.x+=dx;i.y+=dy;} });e.preventDefault();}
   }
 });
 // 桌面滚轮缩放
@@ -819,8 +844,9 @@ function findTileAt(cell){
 }
 function stampTile(sx,sy,erase){
   if(erase===undefined) erase=eraseMode;
-  if(erase){                                           // 擦除:删掉点下方任意一块(本层),不限当前刷子
-    const t=topInstanceAt(sx,sy,true);
+  if(erase){                                           // 擦除:以世界格为准,删该格里的那块(不按素材范围)
+    const [csx,csy]=cellCenterScreen(sx,sy);
+    const t=topInstanceAt(csx,csy,true);
     if(t) scene.instances=scene.instances.filter(i=>i!==t);
     return;
   }
@@ -852,6 +878,7 @@ function updateActions(){
 }
 $("actions").addEventListener("click",e=>{
   const a=e.target.dataset.a;if(!a)return;
+  if(a!=="done")pushUndo();
   if(selMarker){
     if(a==="del"){scene.markers=scene.markers.filter(m=>m!==selMarker);selMarker=null;}
     if(a==="done"){selMarker=null;}
@@ -964,13 +991,14 @@ function bindPieceDrag(el,it){
       if(ghost)ghost.remove();
       setBrushFromPiece(it);                                       // 选成当前刷子
       const palTop=$("palette").getBoundingClientRect().top;
-      if(moved && ev.clientY<palTop-4){ lastCell=null; stampTile(ev.clientX,ev.clientY,false); } // 拖到画布:直接铺一块
+      if(moved && ev.clientY<palTop-4){ pushUndo(); lastCell=null; stampTile(ev.clientX,ev.clientY,false); } // 拖到画布:直接铺一块
     };
     window.addEventListener("pointermove",move);window.addEventListener("pointerup",up);
   });
 }
 function placeAt(){return screenToWorld(innerWidth/2,innerHeight/2,parallaxOf(curLayer));}
 function addPiece(p){
+  pushUndo();
   const [wx]=placeAt();
   const isBg=curCat() && /背景|Background/i.test(curCat().name);
   const layer=curLayer;                             // 尊重你当前选的层(不再强制远景)

@@ -48,6 +48,7 @@
   <button class="btn" id="btnPan">✋平移</button>
   <button class="btn on" id="btnPaint">🖌画</button>
   <button class="btn" id="btnErase">🧽擦</button>
+  <button class="btn" id="btnBase">📏地基</button>
   <button class="btn p" id="btnMenu">⋯</button>
 </div>
 <div class="layers" id="layers"></div>
@@ -100,6 +101,7 @@ let layers={};          // id -> Map("col,row"->tileIndex)
 LAYERS.forEach(l=>layers[l.id]=new Map());
 let curLayer="main", curTile=0, mode="paint";   // paint|erase|pan
 let stamp={c0:0,r0:0,c1:0,r1:0};   // 调色板框选的矩形(整块对象)；单格时四角相同
+let groundRow=0;   // 地基线所在行：放"整块对象"时底边自动吸到这一行(只管点位置,不用点准行)
 // 扫描瓦片集，记下"全透明的空格"下标，盖章时跳过(免得空格也算进碰撞)
 function computeEmpty(t){
   const cv2=document.createElement("canvas");cv2.width=t.img.width;cv2.height=t.img.height;
@@ -181,6 +183,10 @@ function draw(){
   // 原点
   const [ox,oy]=[Math.round((0-cam.x)*cam.zoom)+0.5,Math.round((0-cam.y)*cam.zoom)+0.5];
   ctx.strokeStyle="rgba(92,192,204,.5)";ctx.beginPath();ctx.moveTo(ox,0);ctx.lineTo(ox,h);ctx.moveTo(0,oy);ctx.lineTo(w,oy);ctx.stroke();
+  // 地基线(整块对象底边吸到这里)
+  const gy=Math.round(((groundRow+1)*TH-cam.y)*cam.zoom)+0.5;
+  ctx.strokeStyle="rgba(255,210,74,.85)";ctx.lineWidth=2;ctx.setLineDash([10,7]);
+  ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();ctx.setLineDash([]);ctx.lineWidth=1;
   // 瓦片(各层)
   if(ts){
     ctx.imageSmoothingEnabled=false;
@@ -238,15 +244,19 @@ function paintAt(sx,sy){
   if(!ts)return;
   const map=layers[curLayer];
   if(mode==="erase"){ rec(map,key); map.delete(key); return; }
-  // 盖章：让"这块最低的有内容那排"落在你点的那一行(底对齐)，跳过透明空格
-  let baseRow=stamp.r0;
+  // 整块对象：左右吸到"本块宽度"的网格(连摆不留缝)，底边吸到地基线；单格则跟光标
+  const multi=(stamp.c1>stamp.c0||stamp.r1>stamp.r0);
+  let objBottom=stamp.r0;
   for(let rr=stamp.r1;rr>=stamp.r0;rr--){let has=false;
     for(let cc=stamp.c0;cc<=stamp.c1;cc++){if(!ts.empty.has(rr*ts.cols+cc)){has=true;break;}}
-    if(has){baseRow=rr;break;}}
+    if(has){objBottom=rr;break;}}
+  const W=stamp.c1-stamp.c0+1;
+  const leftCol=multi?Math.round(c/W)*W:c;
+  const botRow =multi?groundRow:r;
   for(let rr=stamp.r0;rr<=stamp.r1;rr++)for(let cc=stamp.c0;cc<=stamp.c1;cc++){
     const idx=rr*ts.cols+cc;
     if(ts.empty.has(idx))continue;
-    const k2=(c+(cc-stamp.c0))+","+(r+(rr-baseRow));
+    const k2=(leftCol+(cc-stamp.c0))+","+(botRow+(rr-objBottom));
     rec(map,k2); map.set(k2,idx);
   }
 }
@@ -271,7 +281,8 @@ cv.addEventListener("pointerdown",e=>{
   // 平移：Pan 模式 / 按住空格 / 中键 / 右键
   if(mode==="pan"||spaceHeld||e.button===1||e.button===2){
     pan={camx:cam.x,camy:cam.y,sx:e.clientX,sy:e.clientY}; painting=false;
-  }else{_undo=null;painting=true;paintAt(e.clientX,e.clientY);}
+  }else if(mode==="base"){const cr=cellAt(e.clientX,e.clientY);groundRow=cr[1];setMode("paint");hint("地基线已设(行 "+groundRow+")：放整块底边自动贴这条线");painting=false;}
+  else{_undo=null;painting=true;paintAt(e.clientX,e.clientY);}
 });
 cv.addEventListener("pointermove",e=>{
   if(!ptrs.has(e.pointerId))return; ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -315,7 +326,8 @@ cv.addEventListener("contextmenu",e=>e.preventDefault());
 })();
 
 // ---- 工具按钮 ----
-function setMode(m){mode=m;$("btnPaint").classList.toggle("on",m==="paint");$("btnErase").classList.toggle("on",m==="erase");$("btnPan").classList.toggle("on",m==="pan");}
+function setMode(m){mode=m;$("btnPaint").classList.toggle("on",m==="paint");$("btnErase").classList.toggle("on",m==="erase");$("btnPan").classList.toggle("on",m==="pan");$("btnBase").classList.toggle("on",m==="base");}
+$("btnBase").onclick=()=>{setMode("base");hint("点画布上你要的地面那一行,设成地基线(整块底边吸到这条线)");};
 $("btnPaint").onclick=()=>setMode("paint");
 $("btnErase").onclick=()=>setMode("erase");
 $("btnPan").onclick=()=>setMode("pan");

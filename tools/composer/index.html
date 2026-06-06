@@ -387,17 +387,27 @@ function draw(){
       const d=srcDims(ins);e=d.e;fw=d.fw;fh=d.fh;srcx=d.sx;srcy=d.sy;
     }
     const iw=fw*ins.scale*cam.zoom, ih=fh*ins.scale*cam.zoom;
+    const rot=(ins.rot||0), bl=ins.tile?1:0;
     ctx.save();
     ctx.globalAlpha=ins.opacity==null?1:ins.opacity;
-    ctx.translate(Math.round(sx),Math.round(sy));    // 整数像素,避免半像素接缝
-    ctx.rotate((ins.rot||0)*Math.PI/180);
-    if(ins.flipX) ctx.scale(-1,1);
-    if(e.loaded){
-      // 瓦片向外多铺 1px(屏幕),让相邻块叠住,彻底消缝
-      const bl=ins.tile?1:0;
-      const dw=Math.ceil(iw)+bl*2, dh=Math.ceil(ih)+bl*2;
-      ctx.drawImage(e.img,srcx,srcy,fw,fh,-Math.round(iw/2)-bl,-Math.round(ih/2)-bl,dw,dh);
-    }else{ctx.fillStyle="#333";ctx.fillRect(-iw/2,-ih/2,iw,ih);}
+    if(rot===0){
+      // 左右上下"边"各自取整 → 共享同一条世界边的瓦片对齐到同一整数像素(无1px错位/无缝)
+      const hw=fw*ins.scale/2, hh=fh*ins.scale/2;
+      const L=Math.round((ins.x-hw-cam.x*p)*cam.zoom), R=Math.round((ins.x+hw-cam.x*p)*cam.zoom);
+      const T=Math.round((ins.y-hh-cam.y*p)*cam.zoom), B=Math.round((ins.y+hh-cam.y*p)*cam.zoom);
+      if(e.loaded){
+        if(ins.flipX){ ctx.translate(R+bl,T-bl); ctx.scale(-1,1); ctx.drawImage(e.img,srcx,srcy,fw,fh,0,0,(R-L)+2*bl,(B-T)+2*bl); }
+        else ctx.drawImage(e.img,srcx,srcy,fw,fh,L-bl,T-bl,(R-L)+2*bl,(B-T)+2*bl);
+      }else{ctx.fillStyle="#333";ctx.fillRect(L,T,R-L,B-T);}
+    }else{
+      ctx.translate(Math.round(sx),Math.round(sy));
+      ctx.rotate(rot*Math.PI/180);
+      if(ins.flipX) ctx.scale(-1,1);
+      if(e.loaded){
+        const dw=Math.ceil(iw)+bl*2, dh=Math.ceil(ih)+bl*2;
+        ctx.drawImage(e.img,srcx,srcy,fw,fh,-Math.round(iw/2)-bl,-Math.round(ih/2)-bl,dw,dh);
+      }else{ctx.fillStyle="#333";ctx.fillRect(-iw/2,-ih/2,iw,ih);}
+    }
     ctx.restore();
     // 选中描边 + 右下角缩放手柄(拖它改大小)
     if(ins.id===sel){
@@ -791,9 +801,10 @@ function cellAt(sx,sy){
   const [wx,wy]=screenToWorld(sx,sy,p);
   const col=Math.floor(wx/c.w);
   const row=Math.floor((scene.view.groundY-wy)/c.h);     // 0=贴地面线那行
-  const tw=Math.max(1,Math.round(brush.w*tileScale)), th=Math.max(1,Math.round(brush.h*tileScale));
+  const sc=+tileScale.toFixed(3);
+  const tw=brush.w*sc, th=brush.h*sc;                    // 用实际(未取整)尺寸,让左/下边精确落在网格线上
   const leftX=col*c.w, bottomY=scene.view.groundY-row*c.h; // 网格交点=瓦片左下角
-  return {col,row,x:Math.round(leftX+tw/2),y:Math.round(bottomY-th/2),tw,th,w:c.w,h:c.h};
+  return {col,row, x:leftX+tw/2, y:bottomY-th/2, tw, th, w:c.w, h:c.h};
 }
 // 在画布素材上框选 → 吸附到"画布世界网格"(那套黄格),取网格块覆盖到的素材部分
 function updateGrabSel(ins,asx,asy,bsx,bsy){

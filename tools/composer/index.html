@@ -599,22 +599,20 @@ cv.addEventListener("wheel",e=>{
 },{passive:false});
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
 
-// 一键铺满可视区：缩放+定位让这张图盖满"画面上下边"之间的整块(cover)，并居中
+// 一键铺满可视区：大小=玩家"刚好一屏"(与当前编辑缩放无关)，竖直居中可视区
 function fillToView(ins){
   const d=srcDims(ins); if(d.e&&!d.e.loaded&&!ins.anim){showHint("图还没加载好，再点一次");return;}
   const p=parallaxOf(ins.layer);
-  // 可视区在屏幕上的矩形（两条青色虚线之间，宽=整屏）
-  const syTop=(scene.view.groundY-scene.view.h-cam.y)*cam.zoom;
-  const syBot=(scene.view.groundY-cam.y)*cam.zoom;
-  const rectW=innerWidth, rectH=Math.max(1,syBot-syTop);
-  // 让图的屏幕尺寸 >= 该矩形(取较大比例=cover)，留 4% 余量
-  const sc=1.04*Math.max(rectW/(d.fw*cam.zoom), rectH/(d.fh*cam.zoom));
-  ins.scale=+sc.toFixed(3);
-  // 图中心对到矩形中心(屏幕)，再换算回该图层的世界坐标
-  const cxScreen=innerWidth/2, cyScreen=(syTop+syBot)/2;
-  ins.x=Math.round(cxScreen/cam.zoom+cam.x*p);
-  ins.y=Math.round(cyScreen/cam.zoom+cam.y*p);
-  showHint("已铺满可视区；若想横向接长，可换「瓦片铺」用背景平铺");
+  // 玩家可视区(世界单位)：高=view.h，宽=高×屏幕比例(至少16:9)
+  const aspect=Math.max(16/9, innerWidth/innerHeight);
+  const vw=scene.view.h*aspect, vh=scene.view.h;
+  // cover：图世界尺寸盖住该矩形，留 2% 余量。注意:不含 zoom → 预览/编辑一致
+  ins.scale=+(1.02*Math.max(vw/d.fw, vh/d.fh)).toFixed(3);
+  // 预览(主视角)相机参数，保证预览时正好竖直居中可视区
+  const pcy=scene.view.groundY-scene.view.h;     // 主视角相机Y(可视区顶)
+  ins.y=Math.round(vh/2 + pcy*p);                // 让图中心落在可视区中心
+  ins.x=Math.round(cam.x*p + (innerWidth/2)/cam.zoom); // 横向对到你当前在看的位置
+  showHint("已铺满可视区(=玩家一屏)；想让远景一路都有，换「瓦片铺」横向平铺这张背景");
 }
 
 //==================== 瓦片格子 ====================
@@ -892,7 +890,7 @@ $("btnMarker").onclick=()=>{openPanel("markPanel");};
 $("btnPlay").onclick=()=>{
   mode=mode==="play"?"edit":"play";
   $("btnPlay").textContent=mode==="play"?"■ 停止":"▶ 预览";
-  if(mode==="play"){sel=null;selMarker=null;updateActions();$("palette").classList.add("hidden");playScroll();}
+  if(mode==="play"){sel=null;selMarker=null;updateActions();$("palette").classList.add("hidden");resetToPlayView();playScroll();}
   else{$("palette").classList.remove("hidden");}
 };
 let playRAF=null;

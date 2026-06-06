@@ -731,23 +731,29 @@ function cellAt(sx,sy){
   const leftX=col*c.w, bottomY=scene.view.groundY-row*c.h; // 网格交点=瓦片左下角
   return {col,row,x:Math.round(leftX+tw/2),y:Math.round(bottomY-th/2),tw,th,w:c.w,h:c.h};
 }
-// 在画布已放的素材上框选 → 按网格吸附,记录源像素裁剪+世界矩形
+// 在画布素材上框选 → 吸附到"画布世界网格"(那套黄格),取网格块覆盖到的素材部分
 function updateGrabSel(ins,asx,asy,bsx,bsy){
-  const d=srcDims(ins), p=parallaxOf(ins.layer), g=gridBase, fw=d.fw, fh=d.fh;
-  const left=ins.x-fw*ins.scale/2, top=ins.y-fh*ins.scale/2;
+  const d=srcDims(ins), p=parallaxOf(ins.layer), sc=ins.scale, fw=d.fw, fh=d.fh;
+  const cw=gridStepWorld(), ch=cw, gy=scene.view.groundY;
+  const left=ins.x-fw*sc/2, top=ins.y-fh*sc/2, right=left+fw*sc, bot=top+fh*sc;
   const [wx0,wy0]=screenToWorld(asx,asy,p), [wx1,wy1]=screenToWorld(bsx,bsy,p);
-  const a0=(Math.min(wx0,wx1)-left)/ins.scale, b0=(Math.min(wy0,wy1)-top)/ins.scale;
-  const a1=(Math.max(wx0,wx1)-left)/ins.scale, b1=(Math.max(wy0,wy1)-top)/ins.scale;
-  let cx0=Math.max(0,Math.floor(a0/g)*g), cy0=Math.max(0,Math.floor(b0/g)*g);
-  let cx1=Math.min(fw,Math.ceil(a1/g)*g), cy1=Math.min(fh,Math.ceil(b1/g)*g);
-  if(cx1<=cx0)cx1=Math.min(fw,cx0+g); if(cy1<=cy0)cy1=Math.min(fh,cy0+g);
-  grabSel={ins, sx:cx0, sy:cy0, w:cx1-cx0, h:cy1-cy0,
-    wl:left+cx0*ins.scale, wt:top+cy0*ins.scale, ww:(cx1-cx0)*ins.scale, wh:(cy1-cy0)*ins.scale, p};
+  // 横向吸附到世界竖线(x=col*cw)
+  let X0=Math.floor(Math.min(wx0,wx1)/cw)*cw, X1=Math.ceil(Math.max(wx0,wx1)/cw)*cw;
+  // 纵向吸附到世界横线(y=gy-row*ch)
+  const uMin=Math.floor((gy-Math.max(wy0,wy1))/ch), uMax=Math.ceil((gy-Math.min(wy0,wy1))/ch);
+  let Yt=gy-uMax*ch, Yb=gy-uMin*ch;
+  // 裁到素材范围内
+  X0=Math.max(left,Math.min(right,X0)); X1=Math.max(left,Math.min(right,X1));
+  Yt=Math.max(top,Math.min(bot,Yt));   Yb=Math.max(top,Math.min(bot,Yb));
+  if(X1-X0<1||Yb-Yt<1){grabSel=null;return;}
+  grabSel={ins, sx:(X0-left)/sc, sy:(Yt-top)/sc, w:(X1-X0)/sc, h:(Yb-Yt)/sc,
+    wl:X0, wt:Yt, ww:X1-X0, wh:Yb-Yt, p};
 }
 function finalizeGrab(){
   if(!grabSel||grabSel.w<2||grabSel.h<2){grabSel=null;return;}
   const ins=grabSel.ins, d=srcDims(ins);
-  brush={asset:ins.asset, crop:[d.sx+grabSel.sx, d.sy+grabSel.sy, grabSel.w, grabSel.h], w:grabSel.w, h:grabSel.h};
+  const cx=Math.round(d.sx+grabSel.sx), cy=Math.round(d.sy+grabSel.sy), cw=Math.round(grabSel.w), ch=Math.round(grabSel.h);
+  brush={asset:ins.asset, crop:[cx,cy,cw,ch], w:cw, h:ch};
   updateBrushChip();
   tileAct="paint"; $("btnAct").textContent="🖌 铺"; $("btnAct").classList.remove("p");  // 取完自动切回铺
   showHint("取了 "+grabSel.w+"×"+grabSel.h+"：现在左键铺·右键擦");

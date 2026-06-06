@@ -133,7 +133,7 @@
   <button class="btn sm" data-t="scaleDn">－</button>
   <span id="tileScaleV" style="font-size:12px;color:var(--muted);min-width:34px;text-align:center">1.5×</span>
   <button class="btn sm" data-t="scaleUp">＋</button>
-  <button class="btn sm" id="btnGrid" data-t="grid">网格:跟随刷子</button>
+  <button class="btn sm p" id="btnGrid" data-t="grid">网格:32px</button>
   <button class="btn sm" id="btnErase" data-t="erase">🧹 擦除</button>
   <button class="btn sm" id="btnCrop" data-t="crop">✂ 取块</button>
   <button class="btn sm" id="btnLib" data-t="lib">★ 刷库</button>
@@ -221,26 +221,20 @@
 
 <!-- 取块面板 -->
 <div class="panel" id="cropPanel">
-  <h3>取块 · 框选 / 等分小格 当瓦片刷</h3>
-  <div style="font-size:12px;color:var(--muted);margin-bottom:6px">拖矩形框选；或「等分」后拖黄线微调。<b>点一格 = 直接取这格当刷子</b>。</div>
+  <h3>取块 · 点格子拿来铺</h3>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:6px">选一张素材 → <b>点一格 = 拿来铺</b>；拖几格 = 拿一整块。网格大小用下面按钮。</div>
   <div class="cats" id="cropCats" style="border:none;padding:4px 0"></div>
-  <div class="row" style="flex-wrap:wrap;gap:5px;margin:4px 0">
-    <label style="flex:0 0 auto;color:var(--muted)">等分</label>
-    <button class="btn sm" data-sp="free">自由</button>
-    <button class="btn sm" data-sp="2">÷2</button>
-    <button class="btn sm" data-sp="3">÷3</button>
-    <button class="btn sm" data-sp="4">÷4</button>
-    <button class="btn sm" data-sp="8">÷8</button>
-    <button class="btn sm" data-sp="16">16²</button>
-    <button class="btn sm" data-sp="32">32²</button>
-    <button class="btn sm" data-sp="addV">＋竖线</button>
-    <button class="btn sm" data-sp="addH">＋横线</button>
+  <div class="row" id="cropGridRow" style="flex-wrap:wrap;gap:5px;margin:4px 0">
+    <label style="flex:0 0 auto;color:var(--muted)">格子</label>
+    <button class="btn sm" data-g="16">16</button>
+    <button class="btn sm" data-g="24">24</button>
+    <button class="btn sm" data-g="32">32</button>
+    <button class="btn sm" data-g="48">48</button>
+    <button class="btn sm" data-g="64">64</button>
   </div>
   <canvas id="cropCv" width="300" height="300"></canvas>
   <div id="cropInfo" style="font-size:12px;color:var(--muted);text-align:center"></div>
-  <button class="btn p" id="cropGo" style="width:100%;margin-top:8px">用选中块当刷子</button>
-  <button class="btn" id="cropSaveAll" style="width:100%;margin-top:6px">★ 全部格子 → 刷库</button>
-  <button class="btn" id="cropSave" style="width:100%;margin-top:6px">★ 选中块 → 刷库</button>
+  <button class="btn" id="cropSaveAll" style="width:100%;margin-top:8px">★ 全部格子 → 刷库</button>
   <button class="btn" id="cropCancel" style="width:100%;margin-top:6px">取消</button>
 </div>
 
@@ -700,12 +694,11 @@ function fillToView(ins){
 }
 
 //==================== 瓦片格子 ====================
-// 基准网格(源px)：0=跟随当前刷子(单一刷子完美拼接)；>0=所有刷子吸附到同一套网格线(不同大小也能对齐)
-let gridBase=0;
+// 基准网格(源px)：所有块都吸附到这套固定网格线
+let gridBase=32;
 function gridCell(){ // 吸附/网格显示用的格子(世界单位,取整)
   if(!brush) return null;
-  if(gridBase>0){const s=Math.max(1,Math.round(gridBase*tileScale));return {w:s,h:s,base:true};}
-  return {w:Math.max(1,Math.round(brush.w*tileScale)), h:Math.max(1,Math.round(brush.h*tileScale)),base:false};
+  const s=Math.max(1,Math.round(gridBase*tileScale));return {w:s,h:s,base:true};
 }
 // 屏幕点 -> 落点。瓦片左下角吸附到网格交点(底边按地面线分行)，向上/右铺其本身大小
 function cellAt(sx,sy){
@@ -847,7 +840,7 @@ function buildPieces(){
       d.appendChild(im);
       if(it.kind==="tile"){d.classList.add("tilekind");const tg=document.createElement("span");tg.className="tag";tg.textContent="瓦片";d.appendChild(tg);}
       d.onclick=()=>{
-        if(placeMode==="tile") setBrushFromPiece(it);
+        if(placeMode==="tile") openCropForSheet(it.file);   // 瓦片模式:打开它,按网格点格取块
         else addPiece(it);
       };
     }
@@ -909,26 +902,28 @@ $("tilebar").addEventListener("click",e=>{
   if(t==="grid"){cycleGrid();}
   $("tileScaleV").textContent=tileScale.toFixed(2)+"×";
 });
-const GRID_STEPS=[0,8,16,24,32,48,64];
+const GRID_STEPS=[16,24,32,48,64];
 function cycleGrid(){
   const i=GRID_STEPS.indexOf(gridBase);
   gridBase=GRID_STEPS[(i+1)%GRID_STEPS.length];
-  $("btnGrid").textContent=gridBase?("网格:"+gridBase+"px"):"网格:跟随刷子";
-  $("btnGrid").classList.toggle("p",gridBase>0);
-  showHint(gridBase?("基准网格 "+gridBase+"px：所有刷子都吸附到同一套线，不同大小也能对齐"):"网格跟随刷子：单一刷子完美拼接");
+  $("btnGrid").textContent="网格:"+gridBase+"px";
+  showHint("网格 "+gridBase+"px：所有块吸附到同一套线");
 }
 
-//==================== 取块（从某张图框选/等分小格当瓦片刷） ====================
-let cropState=null; // {file,img,scale,sel:[x,y,w,h]|null,drag,gw,gh}
-function openCropPanel(){
+//==================== 取块（按固定网格,点格子=拿来铺） ====================
+let cropState=null; // {file,img,scale,sel:[x,y,w,h]|null,drag}
+function openCropPanel(){            // ✂取块按钮:先选一张素材
   const cats=$("cropCats");cats.innerHTML="";
   PAL.filter(c=>!c.anim).forEach(c=>c.items.forEach(it=>{
     const b=document.createElement("div");b.className="cat";b.textContent=it.file.replace(".png","");
     b.onclick=()=>loadCropImg(it.file);cats.appendChild(b);
   }));
-  cropState=null;$("cropInfo").textContent="选上面一个素材，再框选或等分";
+  cropState=null;$("cropInfo").textContent="选一张素材，再点格子拿来铺";
   const cv2=$("cropCv");cv2.getContext("2d").clearRect(0,0,cv2.width,cv2.height);
-  openPanel("cropPanel");
+  syncCropGridBtns();openPanel("cropPanel");
+}
+function openCropForSheet(file){     // 点底部素材:直接打开它,按网格取块
+  syncCropGridBtns();openPanel("cropPanel");loadCropImg(file);
 }
 function loadCropImg(file){
   const e=getImg(ASSET_BASE+file);
@@ -937,128 +932,63 @@ function loadCropImg(file){
     const maxW=Math.min(360,innerWidth-64);
     const sc=Math.min(maxW/e.img.naturalWidth, 360/e.img.naturalHeight, 6);
     cv2.width=Math.round(e.img.naturalWidth*sc);cv2.height=Math.round(e.img.naturalHeight*sc);
-    cropState={file,img:e.img,scale:sc,sel:null,drag:null,gridX:null,gridY:null};
+    cropState={file,img:e.img,scale:sc,sel:null,drag:null};
     renderCrop();
-    $("cropInfo").textContent="拖矩形框选；或上面选「等分」后，分割线可拖、点/拖选格子";
+    $("cropInfo").textContent="点一格=拿来铺；拖几格=拿一整块";
   };
   if(e.loaded)draw(); else e.img.addEventListener("load",draw,{once:true});
 }
-// 等分：生成一组分割线(含两端)，之后每条都能拖动 → 可切出不等分格子
-function setCropGrid(mode){
-  if(!cropState){showHint("先选一个素材");return;}
-  const iw=cropState.img.naturalWidth, ih=cropState.img.naturalHeight;
-  if(mode==="free"){cropState.gridX=null;cropState.gridY=null;cropState.sel=null;
-    $("cropInfo").textContent="自由框选";renderCrop();return;}
-  if(mode==="addV"||mode==="addH"){addGridLine(mode==="addV"?"x":"y");return;}
-  let gw,gh;
-  if(mode==="16"||mode==="32"){gw=gh=+mode;}
-  else{const n=+mode;gw=iw/n;gh=ih/n;}
-  const gx=[];for(let v=0;v<iw-0.5;v+=gw)gx.push(Math.round(v)); gx.push(iw);
-  const gy=[];for(let v=0;v<ih-0.5;v+=gh)gy.push(Math.round(v)); gy.push(ih);
-  cropState.gridX=gx;cropState.gridY=gy;cropState.sel=null;
-  $("cropInfo").textContent="等分完成：拖黄线微调，点格=取这格，拖几格=选块";
-  renderCrop();
-}
-// 在最大空隙正中插一条新分割线(随后可拖)
-function addGridLine(axis){
-  if(!cropState){showHint("先选一个素材");return;}
-  const iw=cropState.img.naturalWidth, ih=cropState.img.naturalHeight;
-  if(!cropState.gridX){cropState.gridX=[0,iw];cropState.gridY=[0,ih];}
-  const arr=axis==="x"?cropState.gridX:cropState.gridY;
-  let gi=0,gmax=-1;
-  for(let i=0;i<arr.length-1;i++){const g=arr[i+1]-arr[i];if(g>gmax){gmax=g;gi=i;}}
-  arr.splice(gi+1,0,Math.round((arr[gi]+arr[gi+1])/2));
-  $("cropInfo").textContent="加了一条"+(axis==="x"?"竖":"横")+"线：拖它到想要的位置";
-  renderCrop();
+function syncCropGridBtns(){
+  document.querySelectorAll("#cropGridRow [data-g]").forEach(b=>b.classList.toggle("p",+b.dataset.g===gridBase));
 }
 function renderCrop(){
   if(!cropState)return;
-  const cv2=$("cropCv"),c=cv2.getContext("2d"),sc=cropState.scale;
+  const cv2=$("cropCv"),c=cv2.getContext("2d"),sc=cropState.scale,g=gridBase;
   c.imageSmoothingEnabled=false;c.clearRect(0,0,cv2.width,cv2.height);
   c.drawImage(cropState.img,0,0,cv2.width,cv2.height);
-  const gx=cropState.gridX,gy=cropState.gridY;
-  if(gx&&gy){
-    for(let i=0;i<gx.length;i++){const x=gx[i]*sc,edge=(i===0||i===gx.length-1);
-      c.strokeStyle=edge?"rgba(255,255,255,.35)":"rgba(255,210,74,.85)";c.lineWidth=edge?1:2;
-      c.beginPath();c.moveTo(x,0);c.lineTo(x,cv2.height);c.stroke();}
-    for(let i=0;i<gy.length;i++){const y=gy[i]*sc,edge=(i===0||i===gy.length-1);
-      c.strokeStyle=edge?"rgba(255,255,255,.35)":"rgba(255,210,74,.85)";c.lineWidth=edge?1:2;
-      c.beginPath();c.moveTo(0,y);c.lineTo(cv2.width,y);c.stroke();}
-  }
+  c.strokeStyle="rgba(255,210,74,.7)";c.lineWidth=1;
+  for(let x=0;x<=cropState.img.naturalWidth;x+=g){const sx=x*sc;c.beginPath();c.moveTo(sx,0);c.lineTo(sx,cv2.height);c.stroke();}
+  for(let y=0;y<=cropState.img.naturalHeight;y+=g){const sy=y*sc;c.beginPath();c.moveTo(0,sy);c.lineTo(cv2.width,sy);c.stroke();}
   if(cropState.sel){const[x,y,w,h]=cropState.sel.map(v=>v*sc);
-    c.fillStyle="rgba(92,192,204,.28)";c.fillRect(x,y,w,h);
+    c.fillStyle="rgba(92,192,204,.3)";c.fillRect(x,y,w,h);
     c.strokeStyle="#5cc0cc";c.lineWidth=2;c.strokeRect(x,y,w,h);}
+}
+function cropCellSel(ax,ay,bx,by){   // 按固定网格吸附成整格
+  const g=gridBase,iw=cropState.img.naturalWidth,ih=cropState.img.naturalHeight;
+  const c0=Math.floor(Math.min(ax,bx)/g),c1=Math.floor(Math.max(ax,bx)/g);
+  const r0=Math.floor(Math.min(ay,by)/g),r1=Math.floor(Math.max(ay,by)/g);
+  const x=c0*g,y=r0*g,w=Math.min(iw,(c1+1)*g)-x,h=Math.min(ih,(r1+1)*g)-y;
+  return [x,y,w,h];
 }
 (function bindCrop(){
   const cv2=$("cropCv");
   const toImg=(ev)=>{const r=cv2.getBoundingClientRect();
     return [Math.max(0,Math.min(cv2.width,(ev.clientX-r.left)*cv2.width/r.width))/cropState.scale,
             Math.max(0,Math.min(cv2.height,(ev.clientY-r.top)*cv2.height/r.height))/cropState.scale];};
-  const cellIdx=(arr,v)=>{for(let i=0;i<arr.length-1;i++)if(v>=arr[i]&&v<arr[i+1])return i;return arr.length-2;};
-  function selFrom(ax,ay,bx,by){
-    const gx=cropState.gridX,gy=cropState.gridY;
-    if(gx&&gy){
-      const c0=cellIdx(gx,Math.min(ax,bx)),c1=cellIdx(gx,Math.max(ax,bx));
-      const r0=cellIdx(gy,Math.min(ay,by)),r1=cellIdx(gy,Math.max(ay,by));
-      return [gx[c0],gy[r0],gx[c1+1]-gx[c0],gy[r1+1]-gy[r0]];
-    }
-    return [Math.min(ax,bx),Math.min(ay,by),Math.abs(bx-ax),Math.abs(by-ay)];
-  }
-  function nearLine(px,py){
-    if(!cropState.gridX)return null;
-    const tol=9/cropState.scale,gx=cropState.gridX,gy=cropState.gridY;
-    for(let i=1;i<gx.length-1;i++)if(Math.abs(px-gx[i])<tol)return {axis:"x",idx:i};
-    for(let i=1;i<gy.length-1;i++)if(Math.abs(py-gy[i])<tol)return {axis:"y",idx:i};
-    return null;
-  }
-  function info(){const s=(cropState.sel||[0,0,0,0]).map(Math.round);$("cropInfo").textContent=`选区 ${s[2]}×${s[3]} px`;}
   cv2.addEventListener("pointerdown",ev=>{if(!cropState)return;cv2.setPointerCapture(ev.pointerId);
-    const[x,y]=toImg(ev);
-    const ln=nearLine(x,y);
-    if(ln){cropState.drag={line:ln};return;}             // 命中分割线 → 拖动它
-    cropState.drag={x,y,moved:false};cropState.sel=selFrom(x,y,x,y);info();renderCrop();});
-  cv2.addEventListener("pointermove",ev=>{if(!cropState)return;
-    const[x,y]=toImg(ev);
-    if(!cropState.drag){cv2.style.cursor=nearLine(x,y)?(nearLine(x,y).axis==="x"?"ew-resize":"ns-resize"):"crosshair";return;}
-    if(cropState.drag.line){
-      const{axis,idx}=cropState.drag.line, arr=axis==="x"?cropState.gridX:cropState.gridY, v=axis==="x"?x:y;
-      arr[idx]=Math.round(Math.max(arr[idx-1]+2,Math.min(arr[idx+1]-2,v)));renderCrop();return;
-    }
-    const d=cropState.drag;if(Math.abs(x-d.x)>2||Math.abs(y-d.y)>2)d.moved=true;
-    cropState.sel=selFrom(d.x,d.y,x,y);info();renderCrop();});
-  cv2.addEventListener("pointerup",()=>{
-    if(!cropState)return;
-    const d=cropState.drag;cropState.drag=null;
-    // 等分网格下,单点一格(没拖动) = 直接取这格当刷子去铺,不用再按按钮
-    if(d&&!d.line&&!d.moved&&cropState.gridX){const b=cropBrush();if(b){
-      brush=b;updateBrushChip();if(placeMode!=="tile")setMode("tile");closePanels();
-      showHint("已取这格 "+b.w+"×"+b.h+"：单指铺 · 右键擦");}}
-  });
+    const[x,y]=toImg(ev);cropState.drag={x,y};cropState.sel=cropCellSel(x,y,x,y);renderCrop();});
+  cv2.addEventListener("pointermove",ev=>{if(!cropState||!cropState.drag)return;
+    const[x,y]=toImg(ev);const d=cropState.drag;cropState.sel=cropCellSel(d.x,d.y,x,y);renderCrop();});
+  cv2.addEventListener("pointerup",()=>{    // 松手=拿这块去铺
+    if(!cropState||!cropState.drag)return;cropState.drag=null;
+    const b=cropBrush();if(b){brush=b;updateBrushChip();if(placeMode!=="tile")setMode("tile");closePanels();
+      showHint("已取 "+b.w+"×"+b.h+"：左键铺 · 右键擦");}});
 })();
-document.querySelector("#cropPanel .row").addEventListener("click",e=>{
-  const sp=e.target.dataset.sp;if(sp)setCropGrid(sp);
+$("cropGridRow").addEventListener("click",e=>{
+  const g=e.target.dataset.g;if(!g)return;gridBase=+g;$("btnGrid").textContent="网格:"+gridBase+"px";
+  syncCropGridBtns();renderCrop();
 });
 function cropBrush(){
   if(!cropState||!cropState.sel||cropState.sel[2]<2||cropState.sel[3]<2)return null;
   const s=cropState.sel.map(Math.round);
   return {asset:cropState.file,crop:s,w:s[2],h:s[3]};
 }
-$("cropGo").onclick=()=>{
-  const b=cropBrush(); if(!b){showHint("先框一块或点个格子");return;}
-  brush=b; updateBrushChip();closePanels();
-  if(placeMode!=="tile")setMode("tile");
-  showHint("已取块 "+b.w+"×"+b.h+"：单指铺 · 右键擦");
-};
-$("cropSave").onclick=()=>{
-  const b=cropBrush(); if(!b){showHint("先框一块或点个格子");return;}
-  brush=b; updateBrushChip(); addToLib(b);
-};
-// 把当前等分出来的所有格子,逐个存进刷库
+// 把整张图按网格的所有格子,逐个存进刷库
 $("cropSaveAll").onclick=()=>{
-  if(!cropState||!cropState.gridX){showHint("先「等分」出格子");return;}
-  const gx=cropState.gridX,gy=cropState.gridY,lib=loadLib();let n=0;
-  for(let r=0;r<gy.length-1;r++)for(let c=0;c<gx.length-1;c++){
-    const x=gx[c],y=gy[r],w=gx[c+1]-x,h=gy[r+1]-y; if(w<2||h<2)continue;
+  if(!cropState){showHint("先选一张素材");return;}
+  const g=gridBase,iw=cropState.img.naturalWidth,ih=cropState.img.naturalHeight,lib=loadLib();let n=0;
+  for(let y=0;y<ih;y+=g)for(let x=0;x<iw;x+=g){
+    const w=Math.min(g,iw-x),h=Math.min(g,ih-y); if(w<2||h<2)continue;
     if(lib.some(z=>z.asset===cropState.file && JSON.stringify(z.crop||null)===JSON.stringify([x,y,w,h])))continue;
     lib.push({id:uid(),name:"块"+w+"×"+h,asset:cropState.file,crop:[x,y,w,h],w,h});n++;
   }

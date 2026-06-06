@@ -94,6 +94,9 @@
   #libDock{position:fixed;top:128px;right:0;bottom:0;width:88px;background:rgba(20,25,29,.97);
     border-left:1px solid var(--line);z-index:22;display:none;flex-direction:column;}
   #libDock.show{display:flex;}
+  #libDock .libgrip{position:absolute;left:-5px;top:0;bottom:0;width:10px;cursor:ew-resize;z-index:1;}
+  #libDock .libgrip::after{content:"";position:absolute;left:3px;top:50%;width:3px;height:36px;margin-top:-18px;background:var(--line);border-radius:2px;}
+  #libList{flex-direction:row;flex-wrap:wrap;}
   #libDock .libhdr{display:flex;align-items:center;gap:4px;padding:6px;border-bottom:1px solid var(--line);font-size:12px;font-weight:700;}
   #libDock .libhdr span{margin-right:auto;}
   #libDock .libhdr button{border:1px solid var(--line);background:var(--panel2);color:var(--ink);
@@ -241,9 +244,13 @@
   <button class="btn" id="cropCancel" style="width:100%;margin-top:6px">取消</button>
 </div>
 
-<!-- 瓦片刷库：右侧常驻竖排 -->
+<!-- 瓦片刷库：右侧常驻竖排(可拉宽) -->
 <div id="libDock">
-  <div class="libhdr"><span>★ 刷库</span><button id="libAdd" title="收藏当前刷子">＋</button><button id="libDockClose" title="收起">×</button></div>
+  <div class="libgrip" id="libGrip" title="拖动改变宽度"></div>
+  <div class="libhdr"><span>★ 刷库</span>
+    <button id="libAdd" title="收藏当前刷子">＋</button>
+    <button id="libClear" title="一键清空">🗑</button>
+    <button id="libDockClose" title="收起">×</button></div>
   <div id="libList"></div>
 </div>
 
@@ -455,12 +462,24 @@ function draw(){
     ctx.fillStyle="rgba(0,0,0,.34)";
     if(syTop>0)ctx.fillRect(0,0,w,Math.min(syTop,h));
     if(syBot<h)ctx.fillRect(0,Math.max(0,syBot),w,h-Math.max(0,syBot));
+    // 画面上边(青色虚线)
     ctx.strokeStyle="rgba(92,192,204,.85)";ctx.lineWidth=1.5;ctx.setLineDash([10,6]);
-    ctx.beginPath();ctx.moveTo(0,syTop);ctx.lineTo(w,syTop);
-    ctx.moveTo(0,syBot);ctx.lineTo(w,syBot);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(0,syTop);ctx.lineTo(w,syTop);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle="rgba(140,220,230,.95)";ctx.font="11px sans-serif";ctx.textAlign="left";
     ctx.textBaseline="top";ctx.fillText("▲ 画面上边（再高玩家看不到）",8,Math.max(2,syTop+4));
-    ctx.textBaseline="bottom";ctx.fillText("▼ 画面下边（地面线附近）",8,Math.min(h-2,syBot-4));
+    // 地面线 = 角色站立线(亮绿实线,醒目)
+    ctx.strokeStyle="rgba(80,230,120,.95)";ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(0,syBot);ctx.lineTo(w,syBot);ctx.stroke();
+    ctx.fillStyle="rgba(120,255,160,.98)";ctx.font="bold 12px sans-serif";
+    ctx.textBaseline="bottom";ctx.fillText("──── 地面线 · 角色就站在这条线上 ────",8,Math.min(h-3,syBot-3));
+    // 出生点处画一个小人脚标,直观看到角色站位
+    const sp=scene.markers.find(m=>m.type==="spawn");
+    if(sp){const fx=(sp.x-cam.x)*cam.zoom;
+      if(fx>-20&&fx<w+20){ctx.fillStyle="rgba(120,255,160,.95)";
+        ctx.beginPath();ctx.arc(fx,syBot-18,7,0,7);ctx.fill();              // 头
+        ctx.fillRect(fx-4,syBot-12,8,12);                                   // 身
+        ctx.fillStyle="rgba(120,255,160,.7)";ctx.font="10px sans-serif";ctx.textAlign="center";
+        ctx.fillText("出生点",fx,syBot-30);ctx.textAlign="left";}}
   }
 
   // 瓦片网格 + 落点高亮
@@ -523,6 +542,22 @@ function hitInstance(sx,sy){
   return null;
 }
 let selMarker=null;
+// 当前层(可选)下、点下方最顶的零件 —— 给"擦除任意块/右键删"用
+function topInstanceAt(sx,sy,onlyCurLayer){
+  const order=[...scene.instances].sort((a,b)=>
+    layerIndex(a.layer)-layerIndex(b.layer) || (a.z||0)-(b.z||0));
+  for(let i=order.length-1;i>=0;i--){
+    const ins=order[i];
+    if(onlyCurLayer && ins.layer!==curLayer) continue;
+    const p=parallaxOf(ins.layer);
+    const d=srcDims(ins); if(d.e&&!d.e.loaded&&!ins.anim) continue;
+    const [cx,cy]=worldToScreen(ins.x,ins.y,p);
+    const ang=-(ins.rot||0)*Math.PI/180, dx=sx-cx, dy=sy-cy;
+    const rx=dx*Math.cos(ang)-dy*Math.sin(ang), ry=dx*Math.sin(ang)+dy*Math.cos(ang);
+    if(Math.abs(rx)<=d.fw*ins.scale*cam.zoom/2 && Math.abs(ry)<=d.fh*ins.scale*cam.zoom/2) return ins;
+  }
+  return null;
+}
 function hitMarker(sx,sy){
   for(let i=scene.markers.length-1;i>=0;i--){
     const m=scene.markers[i];const [mx,my]=worldToScreen(m.x,m.y,1);
@@ -561,6 +596,13 @@ cv.addEventListener("pointerdown",e=>{
     if(!brush){showHint("先在下方选一块瓦片，或用 ✂取块");return;}
     const erasing=eraseMode||e.button===2;           // 右键=擦除
     painting=true; lastCell=null; stampTile(sx,sy,erasing); drag={type:"tile",erase:erasing}; return;
+  }
+  // 自由摆放:右键 = 删除当前层点下方的零件
+  if(e.button===2){
+    const t=topInstanceAt(sx,sy,true);
+    if(t){scene.instances=scene.instances.filter(i=>i!==t);sel=null;selMarker=null;updateActions();showHint("已删除");}
+    else showHint("右键删本层零件:这里没有");
+    return;
   }
   // 先看是不是点在"缩放手柄"上(选中物件右下角)
   const hb=handleScreen();
@@ -694,11 +736,15 @@ function findTileAt(cell){
 }
 function stampTile(sx,sy,erase){
   if(erase===undefined) erase=eraseMode;
+  if(erase){                                           // 擦除:删掉点下方任意一块(本层),不限当前刷子
+    const t=topInstanceAt(sx,sy,true);
+    if(t) scene.instances=scene.instances.filter(i=>i!==t);
+    return;
+  }
   const cell=cellAt(sx,sy); if(!cell) return;
   const key=cell.col+","+cell.row;
   if(lastCell===key) return; lastCell=key;
   const exist=findTileAt(cell);
-  if(erase){ if(exist) scene.instances=scene.instances.filter(i=>i!==exist); return; }
   if(exist) return;                                    // 同格已有,不重复
   scene.instances.push({id:uid(),layer:curLayer,asset:brush.asset,
     crop:brush.crop?brush.crop.slice():null,tile:true,
@@ -1072,6 +1118,15 @@ function toggleLib(){const d=$("libDock");d.classList.toggle("show");if(d.classL
 function openLib(){const d=$("libDock");d.classList.add("show");renderLib();}
 $("libAdd").onclick=()=>addToLib(brush);
 $("libDockClose").onclick=()=>$("libDock").classList.remove("show");
+$("libClear").onclick=()=>{if(confirm("清空刷库里所有收藏？")){saveLib([]);renderLib();showHint("刷库已清空");}};
+// 拖左边手柄改变刷库宽度
+(function(){const grip=$("libGrip");if(!grip)return;let dr=null;
+  grip.addEventListener("pointerdown",e=>{grip.setPointerCapture(e.pointerId);dr=e.clientX;e.preventDefault();});
+  grip.addEventListener("pointermove",e=>{if(dr==null)return;
+    const wpx=Math.max(72,Math.min(innerWidth*0.7, innerWidth-e.clientX));
+    $("libDock").style.width=Math.round(wpx)+"px";});
+  grip.addEventListener("pointerup",()=>{dr=null;});
+})();
 
 //==================== 顶栏菜单 ====================
 $("btnMenu").onclick=()=>$("menu").classList.toggle("show");

@@ -27,7 +27,7 @@
   #palHandle::before{content:"";width:46px;height:4px;border-radius:3px;background:var(--muted);opacity:.65;}
   #palBody{flex:1 1 auto;overflow:auto;padding:8px;}
   #palCanvasWrap{display:inline-block;}
-  #palCanvas{image-rendering:pixelated;display:block;}
+  #palCanvas{image-rendering:pixelated;display:block;touch-action:none;}
   .hint{position:fixed;top:88px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:6px 12px;border-radius:20px;z-index:15;pointer-events:none;opacity:0;transition:opacity .3s;}
   .hint.show{opacity:1;}
   .menu{position:fixed;top:52px;right:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px;z-index:30;display:none;flex-direction:column;gap:4px;min-width:170px;}
@@ -99,6 +99,19 @@ let ts=null;            // {img, tw, th, cols, rows, name}
 let layers={};          // id -> Map("col,row"->tileIndex)
 LAYERS.forEach(l=>layers[l.id]=new Map());
 let curLayer="main", curTile=0, mode="paint";   // paint|erase|pan
+let stamp={c0:0,r0:0,c1:0,r1:0};   // 调色板框选的矩形(整块对象)；单格时四角相同
+// 扫描瓦片集，记下"全透明的空格"下标，盖章时跳过(免得空格也算进碰撞)
+function computeEmpty(t){
+  const cv2=document.createElement("canvas");cv2.width=t.img.width;cv2.height=t.img.height;
+  const g=cv2.getContext("2d");g.drawImage(t.img,0,0);
+  const empty=new Set();
+  for(let r=0;r<t.rows;r++)for(let c=0;c<t.cols;c++){
+    const d=g.getImageData(c*t.tw,r*t.th,t.tw,t.th).data; let any=false;
+    for(let i=3;i<d.length;i+=4){if(d[i]>8){any=true;break;}}
+    if(!any)empty.add(r*t.cols+c);
+  }
+  t.empty=empty;
+}
 let cam={x:-40,y:-40,zoom:2};
 const $=id=>document.getElementById(id);
 function hint(t){const h=$("hint");h.textContent=t;h.classList.add("show");clearTimeout(h._t);h._t=setTimeout(()=>h.classList.remove("show"),1400);}
@@ -194,24 +207,32 @@ function drawMarks(TW,TH,c0,r0,c1,r1){
 requestAnimationFrame(draw);
 
 // ---- 绘制操作 ----
-let _undo=null;   // 本次手势第一格的撤销信息(双指缩放时回退误画)
+let _undo=null;   // 本次手势第一次落笔写过的所有格(双指缩放时回退误画)
 function paintAt(sx,sy){
   const [c,r]=cellAt(sx,sy);
   const key=c+","+r;
+  const first=(_undo===null); if(first)_undo={cells:[]};
+  const rec=(map,k)=>{ if(first)_undo.cells.push({map,key:k,prev:map.has(k)?map.get(k):undefined}); };
   if(curLayer==="marks"){   // 放/擦标记(不需要瓦片集)
-    if(_undo===null) _undo={map:marks,key,prev:marks.has(key)?marks.get(key):undefined};
-    if(mode==="erase") marks.delete(key);
-    else if(mode==="paint") marks.set(key,curMark);
+    rec(marks,key);
+    if(mode==="erase") marks.delete(key); else marks.set(key,curMark);
     return;
   }
   if(!ts)return;
   const map=layers[curLayer];
-  if(_undo===null) _undo={map,key,prev:map.has(key)?map.get(key):undefined};
-  if(mode==="erase") map.delete(key);
-  else if(mode==="paint" && curTile>=0) map.set(key, curTile);
+  if(mode==="erase"){ rec(map,key); map.delete(key); return; }
+  // 盖章：把框选的整块按"底对齐"放下(光标格=这块的底排)，跳过空格
+  const w=stamp.c1-stamp.c0+1, h=stamp.r1-stamp.r0+1;
+  for(let dy=0;dy<h;dy++)for(let dx=0;dx<w;dx++){
+    const idx=(stamp.r0+dy)*ts.cols+(stamp.c0+dx);
+    if(ts.empty&&ts.empty.has(idx))continue;
+    const k2=(c+dx)+","+(r-(h-1)+dy);
+    rec(map,k2); map.set(k2,idx);
+  }
 }
-function undoStray(){   // 把刚误画的第一格还原(开始双指缩放时调用)
-  if(_undo){ if(_undo.prev===undefined) _undo.map.delete(_undo.key); else _undo.map.set(_undo.key,_undo.prev); }
+function undoStray(){   // 还原刚才误落的那一笔(开始双指缩放时调用)
+  if(_undo&&_undo.cells){for(let i=_undo.cells.length-1;i>=0;i--){const u=_undo.cells[i];
+    if(u.prev===undefined)u.map.delete(u.key); else u.map.set(u.key,u.prev);}}
   _undo=null;
 }
 
@@ -299,7 +320,7 @@ async function loadBuiltinList(){
 function loadBuiltin(m){
   const img=new Image();
   img.onload=()=>{const cols=Math.floor(img.width/m.tile),rows=Math.floor(img.height/m.tile);
-    ts={img,tw:m.tile,th:m.tile,cols,rows,name:m.file};curTile=0;buildPalette();closePanels();hint("内置："+m.name);};
+    ts={img,tw:m.tile,th:m.tile,cols,rows,name:m.file};computeEmpty(ts);stamp={c0:0,r0:0,c1:0,r1:0};curTile=0;buildPalette();closePanels();hint("内置："+m.name);};
   img.onerror=()=>hint("内置瓦片集加载失败(部署后再试)");
   img.src="../../assets/tilesets/"+m.file;
 }
@@ -309,8 +330,8 @@ $("tsFile").onchange=e=>{
   const img=new Image();
   img.onload=()=>{
     const cols=Math.floor(img.width/tW), rows=Math.floor(img.height/tH);
-    ts={img,tw:tW,th:tH,cols,rows,name:f.name};
-    curTile=0; buildPalette(); closePanels(); hint(`瓦片集 ${cols}×${rows} 已载入`);
+    ts={img,tw:tW,th:tH,cols,rows,name:f.name};computeEmpty(ts);stamp={c0:0,r0:0,c1:0,r1:0};
+    curTile=0; buildPalette(); closePanels(); hint(`瓦片集 ${cols}×${rows} 已载入 · 调色板拖框=选整块`);
   };
   const fr=new FileReader();fr.onload=()=>img.src=fr.result;fr.readAsDataURL(f);
 };
@@ -322,20 +343,24 @@ function buildPalette(){
   const pc=$("palCanvas"); pc.width=ts.cols*ts.tw*SC; pc.height=ts.rows*ts.th*SC;
   pc.style.width=(ts.cols*ts.tw*SC)+"px"; pc.style.height=(ts.rows*ts.th*SC)+"px";
   drawPalette(SC); pc._sc=SC;
-  pc.onclick=ev=>{
-    const rect=pc.getBoundingClientRect();
+  const cellOf=ev=>{const rect=pc.getBoundingClientRect();
     const px=(ev.clientX-rect.left)/SC, py=(ev.clientY-rect.top)/SC;
-    const c=Math.floor(px/ts.tw), r=Math.floor(py/ts.th);
-    curTile=r*ts.cols+c; setMode("paint"); drawPalette(SC);
-  };
+    return [Math.max(0,Math.min(ts.cols-1,Math.floor(px/ts.tw))), Math.max(0,Math.min(ts.rows-1,Math.floor(py/ts.th)))];};
+  function setStamp(a,b){stamp={c0:Math.min(a[0],b[0]),r0:Math.min(a[1],b[1]),c1:Math.max(a[0],b[0]),r1:Math.max(a[1],b[1])};curTile=stamp.r0*ts.cols+stamp.c0;}
+  let sel0=null;
+  pc.onpointerdown=ev=>{ev.preventDefault();pc.setPointerCapture(ev.pointerId);sel0=cellOf(ev);setStamp(sel0,sel0);setMode("paint");drawPalette(SC);};
+  pc.onpointermove=ev=>{if(!sel0)return;setStamp(sel0,cellOf(ev));drawPalette(SC);};
+  pc.onpointerup=ev=>{if(sel0){const n=(stamp.c1-stamp.c0+1)*(stamp.r1-stamp.r0+1);hint(n>1?("框选整块 "+(stamp.c1-stamp.c0+1)+"×"+(stamp.r1-stamp.r0+1)+"，放置时底边对齐你点的那一行"):"选 1 格");}sel0=null;};
 }
 function drawPalette(SC){
   const pc=$("palCanvas"),g=pc.getContext("2d");g.imageSmoothingEnabled=false;
   g.clearRect(0,0,pc.width,pc.height);
   g.drawImage(ts.img,0,0,ts.img.width,ts.img.height,0,0,pc.width,pc.height);
-  // 选中高亮
-  const c=curTile%ts.cols, r=Math.floor(curTile/ts.cols);
-  g.strokeStyle="#ffd24a";g.lineWidth=2;g.strokeRect(c*ts.tw*SC+1,r*ts.th*SC+1,ts.tw*SC-2,ts.th*SC-2);
+  // 框选高亮
+  const x=stamp.c0*ts.tw*SC, y=stamp.r0*ts.th*SC;
+  const w=(stamp.c1-stamp.c0+1)*ts.tw*SC, h=(stamp.r1-stamp.r0+1)*ts.th*SC;
+  g.fillStyle="rgba(255,210,74,.15)";g.fillRect(x,y,w,h);
+  g.strokeStyle="#ffd24a";g.lineWidth=2;g.strokeRect(x+1,y+1,w-2,h-2);
 }
 
 // ---- 清空/导入导出 ----

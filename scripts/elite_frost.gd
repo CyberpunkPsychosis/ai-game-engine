@@ -93,11 +93,12 @@ func _gather_intent(delta: float) -> void:
 	if _want_hop and is_on_floor() and not attacking:
 		_want_hop = false
 		_begin_hop(dx)
+		return                       # 起跳帧先返回，下一帧才走腾空(否则当帧还在地面会被当成已落地)
 	if _hopping:
 		facing = 1 if dx >= 0.0 else -1
 		lock_facing = true
 		move_dir = -signf(dx)
-		speed = _base_speed * 2.6
+		speed = _base_speed * 2.0    # 跳的横向距离≈原来后跑那段
 		if is_on_floor() and velocity.y >= 0.0:
 			_hopping = false
 			lock_facing = false
@@ -178,7 +179,7 @@ func _begin_hop(dx: float) -> void:
 	lock_facing = true
 	want_jump = true
 	move_dir = -signf(dx)
-	speed = _base_speed * 2.6
+	speed = _base_speed * 2.0
 
 func _calm() -> void:
 	_angry = false

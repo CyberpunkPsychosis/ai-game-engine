@@ -402,6 +402,8 @@ func on_hit(hitbox: Hitbox) -> bool:
 		# 破防时被打 → 处决（大伤害）
 		if guard_broken:
 			_take_hp(hitbox.damage * execute_multiplier)
+		elif hitbox.consumable:
+			hitbox.consumable = false   # 闪避无敌：弹道(箭)穿身而过，不被吃掉
 		return true
 
 	var attacker := _owner_actor_of(hitbox)

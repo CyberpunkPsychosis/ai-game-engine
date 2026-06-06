@@ -291,7 +291,6 @@ let tileScale=1.5;
 let eraseMode=false;
 let painting=false;
 let lastCell=null;             // 防止同格重复盖
-let sheet=null;               // 贴在画布上的取块板 {file,img,scale,sx,sy,sel:[x,y,w,h]|null}
 
 function blankScene(){
   const h=1400;
@@ -501,40 +500,7 @@ function draw(){
     }
   }
 
-  // 画布上的取块板(屏幕固定,点格取块,拖标题移动)
-  if(placeMode==="tile" && sheet && sheet.img && mode!=="play"){
-    drawSheet();
-  }
-
   requestAnimationFrame(draw);
-}
-function sheetRect(){
-  if(!sheet)return null;
-  const p=parallaxOf(curLayer), sc=tileScale*cam.zoom;
-  const [x,y]=worldToScreen(sheet.wx,sheet.wy,p);
-  return {x,y,sc,iw:sheet.img.naturalWidth*sc, ih:sheet.img.naturalHeight*sc};
-}
-function drawSheet(){
-  const r=sheetRect(), sc=r.sc;
-  ctx.save();
-  ctx.imageSmoothingEnabled=false;
-  ctx.drawImage(sheet.img,r.x,r.y,r.iw,r.ih);
-  // 网格
-  const g=gridBase*sc;
-  ctx.strokeStyle="rgba(255,210,74,.7)";ctx.lineWidth=1;
-  for(let gx=0;gx<=r.iw+0.5;gx+=g){ctx.beginPath();ctx.moveTo(r.x+gx,r.y);ctx.lineTo(r.x+gx,r.y+r.ih);ctx.stroke();}
-  for(let gy=0;gy<=r.ih+0.5;gy+=g){ctx.beginPath();ctx.moveTo(r.x,r.y+gy);ctx.lineTo(r.x+r.iw,r.y+gy);ctx.stroke();}
-  // 选区
-  if(sheet.sel){const[a,b,wd,ht]=sheet.sel;
-    ctx.fillStyle="rgba(92,192,204,.3)";ctx.fillRect(r.x+a*sc,r.y+b*sc,wd*sc,ht*sc);
-    ctx.strokeStyle="#5cc0cc";ctx.lineWidth=2;ctx.strokeRect(r.x+a*sc,r.y+b*sc,wd*sc,ht*sc);}
-  // 外框 + 两个小角标(★全存 / ✕关闭),无标题栏
-  ctx.strokeStyle="rgba(92,192,204,.9)";ctx.lineWidth=2;ctx.strokeRect(r.x,r.y,r.iw,r.ih);
-  ctx.font="bold 13px sans-serif";ctx.textBaseline="middle";ctx.textAlign="center";
-  ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(r.x,r.y,20,18);ctx.fillStyle="#ffd24a";ctx.fillText("★",r.x+10,r.y+9);
-  ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(r.x+r.iw-20,r.y,20,18);ctx.fillStyle="#ff6b6b";ctx.fillText("✕",r.x+r.iw-10,r.y+9);
-  ctx.textAlign="left";
-  ctx.restore();
 }
 let hoverCell=null;
 requestAnimationFrame(draw);
@@ -610,18 +576,6 @@ cv.addEventListener("pointerdown",e=>{
     scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
     return;
   }
-  // 取块板:角标(★全存/✕关闭) · 点格取块 · 拖动整体移动
-  if(placeMode==="tile" && sheet && mode==="edit"){
-    const r=sheetRect();
-    if(sy>=r.y && sy<=r.y+18){
-      if(sx>=r.x && sx<=r.x+20){ sheetSaveAll(); return; }                 // ★全存
-      if(sx>=r.x+r.iw-20 && sx<=r.x+r.iw){ sheet=null; return; }           // ✕
-    }
-    if(sx>=r.x && sx<=r.x+r.iw && sy>=r.y && sy<=r.y+r.ih){
-      if(e.button===2)return;                                             // 右键在板上不误擦
-      drag={type:"sheetpt",sx,sy,ox:sheet.wx,oy:sheet.wy,moved:false}; return; // 轻点=取格,拖=移动
-    }
-  }
   // 瓦片模式：单指 = 铺/擦；(双指走上面的缩放分支)
   if(placeMode==="tile" && mode==="edit"){
     if(!brush){showHint("点下方素材贴成取块板，点格子拿来铺");return;}
@@ -667,11 +621,6 @@ cv.addEventListener("pointermove",e=>{
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(placeMode==="tile"&&brush&&mode==="edit") hoverCell=cellAt(e.clientX,e.clientY);
-  if(drag&&drag.type==="sheetpt"){
-    if(!drag.moved&&Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)>6)drag.moved=true;
-    if(drag.moved){ sheet.wx=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom); sheet.wy=Math.round(drag.oy+(e.clientY-drag.sy)/cam.zoom); }
-    return;
-  }
   if(painting&&drag&&drag.type==="tile"&&ptrs.size<2){ stampTile(e.clientX,e.clientY,drag.erase); return; }
   if(pinch&&ptrs.size>=2){
     const pts=[...ptrs.values()];
@@ -705,11 +654,6 @@ cv.addEventListener("pointermove",e=>{
 });
 function endPtr(e){
   clearTimeout(lpTimer);
-  if(drag&&drag.type==="sheetpt"){     // 轻点=取这格当刷子;拖过=只是移动了板子
-    if(!drag.moved){ sheetPickAt(drag.sx,drag.sy,drag.sx,drag.sy);
-      if(sheet&&sheet.sel&&sheet.sel[2]>=2){brush={asset:sheet.file,crop:sheet.sel.slice(),w:sheet.sel[2],h:sheet.sel[3]};
-        updateBrushChip();showHint("已取 "+sheet.sel[2]+"×"+sheet.sel[3]+"：左键铺·右键擦");}}
-    ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
   if(drag&&drag.type==="tile"){painting=false;lastCell=null;ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
   // 轻点(未长按未划动) = 选中
   if(drag&&drag.type==="pending"){
@@ -753,52 +697,6 @@ function fillToView(ins){
 // 基准网格(源px)：所有块都吸附到这套固定网格线
 let gridBase=32;
 function gridStepWorld(){ return Math.max(1,Math.round(gridBase*tileScale)); } // 网格步长(世界px,与刷子无关)
-// 把素材放到画布上(世界坐标,随平移缩放)当"取块板"
-function showSheet(file){
-  const e=getImg(ASSET_BASE+file);
-  const setup=()=>{
-    const p=parallaxOf(curLayer);
-    const [wcx,wcy]=screenToWorld(innerWidth/2, innerHeight*0.42, p);  // 放到你正看的画布中间
-    sheet={file,img:e.img,
-      wx:Math.round(wcx-e.img.naturalWidth*tileScale/2),
-      wy:Math.round(wcy-e.img.naturalHeight*tileScale/2), sel:null};
-    showHint("取块板已放到画布：点格=拿来铺，拖标题移动，✕关闭");
-  };
-  if(e.loaded)setup(); else e.img.addEventListener("load",setup,{once:true});
-}
-// 拖拽落点版:放到松手处的世界坐标
-function showSheetAt(file,cx,cy){
-  const e=getImg(ASSET_BASE+file);
-  const setup=()=>{
-    const p=parallaxOf(curLayer);
-    const [wx,wy]=screenToWorld(cx,cy,p);
-    sheet={file,img:e.img,
-      wx:Math.round(wx-e.img.naturalWidth*tileScale/2),
-      wy:Math.round(wy-e.img.naturalHeight*tileScale/2), sel:null};
-    showHint("拖到画布了：点格=拿来铺");
-  };
-  if(e.loaded)setup(); else e.img.addEventListener("load",setup,{once:true});
-}
-function sheetPickAt(asx,asy,bsx,bsy){    // 屏幕坐标 → 按网格吸附选格
-  const r=sheetRect(),sc=r.sc,g=gridBase;
-  const iw=sheet.img.naturalWidth, ih=sheet.img.naturalHeight;
-  const ix0=(asx-r.x)/sc, iy0=(asy-r.y)/sc, ix1=(bsx-r.x)/sc, iy1=(bsy-r.y)/sc;
-  const c0=Math.floor(Math.min(ix0,ix1)/g),c1=Math.floor(Math.max(ix0,ix1)/g);
-  const r0=Math.floor(Math.min(iy0,iy1)/g),r1=Math.floor(Math.max(iy0,iy1)/g);
-  const x=Math.max(0,c0*g),y=Math.max(0,r0*g);
-  const w=Math.min(iw,(c1+1)*g)-x, h=Math.min(ih,(r1+1)*g)-y;
-  sheet.sel=[x,y,Math.max(g,w),Math.max(g,h)];
-}
-function sheetSaveAll(){
-  if(!sheet)return;
-  const g=gridBase,iw=sheet.img.naturalWidth,ih=sheet.img.naturalHeight,lib=loadLib();let n=0;
-  for(let y=0;y<ih;y+=g)for(let x=0;x<iw;x+=g){
-    const w=Math.min(g,iw-x),h=Math.min(g,ih-y); if(w<2||h<2)continue;
-    if(lib.some(z=>z.asset===sheet.file && JSON.stringify(z.crop||null)===JSON.stringify([x,y,w,h])))continue;
-    lib.push({id:uid(),name:"块"+w+"×"+h,asset:sheet.file,crop:[x,y,w,h],w,h});n++;
-  }
-  saveLib(lib);showHint("已存入 "+n+" 个格子到刷库");$("libDock").classList.add("show");renderLib();
-}
 function gridCell(){ // 吸附/网格显示用的格子(世界单位,取整)
   if(!brush) return null;
   const s=gridStepWorld();return {w:s,h:s,base:true};
@@ -943,22 +841,22 @@ function buildPieces(){
       d.appendChild(im);
       if(it.kind==="tile"){d.classList.add("tilekind");const tg=document.createElement("span");tg.className="tag";tg.textContent="瓦片";d.appendChild(tg);}
       d.onclick=()=>{ if(placeMode!=="tile") addPiece(it); };   // 自由摆放:点=放
-      bindPieceDrag(d,it.file);                                  // 瓦片模式:拖到画布=取块板
+      bindPieceDrag(d,it);                                       // 瓦片模式:拖到画布=直接铺一块
     }
     el.appendChild(d);
     return;
   });
   return;
 }
-// 瓦片模式下,把底部素材"拖拽"到画布 → 落点出现取块板;轻点=放到中间
-function bindPieceDrag(el,file){
+// 瓦片模式:把底部素材拖到画布 → 落点直接铺一块;轻点=只是选成当前刷子
+function bindPieceDrag(el,it){
   el.addEventListener("pointerdown",e=>{
     if(placeMode!=="tile")return;
     e.preventDefault();
     const start={x:e.clientX,y:e.clientY}; let moved=false,ghost=null;
     const move=ev=>{
       if(!moved&&Math.hypot(ev.clientX-start.x,ev.clientY-start.y)>8){moved=true;
-        ghost=document.createElement("img");ghost.src=ASSET_BASE+file;
+        ghost=document.createElement("img");ghost.src=ASSET_BASE+it.file;
         ghost.style.cssText="position:fixed;pointer-events:none;opacity:.85;width:54px;height:54px;z-index:99;image-rendering:pixelated;";
         document.body.appendChild(ghost);}
       if(ghost){ghost.style.left=(ev.clientX-27)+"px";ghost.style.top=(ev.clientY-27)+"px";}
@@ -966,9 +864,9 @@ function bindPieceDrag(el,file){
     const up=ev=>{
       window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",up);
       if(ghost)ghost.remove();
+      setBrushFromPiece(it);                                       // 选成当前刷子
       const palTop=$("palette").getBoundingClientRect().top;
-      if(moved && ev.clientY<palTop-4) showSheetAt(file,ev.clientX,ev.clientY); // 拖到画布上松手
-      else if(!moved) showSheet(file);                                          // 轻点=放中间
+      if(moved && ev.clientY<palTop-4){ lastCell=null; stampTile(ev.clientX,ev.clientY,false); } // 拖到画布:直接铺一块
     };
     window.addEventListener("pointermove",move);window.addEventListener("pointerup",up);
   });
@@ -1002,13 +900,13 @@ function setMode(m){
   $("tilebar").classList.toggle("show",m==="tile");
   if(m==="tile"){sel=null;selMarker=null;updateActions();
     showHint(brush?"瓦片模式：单指在网格上铺，双指平移/缩放":"瓦片模式：选一块「瓦片」或 ✂取块，再在网格上铺");}
-  else{hoverCell=null;sheet=null;$("libDock").classList.remove("show");showHint("自由摆放：点素材落到地面线，拖动摆位置");}
+  else{hoverCell=null;$("libDock").classList.remove("show");showHint("自由摆放：点素材落到地面线，拖动摆位置");}
 }
 document.querySelectorAll("#modesw button").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
 function setBrushFromPiece(it){
   brush={asset:it.file,crop:null,w:it.w,h:it.h};
   updateBrushChip();
-  showHint("瓦片刷：「"+it.file+"」— 在网格上单指铺");
+  showHint("已选「"+it.file.replace(".png","")+"」：左键铺·右键擦（拖到画布可直接落一块）");
 }
 function updateBrushChip(){
   const chip=$("brushChip");
@@ -1023,7 +921,7 @@ $("tilebar").addEventListener("click",e=>{
   if(t==="scaleDn"){tileScale=Math.max(0.1,+(tileScale/1.12).toFixed(3));}
   if(t==="erase"){eraseMode=!eraseMode;$("btnErase").classList.toggle("p",eraseMode);
     showHint(eraseMode?"擦除：单指划掉本层同种瓦片":"恢复铺设");}
-  if(t==="crop"){ if(sheet)sheet=null; else showHint("点下方任意素材，它会贴到画布上当取块板"); }
+  if(t==="crop"){ openCropPanel(); }   // 需要从一张大图里取一小块时用
   if(t==="lib"){toggleLib();}
   if(t==="grid"){cycleGrid();}
   $("tileScaleV").textContent=tileScale.toFixed(2)+"×";

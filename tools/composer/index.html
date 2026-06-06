@@ -114,7 +114,7 @@
 <canvas id="stage"></canvas>
 
 <div class="topbar">
-  <div class="title">关卡编辑器·对齐b3</div>
+  <div class="title">关卡编辑器·对齐b4</div>
   <div class="modesw" id="modesw">
     <button data-m="free" class="on">自由摆放</button>
     <button data-m="tile">瓦片铺</button>
@@ -137,6 +137,7 @@
   <button class="btn sm" id="btnAct" data-t="act">🖌 铺</button>
   <button class="btn sm" id="btnSnap" data-t="snap" style="display:none">按格移</button>
   <button class="btn sm" id="btnErase" data-t="erase">🧹 擦除</button>
+  <button class="btn sm" id="btnDbg" data-t="dbg">▦ 描边</button>
   <span style="font-size:11px;color:var(--muted);white-space:nowrap">铺/取/选 · 右键擦 · 双指平移</span>
 </div>
 
@@ -295,6 +296,7 @@ let grabSel=null;             // 取块框选 {ins,sx,sy,w,h,世界矩形}
 let selTiles=[];             // 选中的瓦片实例(选移用)
 let selBox=null;             // 选移框选矩形(屏幕,临时)
 let moveSnap=true;           // 选移:true=按格 false=按像素
+let dbgTiles=false;          // 调试:描出每块瓦片精确像素边框
 
 function blankScene(){
   const h=1400;
@@ -391,14 +393,16 @@ function draw(){
     ctx.save();
     ctx.globalAlpha=ins.opacity==null?1:ins.opacity;
     if(rot===0){
-      // 左右上下"边"各自取整 → 共享同一条世界边的瓦片对齐到同一整数像素(无1px错位/无缝)
-      const hw=fw*ins.scale/2, hh=fh*ins.scale/2;
-      const L=Math.round((ins.x-hw-cam.x*p)*cam.zoom), R=Math.round((ins.x+hw-cam.x*p)*cam.zoom);
-      const T=Math.round((ins.y-hh-cam.y*p)*cam.zoom), B=Math.round((ins.y+hh-cam.y*p)*cam.zoom);
+      // 左右上下"边"各自取整到设备像素 → 共享世界边的瓦片对齐到同一物理像素(无错位/无缝)
+      const hw=fw*ins.scale/2, hh=fh*ins.scale/2, DP=DPR;
+      const L=Math.round((ins.x-hw-cam.x*p)*cam.zoom*DP)/DP, R=Math.round((ins.x+hw-cam.x*p)*cam.zoom*DP)/DP;
+      const T=Math.round((ins.y-hh-cam.y*p)*cam.zoom*DP)/DP, B=Math.round((ins.y+hh-cam.y*p)*cam.zoom*DP)/DP;
+      const blx=bl/DP;
       if(e.loaded){
-        if(ins.flipX){ ctx.translate(R+bl,T-bl); ctx.scale(-1,1); ctx.drawImage(e.img,srcx,srcy,fw,fh,0,0,(R-L)+2*bl,(B-T)+2*bl); }
-        else ctx.drawImage(e.img,srcx,srcy,fw,fh,L-bl,T-bl,(R-L)+2*bl,(B-T)+2*bl);
+        if(ins.flipX){ ctx.translate(R+blx,T-blx); ctx.scale(-1,1); ctx.drawImage(e.img,srcx,srcy,fw,fh,0,0,(R-L)+2*blx,(B-T)+2*blx); }
+        else ctx.drawImage(e.img,srcx,srcy,fw,fh,L-blx,T-blx,(R-L)+2*blx,(B-T)+2*blx);
       }else{ctx.fillStyle="#333";ctx.fillRect(L,T,R-L,B-T);}
+      if(dbgTiles && ins.tile){ctx.strokeStyle="rgba(255,0,255,.9)";ctx.lineWidth=1/DP;ctx.strokeRect(L,T,R-L,B-T);}
     }else{
       ctx.translate(Math.round(sx),Math.round(sy));
       ctx.rotate(rot*Math.PI/180);
@@ -1070,6 +1074,7 @@ $("tilebar").addEventListener("click",e=>{
   if(t==="snap"){ moveSnap=!moveSnap; $("btnSnap").textContent=moveSnap?"按格移":"像素移"; $("btnSnap").classList.toggle("p",!moveSnap);
     showHint(moveSnap?"移动吸附到网格":"移动按像素微调"); }
   if(t==="grid"){cycleGrid();}
+  if(t==="dbg"){dbgTiles=!dbgTiles;$("btnDbg").classList.toggle("p",dbgTiles);showHint(dbgTiles?"描边:每块瓦片画出精确像素边框(品红)":"关闭描边");}
   $("tileScaleV").textContent=tileScale.toFixed(2)+"×";
 });
 const GRID_STEPS=[16,24,32,48,64];

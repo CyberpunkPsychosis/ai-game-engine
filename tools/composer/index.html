@@ -465,12 +465,12 @@ function draw(){
     ctx.textBaseline="bottom";ctx.fillText("▼ 画面底边",8,Math.min(h-2,syBot-4));
   }
 
-  // 瓦片网格 + 落点高亮
-  if(placeMode==="tile" && brush && mode!=="play"){
-    const c=gridCell(); const p=parallaxOf(curLayer);
+  // 瓦片网格 + 落点高亮(进瓦片模式即显示,不必先选刷子)
+  if(placeMode==="tile" && mode!=="play"){
+    const s=gridStepWorld(); const c={w:s,h:s}; const p=parallaxOf(curLayer);
     const cw=c.w*cam.zoom, ch=c.h*cam.zoom;
     if(cw>6 && ch>6){
-      ctx.strokeStyle=c.base?"rgba(255,210,74,.28)":"rgba(92,192,204,.22)";ctx.lineWidth=1;
+      ctx.strokeStyle="rgba(255,210,74,.28)";ctx.lineWidth=1;
       // 竖线
       const wxL=cam.x*p, wxR=wxL+w/cam.zoom;
       let col0=Math.floor(wxL/c.w);
@@ -490,7 +490,7 @@ function draw(){
       ctx.strokeStyle="rgba(255,210,74,.6)";ctx.lineWidth=1.5;
       ctx.beginPath();ctx.moveTo(0,syG);ctx.lineTo(w,syG);ctx.stroke();
       // 鼠标落点(画瓦片真实footprint,而非格子,便于看大块怎么落)
-      if(hoverCell){
+      if(hoverCell && brush){
         const tw=(hoverCell.tw||c.w)*cam.zoom, th=(hoverCell.th||c.h)*cam.zoom;
         const sxC=(hoverCell.x-(hoverCell.tw||c.w)/2-cam.x*p)*cam.zoom;
         const syC=(hoverCell.y-(hoverCell.th||c.h)/2-cam.y*p)*cam.zoom;
@@ -696,9 +696,10 @@ function fillToView(ins){
 //==================== 瓦片格子 ====================
 // 基准网格(源px)：所有块都吸附到这套固定网格线
 let gridBase=32;
+function gridStepWorld(){ return Math.max(1,Math.round(gridBase*tileScale)); } // 网格步长(世界px,与刷子无关)
 function gridCell(){ // 吸附/网格显示用的格子(世界单位,取整)
   if(!brush) return null;
-  const s=Math.max(1,Math.round(gridBase*tileScale));return {w:s,h:s,base:true};
+  const s=gridStepWorld();return {w:s,h:s,base:true};
 }
 // 屏幕点 -> 落点。瓦片左下角吸附到网格交点(底边按地面线分行)，向上/右铺其本身大小
 function cellAt(sx,sy){

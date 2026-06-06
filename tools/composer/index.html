@@ -112,6 +112,7 @@
   <button class="btn sm" data-a="rotL">↺</button>
   <button class="btn sm" data-a="rotR">↻</button>
   <button class="btn sm" data-a="flip">翻转</button>
+  <button class="btn sm" data-a="layer">层↔</button>
   <button class="btn sm" data-a="front">置顶</button>
   <button class="btn sm" data-a="back">置底</button>
   <button class="btn sm" data-a="dup">复制</button>
@@ -289,11 +290,14 @@ function draw(){
       else ctx.drawImage(e.img,-iw/2,-ih/2,iw,ih);
     }else{ctx.fillStyle="#333";ctx.fillRect(-iw/2,-ih/2,iw,ih);}
     ctx.restore();
-    // 选中描边
+    // 选中描边 + 右下角缩放手柄(拖它改大小)
     if(ins.id===sel){
       ctx.save();ctx.translate(sx,sy);ctx.rotate((ins.rot||0)*Math.PI/180);
       ctx.strokeStyle="#ffd24a";ctx.lineWidth=2;ctx.setLineDash([6,4]);
-      ctx.strokeRect(-iw/2,-ih/2,iw,ih);ctx.restore();
+      ctx.strokeRect(-iw/2,-ih/2,iw,ih);
+      ctx.setLineDash([]);ctx.fillStyle="#ffd24a";ctx.strokeStyle="#04222a";
+      ctx.beginPath();ctx.arc(iw/2,ih/2,11,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.restore();
     }
   }
 
@@ -412,22 +416,20 @@ cv.addEventListener("pointerdown",e=>{
     scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
     return;
   }
-  // 命中标记或零件 → 进入"待定"：轻点=选中，长按=拿起，划动=平移
+  // 先看是不是点在"缩放手柄"上(选中物件右下角)
+  const hb=handleScreen();
+  if(hb && Math.hypot(sx-hb[0],sy-hb[1])<28){
+    const ins=curIns();
+    drag={type:"resize",ins,cx:hb[2],cy:hb[3],startScale:ins.scale,startDist:Math.max(10,Math.hypot(sx-hb[2],sy-hb[3]))};
+    return;
+  }
+  // 点中物件/标记 = 直接选中(还能马上拖动)；点空白 = 取消选中并可平移
   const m=hitMarker(sx,sy);
   const ins=m?null:hitInstance(sx,sy);
   if(m||ins){
-    const tgt=m?{kind:"marker",obj:m}:{kind:"ins",obj:ins};
-    drag={type:"pending",tgt,ox:(m?m.x:ins.x),oy:(m?m.y:ins.y),sx,sy};
-    clearTimeout(lpTimer);
-    lpTimer=setTimeout(()=>{
-      if(drag&&drag.type==="pending"){
-        drag.type="move";
-        if(tgt.kind==="ins"){sel=tgt.obj.id;selMarker=null;}else{selMarker=tgt.obj;sel=null;}
-        updateActions();
-        if(navigator.vibrate)navigator.vibrate(18);
-        showHint("已拿起，拖动放置");
-      }
-    },LONGPRESS);
+    if(ins){sel=ins.id;selMarker=null;}else{selMarker=m;sel=null;}
+    updateActions();
+    drag={type:"move",tgt:{kind:m?"marker":"ins",obj:m||ins},ox:(m?m.x:ins.x),oy:(m?m.y:ins.y),sx,sy};
   }else{
     drag={type:"pan",camx:cam.x,camy:cam.y,sx,sy};
     sel=null;selMarker=null;updateActions();
@@ -460,6 +462,9 @@ cv.addEventListener("pointermove",e=>{
     const o=drag.tgt.obj;
     o.x=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom);
     o.y=Math.round(drag.oy+(e.clientY-drag.sy)/cam.zoom);
+  }else if(drag.type==="resize"){
+    const d=Math.hypot(e.clientX-drag.cx,e.clientY-drag.cy);
+    drag.ins.scale=Math.max(0.05,Math.min(12, +(drag.startScale*d/drag.startDist).toFixed(3)));
   }
 });
 function endPtr(e){
@@ -488,6 +493,17 @@ function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
 
 //==================== 选中操作 ====================
 function curIns(){return scene.instances.find(i=>i.id===sel);}
+// 选中物件右下角的缩放手柄屏幕坐标 [手柄x,手柄y, 中心x,中心y]
+function handleScreen(){
+  const ins=curIns(); if(!ins)return null;
+  const p=parallaxOf(ins.layer);
+  let fw,fh;
+  if(ins.anim){const c=ANIM[ins.anim];if(!c)return null;fw=c.fw;fh=c.fh;}
+  else{const e=getImg(ASSET_BASE+ins.asset);if(!e.loaded)return null;fw=e.img.naturalWidth;fh=e.img.naturalHeight;}
+  const [cx,cy]=worldToScreen(ins.x,ins.y,p);
+  const iw=fw*ins.scale*cam.zoom/2, ih=fh*ins.scale*cam.zoom/2;
+  return [cx+iw,cy+ih,cx,cy];
+}
 function updateActions(){
   $("actions").classList.toggle("show",!!sel||!!selMarker);
   $("palette").classList.toggle("hidden",!!sel||!!selMarker||mode!=="edit");
@@ -505,6 +521,7 @@ $("actions").addEventListener("click",e=>{
   if(a==="rotL")ins.rot=(ins.rot||0)-5;
   if(a==="rotR")ins.rot=(ins.rot||0)+5;
   if(a==="flip")ins.flipX=!ins.flipX;
+  if(a==="layer"){const i=layerIndex(ins.layer);ins.layer=LAYER_DEF[(i+1)%LAYER_DEF.length].id;showHint("图层："+LAYER_DEF.find(l=>l.id===ins.layer).name);}
   if(a==="front")ins.z=Math.max(0,...scene.instances.filter(i=>i.layer===ins.layer).map(i=>i.z||0))+1;
   if(a==="back")ins.z=Math.min(0,...scene.instances.filter(i=>i.layer===ins.layer).map(i=>i.z||0))-1;
   if(a==="dup"){const c={...ins,id:uid(),x:ins.x+30,y:ins.y+30};scene.instances.push(c);sel=c.id;}
@@ -585,12 +602,22 @@ function buildPieces(){
 function placeAt(){return screenToWorld(innerWidth/2,innerHeight/2,parallaxOf(curLayer));}
 function addPiece(p){
   const [wx]=placeAt();
-  const target=innerHeight*0.5/cam.zoom;
-  const sc=Math.min(1,target/Math.max(p.w,p.h));
-  const wy=scene.view.groundY-(p.h*sc)/2;   // 底边落在地面线上(所有物件底边自动齐)
-  scene.instances.push({id:uid(),layer:curLayer,asset:p.file,
-    x:Math.round(wx),y:Math.round(wy),scale:+sc.toFixed(3),rot:0,flipX:false,z:0});
-  showHint("已放到地面线上，左右拖摆位置就行（底边自动齐）");
+  const isBg=curCat() && /背景|Background/i.test(curCat().name);
+  let sc, wy, layer=curLayer;
+  if(isBg){
+    const vh=scene.view.h, vw=vh*16/9;            // 玩家可视区(16:9)
+    sc=+Math.max(vw/p.w, vh/p.h).toFixed(3);       // 铺满可视区(cover)
+    wy=scene.view.groundY-vh/2;                    // 视野中心
+    layer="far";                                   // 背景自动进远景层
+    showHint("背景已铺满可视区并放到远景层；拖动微调，拖右下角手柄缩放");
+  }else{
+    const target=innerHeight*0.5/cam.zoom;
+    sc=+Math.min(1.6,target/Math.max(p.w,p.h)).toFixed(3);
+    wy=scene.view.groundY-(p.h*sc)/2;              // 底边落在地面线上
+    showHint("已放到地面线；左右拖摆位置，拖右下角金点缩放");
+  }
+  const o={id:uid(),layer,asset:p.file,x:Math.round(wx),y:Math.round(wy),scale:sc,rot:0,flipX:false,z:0};
+  scene.instances.push(o); sel=o.id; selMarker=null; updateActions();
 }
 function addAnim(clip){
   const c=ANIM[clip];const [wx,wy]=placeAt();

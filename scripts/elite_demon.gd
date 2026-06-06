@@ -103,10 +103,17 @@ func _gather_intent(delta: float) -> void:
 		if _rage >= 1.0:
 			_angry = true
 			_combo = true                    # 下一串=三连
-			# 暴怒瞬间：红屏闪+震屏(不用 nova 圈，免得和弹反火花混)
-			FX.screen_flash(Color(1, 0.35, 0.15), 0.6, 0.28)
-			Juice.shake(12.0)
-			FX.flash(sprite, 0.18, Color(2.0, 1.4, 0.7))
+			# 暴怒瞬间：震一下 + 身体爆亮(不闪屏幕，免得晃眼)
+			Juice.shake(10.0)
+			FX.flash(sprite, 0.2, Color(2.2, 1.5, 0.7))
+	# 生气：怪物身上一直泛红光(不碰屏幕)
+	if sprite:
+		if _angry:
+			var p := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.022)
+			sprite.modulate = Color(1.5, 0.85, 0.4).lerp(Color(1.95, 1.3, 0.6), p)
+		elif sprite.modulate != Color.WHITE and _flinch_t <= 0.0 and not guard_broken:
+			sprite.modulate = Color.WHITE
+
 	# 向后大跳脱离(腾空中持续，头一直盯着玩家)
 	if _hopping:
 		facing = 1 if dx >= 0.0 else -1

@@ -31,7 +31,8 @@ func _setup() -> void:
 	can_dodge = true       # 主角能闪避（L / Shift）
 	parry_window = 0.10    # 弹反窗口很紧(~6帧)：要算准箭尖到身前那一刻
 	# 主角是长突刺，攻击框要够长够远（之前太短砍空）
-	attack_reach = 46.0
+	body_size = Vector2(17, 50)   # 受击框(调参定)
+	attack_reach = 20.0
 	attack_size = Vector2(64, 40)
 	attack_active_from = 1
 	attack_active_to = 3

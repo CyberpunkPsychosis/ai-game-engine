@@ -36,8 +36,8 @@ func _setup() -> void:
 	team = 1
 	max_hp = 70.0
 	posture_max = 95.0
-	body_size = Vector2(26, 58)   # 量过身体宽~23
-	hurt_dx = -8.0                # 身体略偏后(站立中心-8)，随朝向镜像贴合
+	body_size = Vector2(26, 57)   # 受击框(调参定)
+	hurt_dx = -16.0               # 身体偏后，随朝向镜像贴合(调参定)
 	speed = 80.0
 	aggro_range = 460.0
 	engage_range = 84.0

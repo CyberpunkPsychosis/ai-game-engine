@@ -36,6 +36,7 @@ func _setup() -> void:
 	team = 1
 	max_hp = 70.0
 	posture_max = 95.0
+	parry_deaths = 2         # 弹反两次就死
 	body_size = Vector2(26, 57)   # 受击框(调参定)
 	hurt_dx = -16.0               # 身体偏后，随朝向镜像贴合(调参定)
 	speed = 80.0
@@ -147,6 +148,8 @@ func _fire_thrust() -> void:
 	_gap_t = gap_dur
 
 func flinch(push_dir: float) -> void:
+	if _dead:
+		return
 	if _in_combo:
 		return
 	super.flinch(push_dir)

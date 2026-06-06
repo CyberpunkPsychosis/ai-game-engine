@@ -26,6 +26,7 @@ func _setup() -> void:
 	team = 1
 	max_hp = 45.0
 	posture_max = 55.0       # 脆，好破
+	parry_deaths = 2         # 反弹两箭就死
 	body_size = Vector2(20, 56)
 	speed = 90.0
 	aggro_range = 560.0
@@ -138,6 +139,7 @@ func _fire_arrow() -> void:
 	if pl:
 		target = pl.global_position + Vector2(0.0, -30.0)               # 瞄准玩家躯干
 	var a := Arrow.new()
+	a.shooter = self
 	a.setup(target - from, arrow_speed)
 	var scene := get_tree().current_scene
 	if scene:

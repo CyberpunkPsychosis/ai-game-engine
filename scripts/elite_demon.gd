@@ -39,6 +39,7 @@ func _setup() -> void:
 	team = 1
 	max_hp = 220.0               # 血厚很多
 	posture_max = 140.0
+	parry_deaths = 5             # 弹反五次就死
 	body_size = Vector2(50, 92)
 	speed = 70.0
 	aggro_range = 560.0
@@ -188,6 +189,8 @@ func _begin_hop(dx: float) -> void:
 
 # 弹反/挡好 → 硬直；生气时被弹 → 硬直更久 + 当场消气
 func flinch(push_dir: float) -> void:
+	if _dead:
+		return
 	super.flinch(push_dir)
 	_hopping = false
 	lock_facing = false

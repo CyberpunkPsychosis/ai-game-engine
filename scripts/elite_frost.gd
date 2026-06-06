@@ -11,7 +11,6 @@ const FCELL := Vector2i(192, 128)
 const ST_IDLE := 0
 const ST_ATTACK := 1
 const ST_PAUSE := 2
-const ST_FLEE := 3
 
 # ── 可调参数 ──
 var strike_range := 70.0     # 跑到这么近才出拳(拳尖≈93，框够到)
@@ -20,25 +19,32 @@ var punch_width := 80.0      # 拳判定长度
 var pause_dur := 1.0         # 打完歇(灵活，歇得短)
 var combo_gap := 0.05        # 连拳之间的间隔(很快)
 var combo_hits := 6          # 生气连几拳
-var flee_dur := 0.55         # 被弹后逃跑时长
 
 var _st := ST_IDLE
 var _pause_t := 0.0
 var _gap_t := 0.0
-var _flee_t := 0.0
 var _pending := 0
 var _angry := false
 var _combo := false
 var _combo_pending := false
+var _hopping := false
+var _want_hop := false
 
 func _setup() -> void:
 	team = 1
 	max_hp = 150.0
 	posture_max = 110.0
+	parry_deaths = 5            # 弹反五次就死
 	body_size = Vector2(44, 72)
 	speed = 175.0               # 灵活快冲
 	aggro_range = 620.0
 	engage_range = 70.0
+	# 被弹后向后大跳
+	jump_velocity = -430.0
+	gravity_up = 1300.0
+	gravity_down = 1800.0
+	anim_jump = "walk"
+	anim_fall = "walk"
 	sprite_faces_left = true
 	if sprite:
 		sprite.sprite_frames = SpriteSheet.build(SHEET, FCELL, {
@@ -59,7 +65,6 @@ func tunables() -> Array:
 		{"name": "punch_width",  "label": "拳框宽",    "min": 30.0, "max": 160.0, "step": 1.0},
 		{"name": "pause_dur",    "label": "打后歇s",   "min": 0.3,  "max": 2.5,   "step": 0.05},
 		{"name": "combo_gap",    "label": "连拳间隔s", "min": 0.02, "max": 0.4,   "step": 0.01},
-		{"name": "flee_dur",     "label": "逃跑时长s", "min": 0.2,  "max": 1.2,   "step": 0.05},
 		{"name": "parry_flinch", "label": "被弹硬直s", "min": 0.1,  "max": 1.5,   "step": 0.05},
 	]
 
@@ -69,7 +74,6 @@ func _gather_intent(delta: float) -> void:
 	_cd = maxf(_cd - delta, 0.0)
 	_pause_t = maxf(_pause_t - delta, 0.0)
 	_gap_t = maxf(_gap_t - delta, 0.0)
-	_flee_t = maxf(_flee_t - delta, 0.0)
 
 	var pl := get_tree().get_first_node_in_group("player") as Node2D
 	if pl == null:
@@ -85,6 +89,21 @@ func _gather_intent(delta: float) -> void:
 		elif sprite.modulate != Color.WHITE and _flinch_t <= 0.0 and not guard_broken:
 			sprite.modulate = Color.WHITE
 
+	# 被弹 → 向后大跳脱离；腾空中持续，头一直盯着玩家
+	if _want_hop and is_on_floor() and not attacking:
+		_want_hop = false
+		_begin_hop(dx)
+	if _hopping:
+		facing = 1 if dx >= 0.0 else -1
+		lock_facing = true
+		move_dir = -signf(dx)
+		speed = _base_speed * 2.6
+		if is_on_floor() and velocity.y >= 0.0:
+			_hopping = false
+			lock_facing = false
+			speed = _base_speed
+		return
+
 	if attacking:
 		return
 	facing = 1 if dx >= 0.0 else -1
@@ -92,13 +111,6 @@ func _gather_intent(delta: float) -> void:
 	speed = _base_speed
 
 	match _st:
-		ST_FLEE:
-			# 向后逃跑(面朝跑动方向=背对玩家)
-			speed = _base_speed * 2.2
-			move_dir = -signf(dx)
-			if _flee_t <= 0.0 or dist > 230.0:
-				_st = ST_IDLE
-			return
 		ST_IDLE:
 			if dist > strike_range:
 				move_dir = signf(dx)
@@ -145,18 +157,28 @@ func _fire_punch() -> void:
 
 # 弹反/格挡好了：普通拳被弹 → 逃跑+生气；生气连段被弹 → 大硬直处决窗+消气
 func flinch(push_dir: float) -> void:
+	if _dead:
+		return
 	super.flinch(push_dir)
 	if _angry and _combo:
-		_flinch_t = parry_flinch * 1.5
+		_flinch_t = parry_flinch * 1.5   # 连段被弹 → 大硬直处决窗
 		_calm()
 		_st = ST_IDLE
 	else:
-		_flinch_t = 0.18              # 灵活，硬直极短，马上逃
+		_flinch_t = 0.0                  # 不站桩 → 马上向后大跳
 		_angry = true
 		_combo_pending = true
 		_pending = 0
-		_st = ST_FLEE
-		_flee_t = flee_dur
+		_st = ST_IDLE
+		_want_hop = true
+
+func _begin_hop(dx: float) -> void:
+	_hopping = true
+	facing = 1 if dx >= 0.0 else -1
+	lock_facing = true
+	want_jump = true
+	move_dir = -signf(dx)
+	speed = _base_speed * 2.6
 
 func _calm() -> void:
 	_angry = false

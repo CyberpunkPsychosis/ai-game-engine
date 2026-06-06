@@ -8,6 +8,7 @@ var _life := 3.0
 var _sprite: Sprite2D
 var _reflected := false
 var _rearm := 0.0
+var shooter: Actor2D            ## 谁射的（反弹回去打它，按它的"弹反几次死"算伤害）
 
 ## dir：飞行方向（向量，会归一化）。
 func setup(dir: Vector2, speed := 330.0) -> void:
@@ -40,6 +41,9 @@ func reflect(_dir := 0) -> void:
 	collision_layer = 1 << 2       # 玩家攻击层（敌人受击框监听）
 	damage = 16.0
 	posture_damage = 22.0
+	# 射手设了"弹反几次死" → 反弹这一箭打它一下就掉那么多血
+	if is_instance_valid(shooter) and shooter.parry_deaths > 0:
+		damage = shooter.max_hp / float(shooter.parry_deaths)
 	consumable = false             # 本帧先别被玩家受击框销毁
 	_rearm = 0.06
 	_life = 3.0

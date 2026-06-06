@@ -69,6 +69,7 @@ func _gather_intent(delta: float) -> void:
 	# 后跃中：空中持续往后冲、始终面向玩家好接着射；落地即结束
 	if _hopping:
 		facing = 1 if dx >= 0.0 else -1
+		lock_facing = true               # 后退也始终朝玩家
 		speed = HOP_SPEED
 		move_dir = -signf(dx)
 		# 无敌帧只罩上升段（躲掉贴脸那一下），下落段恢复可被打
@@ -78,6 +79,7 @@ func _gather_intent(delta: float) -> void:
 				sprite.modulate = Color.WHITE
 		if is_on_floor() and velocity.y >= 0.0:
 			_hopping = false
+			lock_facing = false
 			speed = _base_speed
 			_cd = minf(_cd, 0.04)    # 落地几乎立刻可射
 		return
@@ -101,6 +103,7 @@ func _begin_hop(dx: float) -> void:
 	_hopping = true
 	_hop_cd = HOP_COOLDOWN
 	facing = 1 if dx >= 0.0 else -1  # 跃走也面向玩家
+	lock_facing = true               # 后退不翻面
 	want_jump = true                 # 交给基类的跳跃逻辑起跳
 	move_dir = -signf(dx)            # 朝玩家反方向跃
 	speed = HOP_SPEED
@@ -113,6 +116,7 @@ func _begin_hop(dx: float) -> void:
 func flinch(push_dir: float) -> void:
 	super.flinch(push_dir)
 	_hopping = false                 # 被弹反 → 取消后跃状态
+	lock_facing = false
 	invulnerable = false
 	if sprite:
 		sprite.modulate = Color.WHITE

@@ -115,6 +115,7 @@ var _hurtbox: Hurtbox
 var _hurt_cs: CollisionShape2D
 var _hurt_rect: RectangleShape2D
 var lock_hp := false            ## 锁血：受击有反馈但不掉血（测试用）
+var lock_facing := false        ## 锁朝向：移动时不按移动方向翻面（后跳还盯着玩家用）
 var hurt_dx := 0.0              ## 受击框水平偏移（对齐身体用，可在调参工具拖）
 var current_attack_anim := ""   # 当前这一刀用的动画名（用于判断收招）
 var _dbg := false   # 调试：画攻击/受击框（--boxes 开启）
@@ -364,7 +365,8 @@ func _physics_process(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, friction * delta)
 	elif move_dir != 0.0:
 		velocity.x = move_toward(velocity.x, move_dir * speed, accel * delta)
-		facing = 1 if move_dir > 0.0 else -1
+		if not lock_facing:
+			facing = 1 if move_dir > 0.0 else -1
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, friction * delta)
 
@@ -447,6 +449,8 @@ func on_hit(hitbox: Hitbox) -> bool:
 		if from_front:
 			_take_hp(hitbox.damage * block_chip)
 			_add_posture(hitbox.posture_damage * block_posture_mult)
+			if attacker and attacker.has_method("on_block_received"):
+				attacker.on_block_received()   # 有的怪挡住也会硬直
 			if attacker is Node2D:
 				velocity.x = signf(global_position.x - (attacker as Node2D).global_position.x) * 90.0
 			_block_feedback(contact)

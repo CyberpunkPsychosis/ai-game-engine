@@ -19,7 +19,7 @@ var keep_range := 0.0
 var cleave_reach := 64.0     # 大劈判定前伸
 var cleave_width := 112.0    # 大劈判定长度
 var pause_dur := 1.6         # 砍完休息
-var combo_gap := 0.3         # 连劈之间的间隔
+var combo_gap := 0.12        # 连劈之间的间隔(连段要快)
 var rage_per_dodge := 0.34   # 你每闪避一次涨的怒气
 var rage_far_rate := 0.12    # 你跑远时每秒涨的怒气
 var backjump_chance := 0.5   # 生气时靠近，向后大跳的概率
@@ -102,10 +102,10 @@ func _gather_intent(delta: float) -> void:
 		if _rage >= 1.0:
 			_angry = true
 			_combo = true                    # 下一串=三连
-			# 暴怒瞬间：爆一下，看得清"它生气了"
-			FX.nova(global_position + Vector2(0, -body_size.y * 0.5), 1.4)
-			FX.screen_flash(Color(1, 0.4, 0.2), 0.5, 0.22)
-			Juice.shake(10.0)
+			# 暴怒瞬间：红屏闪+震屏(不用 nova 圈，免得和弹反火花混)
+			FX.screen_flash(Color(1, 0.35, 0.15), 0.6, 0.28)
+			Juice.shake(12.0)
+			FX.flash(sprite, 0.18, Color(2.0, 1.4, 0.7))
 	# 生气：全身红光一直闪
 	if sprite:
 		if _angry:
@@ -115,13 +115,15 @@ func _gather_intent(delta: float) -> void:
 		elif sprite.modulate != Color.WHITE and _flinch_t <= 0.0 and not guard_broken:
 			sprite.modulate = Color.WHITE
 
-	# 向后大跳脱离(腾空中持续)
+	# 向后大跳脱离(腾空中持续，头一直盯着玩家)
 	if _hopping:
 		facing = 1 if dx >= 0.0 else -1
+		lock_facing = true               # 后退也不翻面，始终朝玩家
 		speed = _base_speed * 3.0
 		move_dir = -signf(dx)
 		if is_on_floor() and velocity.y >= 0.0:
 			_hopping = false
+			lock_facing = false
 			speed = _base_speed
 		return
 
@@ -152,6 +154,8 @@ func _gather_intent(delta: float) -> void:
 					_angry = false
 					_combo = false
 					_rage = 0.0
+				if sprite:
+					sprite.speed_scale = 1.0
 				_st = ST_PAUSE
 				_pause_t = pause_dur
 		ST_PAUSE:
@@ -165,6 +169,8 @@ func _begin_attack_seq() -> void:
 	_fire_cleave()
 
 func _fire_cleave() -> void:
+	if sprite:
+		sprite.speed_scale = 1.8 if _combo else 1.0   # 三连时劈得快
 	start_attack({
 		"anim": "cleave", "reach": cleave_reach, "size": Vector2(cleave_width, 84),
 		"from": 9, "to": 11, "dmg": 16.0, "posture": 20.0,
@@ -176,6 +182,7 @@ func _begin_hop(dx: float) -> void:
 	_hopping = true
 	_hop_cd = 1.4
 	facing = 1 if dx >= 0.0 else -1
+	lock_facing = true
 	want_jump = true
 	move_dir = -signf(dx)
 	speed = _base_speed * 3.0
@@ -183,15 +190,37 @@ func _begin_hop(dx: float) -> void:
 # 弹反/挡好 → 硬直；生气时被弹 → 硬直更久 + 当场消气
 func flinch(push_dir: float) -> void:
 	super.flinch(push_dir)
+	_hopping = false
+	lock_facing = false
 	if _angry:
-		_flinch_t = parry_flinch * 2.4
-		_angry = false
-		_combo = false
-		_rage = 0.0
-		_pending = 0
-		if sprite:
-			sprite.modulate = Color.WHITE
+		_flinch_t = parry_flinch * 2.4   # 生气时被弹反 → 硬直更久(好处决)
+	_calm()
 	_st = ST_IDLE
+
+# 被「格挡」(按住挡住)：也给硬直，生气时更久。比弹反短一点(弹反才是满奖励)。
+func on_block_received() -> void:
+	if _dead or _flinch_t > 0.0:
+		return
+	attacking = false
+	hit_active = false
+	if _attack_hitbox:
+		_attack_hitbox.monitorable = false
+	_flinch_t = (0.55 if _angry else 0.28)
+	if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("hurt"):
+		sprite.play("hurt")
+	_calm()
+	_st = ST_IDLE
+
+func _calm() -> void:
+	_angry = false
+	_combo = false
+	_rage = 0.0
+	_pending = 0
+	_hopping = false
+	lock_facing = false
+	if sprite:
+		sprite.modulate = Color.WHITE
+		sprite.speed_scale = 1.0
 
 # 调参可视化
 func _draw() -> void:

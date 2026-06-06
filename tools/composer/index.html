@@ -575,6 +575,7 @@ const LONGPRESS=300;  // ms，长按拿起
 const MOVE_TOL=10;    // px，超过即判定为划动(平移)而非长按
 
 cv.addEventListener("contextmenu",e=>e.preventDefault());   // 右键擦除,不弹菜单
+cv.addEventListener("mousedown",e=>{if(e.button===1)e.preventDefault();}); // 中键:禁用自动滚动
 cv.addEventListener("pointerdown",e=>{
   cv.setPointerCapture(e.pointerId);
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -586,6 +587,7 @@ cv.addEventListener("pointerdown",e=>{
     drag=null;return;
   }
   const sx=e.clientX,sy=e.clientY;
+  if(e.button===1){ drag={type:"pan",camx:cam.x,camy:cam.y,sx,sy}; return; } // 中键拖=平移(各模式通用)
   if(mode==="marker"){
     const [wx,wy]=screenToWorld(sx,sy,1);
     scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});

@@ -135,10 +135,9 @@
   <button class="btn sm" data-t="scaleUp">＋</button>
   <button class="btn sm p" id="btnGrid" data-t="grid">网格:32px</button>
   <button class="btn sm" id="btnAct" data-t="act">🖌 铺</button>
+  <button class="btn sm" id="btnSnap" data-t="snap" style="display:none">按格移</button>
   <button class="btn sm" id="btnErase" data-t="erase">🧹 擦除</button>
-  <button class="btn sm" id="btnCrop" data-t="crop">✂ 取块</button>
-  <button class="btn sm" id="btnLib" data-t="lib">★ 刷库</button>
-  <span style="font-size:11px;color:var(--muted);white-space:nowrap">单指铺 · 右键擦 · 双指平移/缩放</span>
+  <span style="font-size:11px;color:var(--muted);white-space:nowrap">铺/取/选 · 右键擦 · 双指平移</span>
 </div>
 
 <div class="menu" id="menu">
@@ -242,9 +241,8 @@
 <!-- 瓦片刷库：右侧常驻竖排(可拉宽) -->
 <div id="libDock">
   <div class="libgrip" id="libGrip" title="拖动改变宽度"></div>
-  <div class="libhdr"><span>★ 刷库</span>
-    <button id="libAdd" title="收藏当前刷子">＋</button>
-    <button id="libClear" title="一键清空">🗑</button>
+  <div class="libhdr"><span>最近取块</span>
+    <button id="libClear" title="清空">🗑</button>
     <button id="libDockClose" title="收起">×</button></div>
   <div id="libList"></div>
 </div>
@@ -292,8 +290,11 @@ let tileScale=1.5;
 let eraseMode=false;
 let painting=false;
 let lastCell=null;             // 防止同格重复盖
-let tileAct="paint";          // paint=铺  grab=在画布素材上框选取块
+let tileAct="paint";          // paint=铺  grab=框选取块  select=选移
 let grabSel=null;             // 取块框选 {ins,sx,sy,w,h,世界矩形}
+let selTiles=[];             // 选中的瓦片实例(选移用)
+let selBox=null;             // 选移框选矩形(屏幕,临时)
+let moveSnap=true;           // 选移:true=按格 false=按像素
 
 function blankScene(){
   const h=1400;
@@ -510,6 +511,16 @@ function draw(){
     ctx.fillStyle="rgba(92,192,204,.28)";ctx.fillRect(gx,gy,grabSel.ww*zx,grabSel.wh*zx);
     ctx.strokeStyle="#5cc0cc";ctx.lineWidth=2;ctx.strokeRect(gx,gy,grabSel.ww*zx,grabSel.wh*zx);
   }
+  // 选移:已选瓦片描边 + 框选矩形
+  if(placeMode==="tile" && mode!=="play"){
+    for(const i of selTiles){ const d=srcDims(i),p=parallaxOf(i.layer);
+      const [cx,cy]=worldToScreen(i.x,i.y,p), iw=d.fw*i.scale*cam.zoom, ih=d.fh*i.scale*cam.zoom;
+      ctx.strokeStyle="#ffd24a";ctx.lineWidth=2;ctx.strokeRect(cx-iw/2,cy-ih/2,iw,ih);
+      ctx.fillStyle="rgba(255,210,74,.15)";ctx.fillRect(cx-iw/2,cy-ih/2,iw,ih); }
+    if(selBox){const x=Math.min(selBox.x0,selBox.x1),y=Math.min(selBox.y0,selBox.y1);
+      ctx.strokeStyle="#ffd24a";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
+      ctx.strokeRect(x,y,Math.abs(selBox.x1-selBox.x0),Math.abs(selBox.y1-selBox.y0));ctx.setLineDash([]);}
+  }
 
   requestAnimationFrame(draw);
 }
@@ -587,6 +598,14 @@ cv.addEventListener("pointerdown",e=>{
     scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
     return;
   }
+  // 瓦片·选移模式：框选已放瓦片 → 拖动整体移动
+  if(placeMode==="tile" && mode==="edit" && tileAct==="select" && e.button!==2){
+    const hit=topInstanceAt(sx,sy,true);
+    if(hit && selTiles.includes(hit)){               // 点中已选 → 整体移动
+      drag={type:"selmove",sx,sy,orig:selTiles.map(i=>({i,x:i.x,y:i.y}))}; return;
+    }
+    drag={type:"selbox",sx0:sx,sy0:sy}; selBox={x0:sx,y0:sy,x1:sx,y1:sy}; selTiles=[]; return;
+  }
   // 瓦片·取块模式：在画布素材上框选格子取块
   if(placeMode==="tile" && mode==="edit" && tileAct==="grab" && e.button!==2){
     const ins=topInstanceAt(sx,sy,true);
@@ -639,6 +658,13 @@ cv.addEventListener("pointermove",e=>{
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(placeMode==="tile"&&brush&&mode==="edit"&&tileAct==="paint") hoverCell=cellAt(e.clientX,e.clientY); else hoverCell=null;
   if(drag&&drag.type==="grab"){ updateGrabSel(drag.inst,drag.sx0,drag.sy0,e.clientX,e.clientY); return; }
+  if(drag&&drag.type==="selbox"){ selBox={x0:drag.sx0,y0:drag.sy0,x1:e.clientX,y1:e.clientY}; return; }
+  if(drag&&drag.type==="selmove"){
+    let dwx=(e.clientX-drag.sx)/cam.zoom, dwy=(e.clientY-drag.sy)/cam.zoom;
+    if(moveSnap){const g=gridStepWorld(); dwx=Math.round(dwx/g)*g; dwy=Math.round(dwy/g)*g;}
+    else{dwx=Math.round(dwx); dwy=Math.round(dwy);}
+    drag.orig.forEach(o=>{o.i.x=o.x+dwx; o.i.y=o.y+dwy;}); return;
+  }
   if(painting&&drag&&drag.type==="tile"&&ptrs.size<2){ stampTile(e.clientX,e.clientY,drag.erase); return; }
   if(pinch&&ptrs.size>=2){
     const pts=[...ptrs.values()];
@@ -673,6 +699,8 @@ cv.addEventListener("pointermove",e=>{
 function endPtr(e){
   clearTimeout(lpTimer);
   if(drag&&drag.type==="grab"){ finalizeGrab(); ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
+  if(drag&&drag.type==="selbox"){ finalizeSelBox(); ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
+  if(drag&&drag.type==="selmove"){ ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
   if(drag&&drag.type==="tile"){painting=false;lastCell=null;ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
   // 轻点(未长按未划动) = 选中
   if(drag&&drag.type==="pending"){
@@ -686,6 +714,17 @@ function endPtr(e){
 }
 cv.addEventListener("pointerup",endPtr);
 cv.addEventListener("pointercancel",endPtr);
+// Del/方向键:操作选中的瓦片
+addEventListener("keydown",e=>{
+  const ae=document.activeElement; if(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"))return;
+  if(!selTiles.length)return;
+  if(e.key==="Delete"||e.key==="Backspace"){scene.instances=scene.instances.filter(i=>!selTiles.includes(i));selTiles=[];e.preventDefault();}
+  else if(e.key.startsWith("Arrow")){
+    const g=moveSnap?gridStepWorld():1;
+    const dx=(e.key==="ArrowLeft"?-g:e.key==="ArrowRight"?g:0), dy=(e.key==="ArrowUp"?-g:e.key==="ArrowDown"?g:0);
+    if(dx||dy){selTiles.forEach(i=>{i.x+=dx;i.y+=dy;});e.preventDefault();}
+  }
+});
 // 桌面滚轮缩放
 cv.addEventListener("wheel",e=>{
   e.preventDefault();
@@ -754,10 +793,22 @@ function finalizeGrab(){
   const ins=grabSel.ins, d=srcDims(ins);
   const cx=Math.round(d.sx+grabSel.sx), cy=Math.round(d.sy+grabSel.sy), cw=Math.round(grabSel.w), ch=Math.round(grabSel.h);
   brush={asset:ins.asset, crop:[cx,cy,cw,ch], w:cw, h:ch};
-  updateBrushChip();
+  updateBrushChip(); pushRecent(brush);
   tileAct="paint"; $("btnAct").textContent="🖌 铺"; $("btnAct").classList.remove("p");  // 取完自动切回铺
   showHint("取了 "+grabSel.w+"×"+grabSel.h+"：现在左键铺·右键擦");
   grabSel=null;
+}
+// 框选结束:选中本层中心落在框内的瓦片
+function finalizeSelBox(){
+  if(!selBox){selTiles=[];return;}
+  const x0=Math.min(selBox.x0,selBox.x1),x1=Math.max(selBox.x0,selBox.x1);
+  const y0=Math.min(selBox.y0,selBox.y1),y1=Math.max(selBox.y0,selBox.y1);
+  selTiles=scene.instances.filter(i=>i.layer===curLayer && i.tile && (()=>{
+    const p=parallaxOf(i.layer),[cx,cy]=worldToScreen(i.x,i.y,p);
+    return cx>=x0&&cx<=x1&&cy>=y0&&cy<=y1;
+  })());
+  selBox=null;
+  showHint(selTiles.length?("选中 "+selTiles.length+" 块：拖动整体移动（"+(moveSnap?"按格":"像素")+"）·Del删除"):"框里没有瓦片");
 }
 function findTileAt(cell){
   // 基准网格下按"半个瓦片"范围判重,避免细网格拖动堆叠大量重叠块
@@ -829,7 +880,7 @@ function buildLayers(){
     const d=document.createElement("div");
     d.className="lt"+(l.id===curLayer?" active":"");
     d.innerHTML=`${l.name}<small>×${PARALLAX[l.id]}</small>`;
-    d.onclick=()=>{curLayer=l.id;sel=null;selMarker=null;updateActions();buildLayers();showHint("当前层："+l.name+"（只能选/拖这一层）");};
+    d.onclick=()=>{curLayer=l.id;sel=null;selMarker=null;selTiles=[];grabSel=null;updateActions();buildLayers();showHint("当前层："+l.name+"（只能选/拖这一层）");};
     el.appendChild(d);
   });
 }
@@ -946,13 +997,14 @@ function setMode(m){
   document.querySelectorAll("#modesw button").forEach(b=>b.classList.toggle("on",b.dataset.m===m));
   $("tilebar").classList.toggle("show",m==="tile");
   if(m==="tile"){sel=null;selMarker=null;updateActions();
-    showHint(brush?"瓦片模式：单指在网格上铺，双指平移/缩放":"瓦片模式：选一块「瓦片」或 ✂取块，再在网格上铺");}
-  else{hoverCell=null;$("libDock").classList.remove("show");showHint("自由摆放：点素材落到地面线，拖动摆位置");}
+    if(loadLib().length){$("libDock").classList.add("show");renderLib();}
+    showHint("瓦片：拖素材到画布铺 · 切「✋取」框选取块 · 切「⬚选」框选移动");}
+  else{hoverCell=null;selTiles=[];grabSel=null;$("libDock").classList.remove("show");showHint("自由摆放：点素材落到地面线，拖动摆位置");}
 }
 document.querySelectorAll("#modesw button").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
 function setBrushFromPiece(it){
   brush={asset:it.file,crop:null,w:it.w,h:it.h};
-  updateBrushChip();
+  updateBrushChip(); pushRecent(brush);
   showHint("已选「"+it.file.replace(".png","")+"」：左键铺·右键擦（拖到画布可直接落一块）");
 }
 function updateBrushChip(){
@@ -968,12 +1020,16 @@ $("tilebar").addEventListener("click",e=>{
   if(t==="scaleDn"){tileScale=Math.max(0.1,+(tileScale/1.12).toFixed(3));}
   if(t==="erase"){eraseMode=!eraseMode;$("btnErase").classList.toggle("p",eraseMode);
     showHint(eraseMode?"擦除：单指划掉本层同种瓦片":"恢复铺设");}
-  if(t==="act"){ tileAct=tileAct==="paint"?"grab":"paint"; grabSel=null;
-    $("btnAct").textContent=tileAct==="paint"?"🖌 铺":"✋ 取";
-    $("btnAct").classList.toggle("p",tileAct==="grab");
-    showHint(tileAct==="grab"?"取块模式：在画布已放的素材上框选格子，松手=取这块":"铺设模式：左键铺·右键擦"); }
-  if(t==="crop"){ openCropPanel(); }   // 也可从弹窗里取
-  if(t==="lib"){toggleLib();}
+  if(t==="act"){ // 铺 → 取 → 选 三态
+    tileAct = tileAct==="paint"?"grab" : tileAct==="grab"?"select" : "paint";
+    grabSel=null; selTiles=[]; selBox=null;
+    const L={paint:"🖌 铺",grab:"✋ 取",select:"⬚ 选"}; $("btnAct").textContent=L[tileAct];
+    $("btnAct").classList.toggle("p",tileAct!=="paint");
+    $("btnSnap").style.display = tileAct==="select"?"":"none";
+    showHint(tileAct==="grab"?"取块：在画布素材上框选格子，松手=取这块":
+             tileAct==="select"?"选移：框选已放的瓦片→拖动整体移动（按格/像素切换）":"铺设：左键铺·右键擦"); }
+  if(t==="snap"){ moveSnap=!moveSnap; $("btnSnap").textContent=moveSnap?"按格移":"像素移"; $("btnSnap").classList.toggle("p",!moveSnap);
+    showHint(moveSnap?"移动吸附到网格":"移动按像素微调"); }
   if(t==="grid"){cycleGrid();}
   $("tileScaleV").textContent=tileScale.toFixed(2)+"×";
 });
@@ -1071,18 +1127,21 @@ $("cropSaveAll").onclick=()=>{
 };
 $("cropCancel").onclick=closePanels;
 
-//==================== 瓦片刷库（localStorage，右侧竖排） ====================
-const LIB_KEY="aiengine.tileBrushes.v1";
+//==================== 最近取块（自动记录最近30个,右侧竖排） ====================
+const LIB_KEY="aiengine.recentBrushes.v1";
 function loadLib(){try{return JSON.parse(localStorage.getItem(LIB_KEY)||"[]");}catch(e){return [];}}
-function saveLib(a){try{localStorage.setItem(LIB_KEY,JSON.stringify(a));}catch(e){showHint("本机存储已满");}}
+function saveLib(a){try{localStorage.setItem(LIB_KEY,JSON.stringify(a));}catch(e){}}
 function sameCrop(a,b){return JSON.stringify(a||null)===JSON.stringify(b||null);}
-function addToLib(b){
-  if(!b){showHint("当前没有刷子");return;}
-  const lib=loadLib();
-  if(lib.some(x=>x.asset===b.asset && sameCrop(x.crop,b.crop))){showHint("刷库里已有这块");$("libDock").classList.add("show");renderLib();return;}
+// 每次取块/选刷子自动记入最近(去重移到最前,封顶30)
+function pushRecent(b){
+  if(!b)return;
+  let lib=loadLib().filter(x=>!(x.asset===b.asset && sameCrop(x.crop,b.crop)));
   const name=b.crop?("块"+b.crop[2]+"×"+b.crop[3]):b.asset.replace(".png","");
-  lib.push({id:uid(),name,asset:b.asset,crop:b.crop||null,w:b.w,h:b.h});
-  saveLib(lib);showHint("已收藏（共"+lib.length+"个）");$("libDock").classList.add("show");renderLib();
+  lib.unshift({id:uid(),name,asset:b.asset,crop:b.crop||null,w:b.w,h:b.h});
+  if(lib.length>30)lib=lib.slice(0,30);
+  saveLib(lib);
+  if(placeMode==="tile")$("libDock").classList.add("show");
+  renderLib();
 }
 function drawBrushThumb(cvT,b){
   const e=getImg(ASSET_BASE+b.asset);
@@ -1096,7 +1155,7 @@ function drawBrushThumb(cvT,b){
 function renderLib(){
   const list=$("libList");list.innerHTML="";
   const lib=loadLib();
-  if(!lib.length){list.innerHTML='<span style="color:var(--muted);font-size:11px;padding:4px">空。取块后存进来。</span>';return;}
+  if(!lib.length){list.innerHTML='<span style="color:var(--muted);font-size:11px;padding:4px">还没取过块。切「✋取」框选画布素材即可。</span>';return;}
   lib.forEach(b=>{
     const card=document.createElement("div");card.className="libcard"+
       (brush&&brush.asset===b.asset&&sameCrop(brush.crop,b.crop)?" cur":"");
@@ -1110,11 +1169,8 @@ function renderLib(){
     card.appendChild(cvT);card.appendChild(del);card.appendChild(nm);list.appendChild(card);
   });
 }
-function toggleLib(){const d=$("libDock");d.classList.toggle("show");if(d.classList.contains("show"))renderLib();}
-function openLib(){const d=$("libDock");d.classList.add("show");renderLib();}
-$("libAdd").onclick=()=>addToLib(brush);
 $("libDockClose").onclick=()=>$("libDock").classList.remove("show");
-$("libClear").onclick=()=>{if(confirm("清空刷库里所有收藏？")){saveLib([]);renderLib();showHint("刷库已清空");}};
+$("libClear").onclick=()=>{if(confirm("清空最近取块？")){saveLib([]);renderLib();showHint("已清空");}};
 // 拖左边手柄改变刷库宽度
 (function(){const grip=$("libGrip");if(!grip)return;let dr=null;
   grip.addEventListener("pointerdown",e=>{grip.setPointerCapture(e.pointerId);dr=e.clientX;e.preventDefault();});

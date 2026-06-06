@@ -115,7 +115,7 @@
 <canvas id="stage"></canvas>
 
 <div class="topbar">
-  <div class="title">关卡编辑器·b10</div>
+  <div class="title">关卡编辑器·b11</div>
   <div class="modesw" id="modesw">
     <button data-m="free" class="on">自由摆放</button>
     <button data-m="tile">瓦片铺</button>
@@ -252,20 +252,19 @@
 </div>
 
 <!-- 像素放大器 -->
-<div class="panel" id="pxPanel" style="width:min(560px,96vw)">
+<div class="panel" id="pxPanel" style="width:min(940px,98vw);max-height:94vh">
   <h3>像素放大器</h3>
   <div class="row" style="flex-wrap:wrap;gap:6px;margin:2px 0">
     <button class="btn sm p" id="pxErase">🧽 橡皮</button>
-    <button class="btn sm" id="pxCropT">✂ 取块</button>
-    <label style="flex:0 0 auto;color:var(--muted)">笔</label>
-    <span id="pxBrushRow"><button class="btn sm p" data-pb="1">1</button><button class="btn sm" data-pb="2">2</button><button class="btn sm" data-pb="4">4</button></span>
+    <button class="btn sm" id="pxPick">💧 取色</button>
+    <button class="btn sm" id="pxPaint">🖌 刷</button>
+    <span id="pxSwatch" title="当前颜色" style="width:24px;height:24px;border-radius:5px;border:1px solid var(--line);display:inline-block;background:#fff"></span>
     <button class="btn sm" id="pxZoomOut">－</button><span id="pxZoomV" style="font-size:12px;color:var(--muted);min-width:42px;text-align:center"></span><button class="btn sm" id="pxZoomIn">＋</button>
     <button class="btn sm" id="pxUndo">↩ 撤销</button>
   </div>
-  <div style="overflow:auto;max-height:62vh;text-align:center"><canvas id="pxCv"></canvas></div>
-  <div id="pxInfo" style="font-size:12px;color:var(--muted);text-align:center">橡皮:涂掉变透明(实时改这块) · 取块:拖一个像素矩形当刷子</div>
-  <button class="btn p" id="pxGrab" style="width:100%;margin-top:6px">✂ 用框选当瓦片刷</button>
-  <button class="btn" id="pxClose" style="width:100%;margin-top:6px">关闭</button>
+  <div style="overflow:auto;max-height:74vh;text-align:center"><canvas id="pxCv"></canvas></div>
+  <div id="pxInfo" style="font-size:12px;color:var(--muted);text-align:center;margin-top:4px">橡皮=擦透明 · 取色=吸取像素颜色 · 刷=用该色画（都实时改这块）</div>
+  <button class="btn" id="pxClose" style="width:100%;margin-top:8px">关闭</button>
 </div>
 
 <input type="file" id="fileIn" accept="application/json" style="display:none">
@@ -1160,8 +1159,8 @@ function openPx(ins){
     const maxDisp=Math.min(640,innerWidth-40);
     const scale=Math.max(10,Math.min(40,Math.floor(maxDisp/Math.max(fw,fh))));  // 像素够大看得清
     pushUndo();                                                 // 进编辑前存档,主Ctrl+Z可整体回退
-    pxState={ins,buf,bctx,fw,fh,scale,tool:"erase",brushSize:1,sel:null,drag:null,undo:[]};
-    $("pxErase").classList.add("p");$("pxCropT").classList.remove("p");
+    pxState={ins,buf,bctx,fw,fh,scale,tool:"erase",color:[255,255,255,255],drag:null,undo:[]};
+    pxSetTool("erase"); $("pxSwatch").style.background="#fff";
     pxApplyScale(); openPanel("pxPanel");
   };
   if(e.loaded)go(); else e.img.addEventListener("load",go,{once:true});
@@ -1181,38 +1180,57 @@ function renderPx(){
   if(scale>=6){c.strokeStyle="rgba(255,255,255,.08)";c.lineWidth=1;
     for(let x=0;x<=fw;x++){c.beginPath();c.moveTo(x*scale,0);c.lineTo(x*scale,fh*scale);c.stroke();}
     for(let y=0;y<=fh;y++){c.beginPath();c.moveTo(0,y*scale);c.lineTo(fw*scale,y*scale);c.stroke();}}
-  if(pxState.sel){const[a,b,wd,ht]=pxState.sel;c.fillStyle="rgba(92,192,204,.22)";c.fillRect(a*scale,b*scale,wd*scale,ht*scale);
-    c.strokeStyle="#5cc0cc";c.lineWidth=2;c.strokeRect(a*scale,b*scale,wd*scale,ht*scale);}
 }
 function pxPix(ev){const cv2=$("pxCv"),r=cv2.getBoundingClientRect();
   return [Math.floor((ev.clientX-r.left)*cv2.width/r.width/pxState.scale),
           Math.floor((ev.clientY-r.top)*cv2.height/r.height/pxState.scale)];}
-function pxSnap(){pxState.undo.push(pxState.bctx.getImageData(0,0,pxState.fw,pxState.fh));if(pxState.undo.length>40)pxState.undo.shift();}
-function pxEraseAt(x,y){const bs=pxState.brushSize,o=bs>>1;pxState.bctx.clearRect(x-o,y-o,bs,bs);}
+function pxSnap(){pxState.undo.push(pxState.bctx.getImageData(0,0,pxState.fw,pxState.fh));if(pxState.undo.length>60)pxState.undo.shift();}
+function pxIn(x,y){return x>=0&&y>=0&&x<pxState.fw&&y<pxState.fh;}
+function pxEraseAt(x,y){if(pxIn(x,y))pxState.bctx.clearRect(x,y,1,1);}
+function pxPaintAt(x,y){if(!pxIn(x,y))return;const c=pxState.color;pxState.bctx.clearRect(x,y,1,1);
+  pxState.bctx.fillStyle="rgba("+c[0]+","+c[1]+","+c[2]+","+(c[3]/255)+")";pxState.bctx.fillRect(x,y,1,1);}
+function pxPickAt(x,y){if(!pxIn(x,y))return;const d=pxState.bctx.getImageData(x,y,1,1).data;
+  pxState.color=[d[0],d[1],d[2],d[3]];
+  $("pxSwatch").style.background=d[3]<8?"transparent":"rgb("+d[0]+","+d[1]+","+d[2]+")";
+  $("pxInfo").textContent=d[3]<8?"取到透明像素(刷=擦透明)":"取色 rgb("+d[0]+","+d[1]+","+d[2]+")"; }
+function pxSetTool(t){pxState.tool=t;["erase","pick","paint"].forEach(k=>$("px"+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle("p",k===t));}
 (function bindPx(){const cv2=$("pxCv");
-  cv2.addEventListener("pointerdown",ev=>{if(!pxState)return;cv2.setPointerCapture(ev.pointerId);ev.preventDefault();
+  const wrap=()=>cv2.parentElement;
+  cv2.addEventListener("contextmenu",e=>e.preventDefault());
+  cv2.addEventListener("pointerdown",ev=>{if(!pxState)return;
+    if(ev.button!==0){ // 中键/右键 = 拖拽平移放大视图,不操作
+      cv2.setPointerCapture(ev.pointerId);
+      pxState.drag={pan:true,sx:ev.clientX,sy:ev.clientY,sl:wrap().scrollLeft,st:wrap().scrollTop};
+      ev.preventDefault();return;
+    }
+    cv2.setPointerCapture(ev.pointerId);ev.preventDefault();
     const[x,y]=pxPix(ev);
-    if(pxState.tool==="erase"){pxSnap();pxState.drag={erase:true};pxEraseAt(x,y);renderPx();}
-    else{pxState.drag={crop:true,x,y};pxState.sel=[x,y,1,1];renderPx();}});
-  cv2.addEventListener("pointermove",ev=>{if(!pxState||!pxState.drag)return;const[x,y]=pxPix(ev);
-    if(pxState.drag.erase){pxEraseAt(x,y);renderPx();}
-    else{const d=pxState.drag;pxState.sel=[Math.min(d.x,x),Math.min(d.y,y),Math.abs(x-d.x)+1,Math.abs(y-d.y)+1];
-      $("pxInfo").textContent="选区 "+pxState.sel[2]+"×"+pxState.sel[3]+" px";renderPx();}});
-  cv2.addEventListener("pointerup",()=>{if(!pxState)return;const wasErase=pxState.drag&&pxState.drag.erase;pxState.drag=null;if(wasErase)pxCommit();}); // 松手即写回这块
+    if(pxState.tool==="pick"){pxPickAt(x,y);return;}
+    pxSnap(); pxState.drag={op:pxState.tool};
+    if(pxState.tool==="erase")pxEraseAt(x,y); else pxPaintAt(x,y);
+    renderPx();});
+  cv2.addEventListener("pointermove",ev=>{if(!pxState||!pxState.drag)return;
+    if(pxState.drag.pan){const w=wrap();w.scrollLeft=pxState.drag.sl-(ev.clientX-pxState.drag.sx);w.scrollTop=pxState.drag.st-(ev.clientY-pxState.drag.sy);return;}
+    const[x,y]=pxPix(ev);
+    if(pxState.drag.op==="erase")pxEraseAt(x,y); else pxPaintAt(x,y);
+    renderPx();});
+  cv2.addEventListener("pointerup",()=>{if(!pxState)return;const op=pxState.drag&&pxState.drag.op;pxState.drag=null;if(op)pxCommit();}); // 松手即写回这块
+  cv2.addEventListener("wheel",ev=>{if(!pxState)return;ev.preventDefault();
+    const old=pxState.scale; pxState.scale=Math.max(2,Math.min(60,old+(ev.deltaY<0?2:-2)));
+    if(pxState.scale===old)return;
+    const r=cv2.getBoundingClientRect();
+    const px=(ev.clientX-r.left)*cv2.width/r.width/old, py=(ev.clientY-r.top)*cv2.height/r.height/old; // 光标下的像素
+    pxApplyScale();
+    const w=wrap(), wr=w.getBoundingClientRect();
+    w.scrollLeft=px*pxState.scale-(ev.clientX-wr.left); w.scrollTop=py*pxState.scale-(ev.clientY-wr.top); // 朝光标缩放
+  },{passive:false});
 })();
-$("pxErase").onclick=()=>{pxState.tool="erase";$("pxErase").classList.add("p");$("pxCropT").classList.remove("p");};
-$("pxCropT").onclick=()=>{pxState.tool="crop";$("pxCropT").classList.add("p");$("pxErase").classList.remove("p");};
-$("pxBrushRow").addEventListener("click",e=>{const b=e.target.dataset.pb;if(!b)return;pxState.brushSize=+b;
-  document.querySelectorAll("#pxBrushRow [data-pb]").forEach(x=>x.classList.toggle("p",+x.dataset.pb===pxState.brushSize));});
+$("pxErase").onclick=()=>pxSetTool("erase");
+$("pxPick").onclick=()=>pxSetTool("pick");
+$("pxPaint").onclick=()=>pxSetTool("paint");
 $("pxUndo").onclick=()=>{if(pxState&&pxState.undo.length){pxState.bctx.putImageData(pxState.undo.pop(),0,0);renderPx();pxCommit();}};
 $("pxZoomIn").onclick=()=>{if(!pxState)return;pxState.scale=Math.min(60,pxState.scale+2);pxApplyScale();};
 $("pxZoomOut").onclick=()=>{if(!pxState)return;pxState.scale=Math.max(2,pxState.scale-2);pxApplyScale();};
-$("pxGrab").onclick=()=>{ if(!pxState||!pxState.sel||pxState.sel[2]<1){showHint("先用✂取块在图上框一块");return;}
-  const[a,b,wd,ht]=pxState.sel; const sub=document.createElement("canvas");sub.width=wd;sub.height=ht;
-  const sc=sub.getContext("2d");sc.imageSmoothingEnabled=false;sc.drawImage(pxState.buf,a,b,wd,ht,0,0,wd,ht);
-  brush={asset:pxState.ins.asset||null, src:sub.toDataURL("image/png"), crop:null, w:wd, h:ht};
-  updateBrushChip(); pushRecent(brush); if(placeMode!=="tile")setMode("tile"); closePanels();
-  showHint("已取像素块 "+wd+"×"+ht+"：左键铺"); };
 $("pxClose").onclick=closePanels;
 
 const GRID_STEPS=[16,24,32,48,64];

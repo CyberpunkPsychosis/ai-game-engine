@@ -134,6 +134,7 @@
   <span id="tileScaleV" style="font-size:12px;color:var(--muted);min-width:34px;text-align:center">1.5×</span>
   <button class="btn sm" data-t="scaleUp">＋</button>
   <button class="btn sm p" id="btnGrid" data-t="grid">网格:32px</button>
+  <button class="btn sm" id="btnAct" data-t="act">🖌 铺</button>
   <button class="btn sm" id="btnErase" data-t="erase">🧹 擦除</button>
   <button class="btn sm" id="btnCrop" data-t="crop">✂ 取块</button>
   <button class="btn sm" id="btnLib" data-t="lib">★ 刷库</button>
@@ -291,6 +292,8 @@ let tileScale=1.5;
 let eraseMode=false;
 let painting=false;
 let lastCell=null;             // 防止同格重复盖
+let tileAct="paint";          // paint=铺  grab=在画布素材上框选取块
+let grabSel=null;             // 取块框选 {ins,sx,sy,w,h,世界矩形}
 
 function blankScene(){
   const h=1400;
@@ -500,6 +503,14 @@ function draw(){
     }
   }
 
+  // 取块框选高亮
+  if(placeMode==="tile" && grabSel && mode!=="play"){
+    const p=grabSel.p, zx=cam.zoom;
+    const gx=(grabSel.wl-cam.x*p)*zx, gy=(grabSel.wt-cam.y*p)*zx;
+    ctx.fillStyle="rgba(92,192,204,.28)";ctx.fillRect(gx,gy,grabSel.ww*zx,grabSel.wh*zx);
+    ctx.strokeStyle="#5cc0cc";ctx.lineWidth=2;ctx.strokeRect(gx,gy,grabSel.ww*zx,grabSel.wh*zx);
+  }
+
   requestAnimationFrame(draw);
 }
 let hoverCell=null;
@@ -576,9 +587,15 @@ cv.addEventListener("pointerdown",e=>{
     scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
     return;
   }
+  // 瓦片·取块模式：在画布素材上框选格子取块
+  if(placeMode==="tile" && mode==="edit" && tileAct==="grab" && e.button!==2){
+    const ins=topInstanceAt(sx,sy,true);
+    if(!ins){showHint("先把素材拖到画布,再在它上面框选格子取块");return;}
+    drag={type:"grab",inst:ins,sx0:sx,sy0:sy}; updateGrabSel(ins,sx,sy,sx,sy); return;
+  }
   // 瓦片模式：单指 = 铺/擦；(双指走上面的缩放分支)
   if(placeMode==="tile" && mode==="edit"){
-    if(!brush){showHint("点下方素材贴成取块板，点格子拿来铺");return;}
+    if(!brush){showHint("先把素材拖到画布(自动选中),或切「✋取」框选取块");return;}
     const erasing=eraseMode||e.button===2;           // 右键=擦除
     painting=true; lastCell=null; stampTile(sx,sy,erasing); drag={type:"tile",erase:erasing}; return;
   }
@@ -620,7 +637,8 @@ cv.addEventListener("pointerdown",e=>{
 cv.addEventListener("pointermove",e=>{
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(placeMode==="tile"&&brush&&mode==="edit") hoverCell=cellAt(e.clientX,e.clientY);
+  if(placeMode==="tile"&&brush&&mode==="edit"&&tileAct==="paint") hoverCell=cellAt(e.clientX,e.clientY); else hoverCell=null;
+  if(drag&&drag.type==="grab"){ updateGrabSel(drag.inst,drag.sx0,drag.sy0,e.clientX,e.clientY); return; }
   if(painting&&drag&&drag.type==="tile"&&ptrs.size<2){ stampTile(e.clientX,e.clientY,drag.erase); return; }
   if(pinch&&ptrs.size>=2){
     const pts=[...ptrs.values()];
@@ -654,6 +672,7 @@ cv.addEventListener("pointermove",e=>{
 });
 function endPtr(e){
   clearTimeout(lpTimer);
+  if(drag&&drag.type==="grab"){ finalizeGrab(); ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
   if(drag&&drag.type==="tile"){painting=false;lastCell=null;ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
   // 轻点(未长按未划动) = 选中
   if(drag&&drag.type==="pending"){
@@ -711,6 +730,28 @@ function cellAt(sx,sy){
   const tw=Math.max(1,Math.round(brush.w*tileScale)), th=Math.max(1,Math.round(brush.h*tileScale));
   const leftX=col*c.w, bottomY=scene.view.groundY-row*c.h; // 网格交点=瓦片左下角
   return {col,row,x:Math.round(leftX+tw/2),y:Math.round(bottomY-th/2),tw,th,w:c.w,h:c.h};
+}
+// 在画布已放的素材上框选 → 按网格吸附,记录源像素裁剪+世界矩形
+function updateGrabSel(ins,asx,asy,bsx,bsy){
+  const d=srcDims(ins), p=parallaxOf(ins.layer), g=gridBase, fw=d.fw, fh=d.fh;
+  const left=ins.x-fw*ins.scale/2, top=ins.y-fh*ins.scale/2;
+  const [wx0,wy0]=screenToWorld(asx,asy,p), [wx1,wy1]=screenToWorld(bsx,bsy,p);
+  const a0=(Math.min(wx0,wx1)-left)/ins.scale, b0=(Math.min(wy0,wy1)-top)/ins.scale;
+  const a1=(Math.max(wx0,wx1)-left)/ins.scale, b1=(Math.max(wy0,wy1)-top)/ins.scale;
+  let cx0=Math.max(0,Math.floor(a0/g)*g), cy0=Math.max(0,Math.floor(b0/g)*g);
+  let cx1=Math.min(fw,Math.ceil(a1/g)*g), cy1=Math.min(fh,Math.ceil(b1/g)*g);
+  if(cx1<=cx0)cx1=Math.min(fw,cx0+g); if(cy1<=cy0)cy1=Math.min(fh,cy0+g);
+  grabSel={ins, sx:cx0, sy:cy0, w:cx1-cx0, h:cy1-cy0,
+    wl:left+cx0*ins.scale, wt:top+cy0*ins.scale, ww:(cx1-cx0)*ins.scale, wh:(cy1-cy0)*ins.scale, p};
+}
+function finalizeGrab(){
+  if(!grabSel||grabSel.w<2||grabSel.h<2){grabSel=null;return;}
+  const ins=grabSel.ins, d=srcDims(ins);
+  brush={asset:ins.asset, crop:[d.sx+grabSel.sx, d.sy+grabSel.sy, grabSel.w, grabSel.h], w:grabSel.w, h:grabSel.h};
+  updateBrushChip();
+  tileAct="paint"; $("btnAct").textContent="🖌 铺"; $("btnAct").classList.remove("p");  // 取完自动切回铺
+  showHint("取了 "+grabSel.w+"×"+grabSel.h+"：现在左键铺·右键擦");
+  grabSel=null;
 }
 function findTileAt(cell){
   // 基准网格下按"半个瓦片"范围判重,避免细网格拖动堆叠大量重叠块
@@ -921,7 +962,11 @@ $("tilebar").addEventListener("click",e=>{
   if(t==="scaleDn"){tileScale=Math.max(0.1,+(tileScale/1.12).toFixed(3));}
   if(t==="erase"){eraseMode=!eraseMode;$("btnErase").classList.toggle("p",eraseMode);
     showHint(eraseMode?"擦除：单指划掉本层同种瓦片":"恢复铺设");}
-  if(t==="crop"){ openCropPanel(); }   // 需要从一张大图里取一小块时用
+  if(t==="act"){ tileAct=tileAct==="paint"?"grab":"paint"; grabSel=null;
+    $("btnAct").textContent=tileAct==="paint"?"🖌 铺":"✋ 取";
+    $("btnAct").classList.toggle("p",tileAct==="grab");
+    showHint(tileAct==="grab"?"取块模式：在画布已放的素材上框选格子，松手=取这块":"铺设模式：左键铺·右键擦"); }
+  if(t==="crop"){ openCropPanel(); }   // 也可从弹窗里取
   if(t==="lib"){toggleLib();}
   if(t==="grid"){cycleGrid();}
   $("tileScaleV").textContent=tileScale.toFixed(2)+"×";

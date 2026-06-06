@@ -117,6 +117,7 @@
   <button class="btn sm" data-t="scaleUp">＋</button>
   <button class="btn sm" id="btnErase" data-t="erase">🧹 擦除</button>
   <button class="btn sm" id="btnCrop" data-t="crop">✂ 取块</button>
+  <button class="btn sm" id="btnLib" data-t="lib">★ 刷库</button>
   <span style="font-size:11px;color:var(--muted);white-space:nowrap">单指铺 · 右键擦 · 双指平移/缩放</span>
 </div>
 
@@ -220,7 +221,17 @@
   <canvas id="cropCv" width="300" height="300"></canvas>
   <div id="cropInfo" style="font-size:12px;color:var(--muted);text-align:center"></div>
   <button class="btn p" id="cropGo" style="width:100%;margin-top:8px">用这块当瓦片刷</button>
+  <button class="btn" id="cropSave" style="width:100%;margin-top:6px">★ 存入刷库（下次复用）</button>
   <button class="btn" id="cropCancel" style="width:100%;margin-top:6px">取消</button>
+</div>
+
+<!-- 瓦片刷库(本机保存) -->
+<div class="panel" id="libPanel">
+  <h3>瓦片刷库 · 本机保存</h3>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:8px">收藏取好的块，下次直接点用，不用重切。存在本浏览器。</div>
+  <button class="btn p" id="libAdd" style="width:100%;margin-bottom:8px">＋ 收藏当前刷子</button>
+  <div id="libList" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-start"></div>
+  <button class="btn" id="libClose" style="width:100%;margin-top:12px">关闭</button>
 </div>
 
 <input type="file" id="fileIn" accept="application/json" style="display:none">
@@ -839,6 +850,7 @@ $("tilebar").addEventListener("click",e=>{
   if(t==="erase"){eraseMode=!eraseMode;$("btnErase").classList.toggle("p",eraseMode);
     showHint(eraseMode?"擦除：单指划掉本层同种瓦片":"恢复铺设");}
   if(t==="crop"){openCropPanel();}
+  if(t==="lib"){openLib();}
   $("tileScaleV").textContent=tileScale.toFixed(2)+"×";
 });
 
@@ -942,15 +954,70 @@ function renderCrop(){
 document.querySelector("#cropPanel .row").addEventListener("click",e=>{
   const sp=e.target.dataset.sp;if(sp)setCropGrid(sp);
 });
-$("cropGo").onclick=()=>{
-  if(!cropState||!cropState.sel||cropState.sel[2]<2||cropState.sel[3]<2){showHint("先框一块或点个格子");return;}
+function cropBrush(){
+  if(!cropState||!cropState.sel||cropState.sel[2]<2||cropState.sel[3]<2)return null;
   const s=cropState.sel.map(Math.round);
-  brush={asset:cropState.file,crop:s,w:s[2],h:s[3]};
-  updateBrushChip();closePanels();
+  return {asset:cropState.file,crop:s,w:s[2],h:s[3]};
+}
+$("cropGo").onclick=()=>{
+  const b=cropBrush(); if(!b){showHint("先框一块或点个格子");return;}
+  brush=b; updateBrushChip();closePanels();
   if(placeMode!=="tile")setMode("tile");
-  showHint("已取块 "+s[2]+"×"+s[3]+"：单指铺 · 右键擦");
+  showHint("已取块 "+b.w+"×"+b.h+"：单指铺 · 右键擦");
+};
+$("cropSave").onclick=()=>{
+  const b=cropBrush(); if(!b){showHint("先框一块或点个格子");return;}
+  brush=b; updateBrushChip(); addToLib(b);
 };
 $("cropCancel").onclick=closePanels;
+
+//==================== 瓦片刷库（localStorage） ====================
+const LIB_KEY="aiengine.tileBrushes.v1";
+function loadLib(){try{return JSON.parse(localStorage.getItem(LIB_KEY)||"[]");}catch(e){return [];}}
+function saveLib(a){try{localStorage.setItem(LIB_KEY,JSON.stringify(a));}catch(e){showHint("本机存储已满");}}
+function addToLib(b){
+  if(!b){showHint("当前没有刷子");return;}
+  const lib=loadLib();
+  const name=b.crop?("块"+b.crop[2]+"×"+b.crop[3]):b.asset.replace(".png","");
+  // 去重(同图同裁剪)
+  if(lib.some(x=>x.asset===b.asset && JSON.stringify(x.crop||null)===JSON.stringify(b.crop||null))){
+    showHint("刷库里已有这块");return;
+  }
+  lib.push({id:uid(),name,asset:b.asset,crop:b.crop||null,w:b.w,h:b.h});
+  saveLib(lib);showHint("已收藏到刷库（共"+lib.length+"个）");
+  if($("libPanel").classList.contains("show"))renderLib();
+}
+function drawBrushThumb(cvT,b){
+  const e=getImg(ASSET_BASE+b.asset);
+  const paint=()=>{const c=cvT.getContext("2d");c.imageSmoothingEnabled=false;c.clearRect(0,0,64,64);
+    const sx=b.crop?b.crop[0]:0, sy=b.crop?b.crop[1]:0;
+    const sw=b.crop?b.crop[2]:e.img.naturalWidth, sh=b.crop?b.crop[3]:e.img.naturalHeight;
+    const sc=Math.min(60/sw,60/sh), dw=sw*sc, dh=sh*sc;
+    c.drawImage(e.img,sx,sy,sw,sh,(64-dw)/2,(64-dh)/2,dw,dh);};
+  if(e.loaded)paint(); else e.img.addEventListener("load",paint,{once:true});
+}
+function renderLib(){
+  const list=$("libList");list.innerHTML="";
+  const lib=loadLib();
+  if(!lib.length){list.innerHTML='<span style="color:var(--muted);font-size:12px">还没有收藏。取块后点「★存入刷库」。</span>';return;}
+  lib.forEach(b=>{
+    const card=document.createElement("div");card.style.cssText="position:relative;width:70px;text-align:center";
+    const cvT=document.createElement("canvas");cvT.width=64;cvT.height=64;
+    cvT.style.cssText="width:64px;height:64px;background:#0d1115;border:1px solid var(--line);border-radius:8px;image-rendering:pixelated;cursor:pointer";
+    drawBrushThumb(cvT,b);
+    cvT.onclick=()=>{brush={asset:b.asset,crop:b.crop?b.crop.slice():null,w:b.w,h:b.h};
+      updateBrushChip();closePanels();if(placeMode!=="tile")setMode("tile");showHint("已选刷子："+b.name);};
+    const del=document.createElement("button");del.textContent="✕";
+    del.style.cssText="position:absolute;top:-7px;right:-7px;width:20px;height:20px;line-height:1;padding:0;border-radius:50%;border:1px solid var(--line);background:#30373d;color:#fff;cursor:pointer";
+    del.onclick=(e)=>{e.stopPropagation();saveLib(loadLib().filter(x=>x.id!==b.id));renderLib();};
+    const nm=document.createElement("div");nm.textContent=b.name;
+    nm.style.cssText="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px";
+    card.appendChild(cvT);card.appendChild(del);card.appendChild(nm);list.appendChild(card);
+  });
+}
+function openLib(){renderLib();openPanel("libPanel");}
+$("libAdd").onclick=()=>addToLib(brush);
+$("libClose").onclick=closePanels;
 
 //==================== 顶栏菜单 ====================
 $("btnMenu").onclick=()=>$("menu").classList.toggle("show");

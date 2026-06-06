@@ -788,13 +788,14 @@ function placeAt(){return screenToWorld(innerWidth/2,innerHeight/2,parallaxOf(cu
 function addPiece(p){
   const [wx]=placeAt();
   const isBg=curCat() && /背景|Background/i.test(curCat().name);
-  const layer=isBg?"far":curLayer;                  // 背景自动进远景层
+  const layer=curLayer;                             // 尊重你当前选的层(不再强制远景)
   const sc0=isBg?1:+Math.min(1.6,(innerHeight*0.5/cam.zoom)/Math.max(p.w,p.h)).toFixed(3);
   const wy=scene.view.groundY-(p.h*sc0)/2;          // 暂落地面线
   const o={id:uid(),layer,asset:p.file,x:Math.round(wx),y:Math.round(wy),scale:sc0,rot:0,flipX:false,z:0};
   scene.instances.push(o); sel=o.id; selMarker=null; updateActions();
-  if(isBg){ fillToView(o); showHint("背景已铺满可视区(远景层)；拖动微调，或再点「铺满可视区」"); }
-  else showHint("已放到地面线；左右拖摆位置，拖右下角金点缩放，或点「铺满可视区」");
+  const lname=(LAYER_DEF.find(l=>l.id===layer)||{}).name||layer;
+  if(isBg){ fillToView(o); showHint("背景已铺满可视区（"+lname+"层）；拖动微调，或再点「铺满可视区」"); }
+  else showHint("已放到地面线（"+lname+"层）；左右拖摆位置，拖金点缩放，或点「铺满可视区」");
 }
 function addAnim(clip){
   const c=ANIM[clip];const [wx,wy]=placeAt();

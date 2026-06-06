@@ -32,3 +32,29 @@ func _setup() -> void:
 		 "dmg": 12.0, "posture": 22.0, "recover": 2.1, "weight": 1.0, "range": 62.0, "backoff": 0.45},
 	]
 	add_to_group("enemy")
+
+# 调参：通用项 + 两招的攻击框前伸/宽度（直接改 moves，下一刀生效）
+func tunables() -> Array:
+	var t := super.tunables()
+	t.append_array([
+		{"name": "atk1_reach", "label": "慢刀框前伸", "min": 10.0, "max": 90.0,  "step": 1.0},
+		{"name": "atk1_width", "label": "慢刀框宽",   "min": 20.0, "max": 120.0, "step": 1.0},
+		{"name": "atk2_reach", "label": "重斩框前伸", "min": 10.0, "max": 90.0,  "step": 1.0},
+		{"name": "atk2_width", "label": "重斩框宽",   "min": 20.0, "max": 120.0, "step": 1.0},
+	])
+	return t
+
+var atk1_reach: float:
+	get: return float(moves[0].get("reach", 0.0)) if moves.size() > 0 else 0.0
+	set(v): if moves.size() > 0: moves[0]["reach"] = v
+var atk1_width: float:
+	get: return (moves[0]["size"] as Vector2).x if moves.size() > 0 else 0.0
+	set(v):
+		if moves.size() > 0: moves[0]["size"] = Vector2(v, (moves[0]["size"] as Vector2).y)
+var atk2_reach: float:
+	get: return float(moves[1].get("reach", 0.0)) if moves.size() > 1 else 0.0
+	set(v): if moves.size() > 1: moves[1]["reach"] = v
+var atk2_width: float:
+	get: return (moves[1]["size"] as Vector2).x if moves.size() > 1 else 0.0
+	set(v):
+		if moves.size() > 1: moves[1]["size"] = Vector2(v, (moves[1]["size"] as Vector2).y)

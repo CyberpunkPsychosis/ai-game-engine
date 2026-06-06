@@ -33,6 +33,16 @@ var _feint_t := 0.0
 var _just_feinted := false
 var _base_speed := -1.0
 
+# 通用可调项（调参工具用）。子类可重写/追加。
+func tunables() -> Array:
+	return [
+		{"name": "engage_range",  "label": "出手距离", "min": 20.0,  "max": 160.0, "step": 1.0},
+		{"name": "keep_distance", "label": "保持距离", "min": 0.0,   "max": 120.0, "step": 1.0},
+		{"name": "speed",         "label": "移动速度", "min": 30.0,  "max": 260.0, "step": 5.0},
+		{"name": "feint_chance",  "label": "假动作率", "min": 0.0,   "max": 1.0,   "step": 0.05},
+		{"name": "aggro_range",   "label": "索敌距离", "min": 150.0, "max": 700.0, "step": 10.0},
+	]
+
 func _gather_intent(delta: float) -> void:
 	_cd = maxf(_cd - delta, 0.0)
 	if _base_speed < 0.0:

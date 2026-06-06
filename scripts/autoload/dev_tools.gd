@@ -137,10 +137,10 @@ func _build_panel() -> void:
 		_add_section(vbox, "主角", pl)
 
 	var en := _current_enemy()
-	if en and en.has_method("tunables"):
+	if en:
 		_add_section(vbox, _name_of(en), en)
 	else:
-		_add_title(vbox, "(当前没有可调的怪，先让一个怪出场再开)")
+		_add_title(vbox, "(当前没有怪，等下一波出场再开)")
 
 	# 操作行
 	var ops := HBoxContainer.new()
@@ -178,8 +178,9 @@ func _add_section(vbox: VBoxContainer, header: String, obj: Object) -> void:
 	h.add_theme_font_size_override("font_size", 16)
 	h.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
 	vbox.add_child(h)
-	for entry in obj.call("tunables"):
-		_add_slider(vbox, obj, entry)
+	if obj.has_method("tunables"):
+		for entry in obj.call("tunables"):
+			_add_slider(vbox, obj, entry)
 	# 每个角色都附带受击框三项(对齐身体用)
 	if obj.has_method("body_tunables"):
 		for entry in obj.call("body_tunables"):

@@ -112,6 +112,23 @@ function computeEmpty(t){
   }
   t.empty=empty;
 }
+// 把"挨在一起的非空格"识别成一整块对象(连通域)。点一下就能选整块。
+function computeObjects(t){
+  const seen=new Set(),objs=[],cellObj=new Map();
+  const id=(c,r)=>r*t.cols+c;
+  for(let r=0;r<t.rows;r++)for(let c=0;c<t.cols;c++){
+    const k=id(c,r); if(t.empty.has(k)||seen.has(k))continue;
+    let c0=c,r0=r,c1=c,r1=r;const q=[[c,r]],cells=[k];seen.add(k);
+    while(q.length){const [cc,rr]=q.pop();
+      c0=Math.min(c0,cc);r0=Math.min(r0,rr);c1=Math.max(c1,cc);r1=Math.max(r1,rr);
+      for(const [dc,dr] of [[1,0],[-1,0],[0,1],[0,-1]]){const nc=cc+dc,nr=rr+dr;
+        if(nc<0||nr<0||nc>=t.cols||nr>=t.rows)continue;const nk=id(nc,nr);
+        if(t.empty.has(nk)||seen.has(nk))continue;seen.add(nk);q.push([nc,nr]);cells.push(nk);}}
+    const oi=objs.length;objs.push({c0,r0,c1,r1});cells.forEach(x=>cellObj.set(x,oi));
+  }
+  t.objects=objs;t.cellObj=cellObj;
+  t.objectSheet=(objs.length>=3 && t.empty.size>t.cols*t.rows*0.2);  // 装饰物图:多块且空隙多
+}
 let cam={x:-40,y:-40,zoom:2};
 const $=id=>document.getElementById(id);
 function hint(t){const h=$("hint");h.textContent=t;h.classList.add("show");clearTimeout(h._t);h._t=setTimeout(()=>h.classList.remove("show"),1400);}
@@ -221,12 +238,15 @@ function paintAt(sx,sy){
   if(!ts)return;
   const map=layers[curLayer];
   if(mode==="erase"){ rec(map,key); map.delete(key); return; }
-  // 盖章：把框选的整块按"底对齐"放下(光标格=这块的底排)，跳过空格
-  const w=stamp.c1-stamp.c0+1, h=stamp.r1-stamp.r0+1;
-  for(let dy=0;dy<h;dy++)for(let dx=0;dx<w;dx++){
-    const idx=(stamp.r0+dy)*ts.cols+(stamp.c0+dx);
-    if(ts.empty&&ts.empty.has(idx))continue;
-    const k2=(c+dx)+","+(r-(h-1)+dy);
+  // 盖章：让"这块最低的有内容那排"落在你点的那一行(底对齐)，跳过透明空格
+  let baseRow=stamp.r0;
+  for(let rr=stamp.r1;rr>=stamp.r0;rr--){let has=false;
+    for(let cc=stamp.c0;cc<=stamp.c1;cc++){if(!ts.empty.has(rr*ts.cols+cc)){has=true;break;}}
+    if(has){baseRow=rr;break;}}
+  for(let rr=stamp.r0;rr<=stamp.r1;rr++)for(let cc=stamp.c0;cc<=stamp.c1;cc++){
+    const idx=rr*ts.cols+cc;
+    if(ts.empty.has(idx))continue;
+    const k2=(c+(cc-stamp.c0))+","+(r+(rr-baseRow));
     rec(map,k2); map.set(k2,idx);
   }
 }
@@ -320,7 +340,7 @@ async function loadBuiltinList(){
 function loadBuiltin(m){
   const img=new Image();
   img.onload=()=>{const cols=Math.floor(img.width/m.tile),rows=Math.floor(img.height/m.tile);
-    ts={img,tw:m.tile,th:m.tile,cols,rows,name:m.file};computeEmpty(ts);stamp={c0:0,r0:0,c1:0,r1:0};curTile=0;buildPalette();closePanels();hint("内置："+m.name);};
+    ts={img,tw:m.tile,th:m.tile,cols,rows,name:m.file};computeEmpty(ts);computeObjects(ts);stamp={c0:0,r0:0,c1:0,r1:0};curTile=0;buildPalette();closePanels();hint("内置："+m.name);};
   img.onerror=()=>hint("内置瓦片集加载失败(部署后再试)");
   img.src="../../assets/tilesets/"+m.file;
 }
@@ -330,7 +350,7 @@ $("tsFile").onchange=e=>{
   const img=new Image();
   img.onload=()=>{
     const cols=Math.floor(img.width/tW), rows=Math.floor(img.height/tH);
-    ts={img,tw:tW,th:tH,cols,rows,name:f.name};computeEmpty(ts);stamp={c0:0,r0:0,c1:0,r1:0};
+    ts={img,tw:tW,th:tH,cols,rows,name:f.name};computeEmpty(ts);computeObjects(ts);stamp={c0:0,r0:0,c1:0,r1:0};
     curTile=0; buildPalette(); closePanels(); hint(`瓦片集 ${cols}×${rows} 已载入 · 调色板拖框=选整块`);
   };
   const fr=new FileReader();fr.onload=()=>img.src=fr.result;fr.readAsDataURL(f);
@@ -347,10 +367,19 @@ function buildPalette(){
     const px=(ev.clientX-rect.left)/SC, py=(ev.clientY-rect.top)/SC;
     return [Math.max(0,Math.min(ts.cols-1,Math.floor(px/ts.tw))), Math.max(0,Math.min(ts.rows-1,Math.floor(py/ts.th)))];};
   function setStamp(a,b){stamp={c0:Math.min(a[0],b[0]),r0:Math.min(a[1],b[1]),c1:Math.max(a[0],b[0]),r1:Math.max(a[1],b[1])};curTile=stamp.r0*ts.cols+stamp.c0;}
-  let sel0=null;
-  pc.onpointerdown=ev=>{ev.preventDefault();pc.setPointerCapture(ev.pointerId);sel0=cellOf(ev);setStamp(sel0,sel0);setMode("paint");drawPalette(SC);};
-  pc.onpointermove=ev=>{if(!sel0)return;setStamp(sel0,cellOf(ev));drawPalette(SC);};
-  pc.onpointerup=ev=>{if(sel0){const n=(stamp.c1-stamp.c0+1)*(stamp.r1-stamp.r0+1);hint(n>1?("框选整块 "+(stamp.c1-stamp.c0+1)+"×"+(stamp.r1-stamp.r0+1)+"，放置时底边对齐你点的那一行"):"选 1 格");}sel0=null;};
+  let sel0=null,moved=false;
+  pc.onpointerdown=ev=>{ev.preventDefault();pc.setPointerCapture(ev.pointerId);sel0=cellOf(ev);moved=false;setStamp(sel0,sel0);setMode("paint");drawPalette(SC);};
+  pc.onpointermove=ev=>{if(!sel0)return;moved=true;setStamp(sel0,cellOf(ev));drawPalette(SC);};
+  pc.onpointerup=ev=>{
+    if(sel0&&!moved&&ts.objectSheet){   // 装饰物图:单点=自动选中整块
+      const oi=ts.cellObj.get(sel0[1]*ts.cols+sel0[0]);
+      if(oi!=null){const o=ts.objects[oi];setStamp([o.c0,o.r0],[o.c1,o.r1]);}
+    }
+    if(sel0){const n=(stamp.c1-stamp.c0+1)*(stamp.r1-stamp.r0+1);
+      hint(n>1?("选中整块("+(stamp.c1-stamp.c0+1)+"×"+(stamp.r1-stamp.r0+1)+")→ 画布点地面那行,这块底边就贴上去"):"选 1 格");
+      drawPalette(SC);}
+    sel0=null;
+  };
 }
 function drawPalette(SC){
   const pc=$("palCanvas"),g=pc.getContext("2d");g.imageSmoothingEnabled=false;

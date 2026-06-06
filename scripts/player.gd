@@ -26,9 +26,10 @@ func _setup() -> void:
 			"death":  {"tex": DEATH,  "fps": 10.0, "loop": false},
 		}, CELL)
 	anim_fall = "jump"     # 没有独立下落帧，下落复用 jump
-	can_parry = true       # 主角能弹反（点 K/Shift）
-	can_dodge = true       # 主角能闪避（点 L）—— 暂代格挡
-	parry_window = 0.10    # 弹反窗口很紧(~6帧)：要算准箭尖到身前那一刻挥刀
+	can_parry = true       # 主角能弹反（点 K 那一下踩窗口）
+	can_block = true       # 主角能格挡（按住 K，剑挡身前，少量掉血）
+	can_dodge = true       # 主角能闪避（L / Shift）
+	parry_window = 0.10    # 弹反窗口很紧(~6帧)：要算准箭尖到身前那一刻
 	# 主角是长突刺，攻击框要够长够远（之前太短砍空）
 	attack_reach = 46.0
 	attack_size = Vector2(64, 40)
@@ -48,5 +49,6 @@ func _gather_intent(_delta: float) -> void:
 	want_jump = Input.is_action_just_pressed("jump")
 	want_jump_release = Input.is_action_just_released("jump")
 	want_attack = Input.is_action_just_pressed("attack")
-	want_parry = Input.is_action_just_pressed("dash")     # K / Shift = 弹反（点）
-	want_dodge = Input.is_action_just_pressed("special")  # L = 闪避（无敌帧）
+	want_parry = Input.is_action_just_pressed("block")    # 点格挡键那一下 = 完美弹反
+	guarding = Input.is_action_pressed("block") and not attacking and not dodging  # 按住 = 格挡
+	want_dodge = Input.is_action_just_pressed("special")  # L / Shift = 闪避（无敌帧）

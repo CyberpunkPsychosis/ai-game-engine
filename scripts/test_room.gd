@@ -277,9 +277,9 @@ func _demo_tick(_delta: float) -> void:
 			# 有箭飞来 → 站定接箭尖弹反
 			_demo_set("move_left", false)
 			_demo_set("move_right", false)
-			_demo_set("dash", true)        # 提前弹(箭快了)，接箭尖
+			_demo_set("block", true)        # 提前弹(箭快了)，接箭尖
 			return
-		_demo_set("dash", false)
+		_demo_set("block", false)
 		# 没箭来 → 逼近弓手逼它后跃；但停在身位外(怪与怪不互相碰撞，贴太近会穿过去)
 		var dx := enemy.global_position.x - player.global_position.x
 		var approach := absf(dx) > 72.0
@@ -331,7 +331,7 @@ func _demo_tick(_delta: float) -> void:
 	_demo_set("move_left", go_left)
 	_demo_set("move_right", go_right)
 	_demo_set("attack", do_attack)
-	_demo_set("dash", do_parry)      # K = 弹反
+	_demo_set("block", do_parry)      # K = 弹反
 	_demo_set("special", do_dodge)   # L = 闪避
 
 func _process(delta: float) -> void:

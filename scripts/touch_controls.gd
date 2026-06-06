@@ -6,12 +6,13 @@ class_name TouchControls
 ##
 ## 用法：放进一个 CanvasLayer，set_anchors_preset(PRESET_FULL_RECT)。
 
-# 右手三键。SLASH 一个键同时按 attack+dash —— 挥刀即拼刀：挥得正好就把箭/招架开，
-# 不用再分"攻击"和"弹反"两个键。off 单位=_ui，r=半径倍数，hot=招牌高亮。
+# 右手四键(菱形)：跳/闪/攻/格挡。格挡=按住挡身前(少量掉血)，那一下点准=完美弹反。
+# off 单位=_ui，r=半径倍数，hot=招牌高亮。
 const BTNS := [
-	{"off": Vector2(0.35, -1.05), "r": 0.46, "lab": "JUMP",  "acts": ["jump"]},
-	{"off": Vector2(-1.05, 0.45), "r": 0.46, "lab": "DODGE", "acts": ["special"]},
-	{"off": Vector2(0.35, 0.45),  "r": 0.64, "lab": "SLASH", "acts": ["attack", "dash"], "hot": true},
+	{"off": Vector2(0.0, -1.05),  "r": 0.46, "lab": "跳",   "acts": ["jump"]},
+	{"off": Vector2(-1.05, 0.0),  "r": 0.46, "lab": "闪",   "acts": ["special"]},
+	{"off": Vector2(1.05, 0.0),   "r": 0.5,  "lab": "攻",   "acts": ["attack"]},
+	{"off": Vector2(0.0, 1.05),   "r": 0.58, "lab": "格挡", "acts": ["block"], "hot": true},
 ]
 
 var _font: Font
@@ -49,7 +50,7 @@ func _joy_radius() -> float:
 	return _ui() * 0.9
 
 func _btn_center() -> Vector2:
-	return Vector2(size.x - _ui() * 1.7, size.y - _ui() * 1.7)
+	return Vector2(size.x - _ui() * 1.85, size.y - _ui() * 1.85)
 
 func _btn_pos(i: int) -> Vector2:
 	return _btn_center() + (BTNS[i]["off"] as Vector2) * _ui()
@@ -219,7 +220,7 @@ func _draw() -> void:
 		draw_arc(p, br, 0, TAU, 40, ring, 3.0, true)
 		if _font:
 			var lab: String = BTNS[i]["lab"]
-			var fs := int(br * 0.42)
+			var fs := int(br * 0.52)
 			var tw := _font.get_string_size(lab, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
 			draw_string(_font, p - Vector2(tw.x * 0.5, -fs * 0.34), lab,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, 0.92))

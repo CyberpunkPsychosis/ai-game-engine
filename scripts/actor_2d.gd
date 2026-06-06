@@ -47,6 +47,10 @@ signal died
 @export var parry_window := 0.18       ## 按下弹反后多少秒内算「完美弹反」
 @export var parry_posture_to_attacker := 34.0  ## 完美弹反给对方加的架势
 @export var parry_flinch := 0.35       ## 被弹反者的硬直时长（打断出招+击退）
+@export_group("战斗 · 格挡")
+@export var can_block := false         ## 是否能格挡（按住）
+@export var block_chip := 0.3          ## 格挡时仍承受的伤害比例（少量掉血）
+@export var block_posture_mult := 0.7  ## 格挡时自己涨的架势比例（挡多了也会破防）
 @export_group("战斗 · 闪避")
 @export var can_dodge := false         ## 是否能闪避
 @export var dodge_speed := 460.0
@@ -87,6 +91,7 @@ var want_dodge := false               ## 本帧刚按下闪避
 var facing := 1
 var attacking := false
 var dodging := false
+var guarding := false                 ## 正按住格挡（持刀挡在身前）
 var invulnerable := false             ## 无敌帧（闪避中开启）
 var guard_broken := false
 var hp := 100.0
@@ -334,15 +339,15 @@ func _physics_process(delta: float) -> void:
 		_buffer = jump_buffer
 	else:
 		_buffer -= delta
-	if _buffer > 0.0 and _coyote > 0.0 and not attacking and not dodging:
+	if _buffer > 0.0 and _coyote > 0.0 and not attacking and not dodging and not guarding:
 		velocity.y = jump_velocity
 		_buffer = 0.0
 		_coyote = 0.0
 	if want_jump_release and velocity.y < 0.0:
 		velocity.y *= jump_cut
 
-	# 攻击（闪避中不可）
-	if want_attack and not attacking and not dodging:
+	# 攻击（闪避/格挡中不可）
+	if want_attack and not attacking and not dodging and not guarding:
 		_begin_attack(anim_attack)
 
 	# 水平移动
@@ -353,6 +358,10 @@ func _physics_process(delta: float) -> void:
 			_end_dodge()
 	elif attacking and is_on_floor():
 		velocity.x = move_toward(velocity.x, 0.0, friction * delta)  # 地面攻击定身
+	elif guarding and is_on_floor():
+		if move_dir != 0.0:
+			facing = 1 if move_dir > 0.0 else -1   # 格挡时可转身不挪步
+		velocity.x = move_toward(velocity.x, 0.0, friction * delta)
 	elif move_dir != 0.0:
 		velocity.x = move_toward(velocity.x, move_dir * speed, accel * delta)
 		facing = 1 if move_dir > 0.0 else -1
@@ -427,6 +436,21 @@ func on_hit(hitbox: Hitbox) -> bool:
 		_parry_feedback(clash)
 		parried.emit(attacker)
 		return true
+
+	# 格挡（按住挡在身前，但没踩中弹反窗口）：少量掉血 + 涨架势，不完美弹开。
+	# 只挡得住正面来的；背后照样吃满。
+	if can_block and guarding and is_on_floor():
+		var from_front := true
+		if attacker is Node2D:
+			var adir := signf((attacker as Node2D).global_position.x - global_position.x)
+			from_front = (adir == 0.0) or (adir == float(facing))
+		if from_front:
+			_take_hp(hitbox.damage * block_chip)
+			_add_posture(hitbox.posture_damage * block_posture_mult)
+			if attacker is Node2D:
+				velocity.x = signf(global_position.x - (attacker as Node2D).global_position.x) * 90.0
+			_block_feedback(contact)
+			return true
 
 	# 中招
 	_take_hp(hitbox.damage)
@@ -528,6 +552,13 @@ func _parry_feedback(at: Vector2) -> void:
 	Juice.clash()                                   # 极短定格 → 慢动作，看清两刀相交
 	Juice.shake(9.0)
 
+func _block_feedback(at: Vector2) -> void:
+	FX.nova(at, 0.45)                               # 小一圈火花（比弹反弱）
+	FX.flash(sprite, 0.12, Color(0.7, 0.85, 1.0))   # 蓝白=挡住了
+	FX.sfx("hit")
+	Juice.hitstop(0.04)
+	Juice.shake(4.0)
+
 func _hit_feedback(_hitbox: Hitbox, _at: Vector2, col: Color) -> void:
 	FX.flash(sprite, 0.12, col)
 	FX.sfx("hit")
@@ -547,6 +578,15 @@ func _update_anim() -> void:
 	if _parry_pose_t > 0.0:
 		return  # 保持弹反持刀姿势
 	if attacking:
+		return
+	if guarding and is_on_floor():
+		# 持刀挡在身前：定住出刀帧
+		var sf := sprite.sprite_frames
+		if sf and sf.has_animation(anim_attack):
+			if sprite.animation != anim_attack:
+				sprite.play(anim_attack)
+			sprite.pause()
+			sprite.frame = mini(attack_active_from, sf.get_frame_count(anim_attack) - 1)
 		return
 	if dodging:
 		_play(anim_dodge, anim_run)

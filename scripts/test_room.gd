@@ -22,6 +22,7 @@ var _force_touch := false
 var _archer_only := false
 var _spear_only := false
 var _war_only := false
+var _demon_only := false
 var _boss_only := false
 var _boss_show := false
 var _playtest := false        # 试玩演示：有界场地 + 一个一个出怪(先弓骷髅)
@@ -58,6 +59,9 @@ func _ready() -> void:
 		elif a == "--wardemo":
 			_demo = true
 			_war_only = true
+		elif a == "--demondemo":
+			_demo = true
+			_demon_only = true
 		elif a == "--boss":
 			_boss_only = true
 		elif a == "--bossdemo":
@@ -94,6 +98,8 @@ func _ready() -> void:
 		enemy = _spawn_enemy(SkelSpearman.new(), 200.0)
 	elif _war_only:
 		enemy = _spawn_enemy(SkelWarrior.new(), 220.0)
+	elif _demon_only:
+		enemy = _spawn_enemy(EliteDemon.new(), 240.0)
 	elif _playtest:
 		_spawn_wave()                  # 先出弓骷髅，打完自动换下一个
 	else:
@@ -300,7 +306,7 @@ func _demo_tick(_delta: float) -> void:
 		print("DEMO parries=%d" % _parry_count)
 		get_tree().quit()
 		return
-	if _demo_frames > (760 if (_spear_only or _war_only) else 2400):
+	if _demo_frames > (760 if (_spear_only or _war_only) else (1100 if _demon_only else 2400)):
 		print("DEMO parries=%d" % _parry_count)
 		get_tree().quit()
 		return
@@ -329,6 +335,8 @@ func _demo_tick(_delta: float) -> void:
 		if peril:
 			if fr >= maxi(1, tgt.attack_active_from - 2):
 				do_dodge = true       # 红光危 → 临近命中帧闪(i-frame 盖住)
+		elif _demon_only:
+			do_dodge = true           # 演示恶魔：一直闪它，把它惹毛看生气连段
 		elif fr >= maxi(1, tgt.attack_active_from - 1) and not _bot_block_tapped:
 			do_parry = true           # 只点一下=弹反(按住会变成格挡硬抗)
 			_bot_block_tapped = true

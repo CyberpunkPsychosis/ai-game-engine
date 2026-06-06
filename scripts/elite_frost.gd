@@ -13,7 +13,7 @@ const ST_ATTACK := 1
 const ST_PAUSE := 2
 
 # ── 可调参数 ──
-var strike_range := 70.0     # 跑到这么近才出拳(拳尖≈93，框够到)
+var strike_range := 100.0    # 跑到这么近才出拳(调参定)
 var punch_reach := 52.0      # 拳判定前伸
 var punch_width := 80.0      # 拳判定长度
 var pause_dur := 1.0         # 打完歇(灵活，歇得短)

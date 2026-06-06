@@ -511,11 +511,12 @@ function draw(){
 const SHEET_TITLE=22;
 function sheetRect(){
   if(!sheet)return null;
-  const iw=sheet.img.naturalWidth*sheet.scale, ih=sheet.img.naturalHeight*sheet.scale;
-  return {x:sheet.sx, y:sheet.sy, iw, ih, title:SHEET_TITLE};
+  const p=parallaxOf(curLayer), sc=tileScale*cam.zoom;
+  const [x,y]=worldToScreen(sheet.wx,sheet.wy,p);
+  return {x,y,sc,iw:sheet.img.naturalWidth*sc, ih:sheet.img.naturalHeight*sc, title:SHEET_TITLE};
 }
 function drawSheet(){
-  const r=sheetRect(), sc=sheet.scale;
+  const r=sheetRect(), sc=r.sc;
   ctx.save();
   // 标题条
   ctx.fillStyle="rgba(12,16,22,.95)";ctx.fillRect(r.x-3,r.y-r.title,r.iw+6,r.title);
@@ -618,7 +619,7 @@ cv.addEventListener("pointerdown",e=>{
     if(sx>=r.x-3 && sx<=r.x+r.iw+3 && sy>=r.y-r.title && sy<r.y){          // 标题条
       if(sx>=r.x+r.iw-12){ sheet=null; return; }                          // ✕
       if(sx>=r.x+r.iw-52 && sx<r.x+r.iw-12){ sheetSaveAll(); return; }     // ★全存
-      drag={type:"sheetmove",ox:sheet.sx,oy:sheet.sy,sx,sy}; return;       // 拖动移动
+      drag={type:"sheetmove",ox:sheet.wx,oy:sheet.wy,sx,sy}; return;       // 拖动移动(世界坐标)
     }
     if(sx>=r.x && sx<=r.x+r.iw && sy>=r.y && sy<=r.y+r.ih){                // 图面:取块
       if(e.button===2)return;                                             // 右键在板上不误擦
@@ -670,7 +671,7 @@ cv.addEventListener("pointermove",e=>{
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(placeMode==="tile"&&brush&&mode==="edit") hoverCell=cellAt(e.clientX,e.clientY);
-  if(drag&&drag.type==="sheetmove"){ sheet.sx=drag.ox+(e.clientX-drag.sx); sheet.sy=drag.oy+(e.clientY-drag.sy); return; }
+  if(drag&&drag.type==="sheetmove"){ sheet.wx=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom); sheet.wy=Math.round(drag.oy+(e.clientY-drag.sy)/cam.zoom); return; }
   if(drag&&drag.type==="sheetpick"){ sheetPickAt(drag.sx,drag.sy,e.clientX,e.clientY); return; }
   if(painting&&drag&&drag.type==="tile"&&ptrs.size<2){ stampTile(e.clientX,e.clientY,drag.erase); return; }
   if(pinch&&ptrs.size>=2){
@@ -753,19 +754,21 @@ function fillToView(ins){
 // 基准网格(源px)：所有块都吸附到这套固定网格线
 let gridBase=32;
 function gridStepWorld(){ return Math.max(1,Math.round(gridBase*tileScale)); } // 网格步长(世界px,与刷子无关)
-// 把素材贴到画布上当"取块板"
+// 把素材放到画布上(世界坐标,随平移缩放)当"取块板"
 function showSheet(file){
   const e=getImg(ASSET_BASE+file);
   const setup=()=>{
-    const dispW=Math.min(innerWidth*0.55, 380);
-    const scale=Math.max(1,Math.min(8, Math.round(dispW/e.img.naturalWidth)||1));
-    sheet={file,img:e.img,scale,sx:14,sy:150,sel:null};
-    showHint("取块板已贴上：点格子=拿来铺，拖标题移动，✕关闭");
+    const p=parallaxOf(curLayer);
+    const [wcx,wcy]=screenToWorld(innerWidth/2, innerHeight*0.42, p);  // 放到你正看的画布中间
+    sheet={file,img:e.img,
+      wx:Math.round(wcx-e.img.naturalWidth*tileScale/2),
+      wy:Math.round(wcy-e.img.naturalHeight*tileScale/2), sel:null};
+    showHint("取块板已放到画布：点格=拿来铺，拖标题移动，✕关闭");
   };
   if(e.loaded)setup(); else e.img.addEventListener("load",setup,{once:true});
 }
 function sheetPickAt(asx,asy,bsx,bsy){    // 屏幕坐标 → 按网格吸附选格
-  const r=sheetRect(),sc=sheet.scale,g=gridBase;
+  const r=sheetRect(),sc=r.sc,g=gridBase;
   const iw=sheet.img.naturalWidth, ih=sheet.img.naturalHeight;
   const ix0=(asx-r.x)/sc, iy0=(asy-r.y)/sc, ix1=(bsx-r.x)/sc, iy1=(bsy-r.y)/sc;
   const c0=Math.floor(Math.min(ix0,ix1)/g),c1=Math.floor(Math.max(ix0,ix1)/g);

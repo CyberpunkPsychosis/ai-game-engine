@@ -114,7 +114,7 @@
 <canvas id="stage"></canvas>
 
 <div class="topbar">
-  <div class="title">关卡编辑器·对齐b7</div>
+  <div class="title">关卡编辑器·b8</div>
   <div class="modesw" id="modesw">
     <button data-m="free" class="on">自由摆放</button>
     <button data-m="tile">瓦片铺</button>
@@ -147,8 +147,8 @@
   <button class="btn" id="mBg">🎨 背景与雾</button>
   <button class="btn" id="mSave">💾 保存到仓库</button>
   <button class="btn" id="mLoad">📂 从仓库读取</button>
-  <button class="btn" id="mExport">⬇ 导出 JSON</button>
-  <button class="btn" id="mImport">⬆ 导入 JSON</button>
+  <button class="btn" id="mExport">⬇ 导出场景(到文件)</button>
+  <button class="btn" id="mImport">⬆ 导入场景(从文件)</button>
   <button class="btn" id="mPng">🖼 导出预览图</button>
 </div>
 
@@ -485,6 +485,17 @@ function draw(){
     ctx.textBaseline="bottom";ctx.fillText("▼ 画面底边",8,Math.min(h-2,syBot-4));
   }
 
+  // 自由摆放:也显示世界格(只看不吸附)
+  if(placeMode==="free" && mode!=="play"){
+    const s=gridStepWorld(), p=parallaxOf(curLayer), cw=s*cam.zoom;
+    if(cw>8){
+      ctx.strokeStyle="rgba(255,255,255,.07)";ctx.lineWidth=1;
+      const wxL=cam.x*p; let col0=Math.floor(wxL/s);
+      for(let col=col0; col*s<wxL+w/cam.zoom+s; col++){const sx=(col*s-cam.x*p)*cam.zoom;ctx.beginPath();ctx.moveTo(sx,0);ctx.lineTo(sx,h);ctx.stroke();}
+      const gy=scene.view.groundY;
+      for(let row=-8; row*s<(h/cam.zoom); row++){const sy=((gy-row*s)-cam.y*p)*cam.zoom;if(sy<-cw||sy>h+cw)continue;ctx.beginPath();ctx.moveTo(0,sy);ctx.lineTo(w,sy);ctx.stroke();}
+    }
+  }
   // 瓦片网格 + 落点高亮(进瓦片模式即显示,不必先选刷子)
   if(placeMode==="tile" && mode!=="play"){
     const s=gridStepWorld(); const c={w:s,h:s}; const p=parallaxOf(curLayer);
@@ -527,8 +538,8 @@ function draw(){
     ctx.fillStyle="rgba(92,192,204,.28)";ctx.fillRect(gx,gy,grabSel.ww*zx,grabSel.wh*zx);
     ctx.strokeStyle="#5cc0cc";ctx.lineWidth=2;ctx.strokeRect(gx,gy,grabSel.ww*zx,grabSel.wh*zx);
   }
-  // 选移:已选瓦片描边 + 框选矩形
-  if(placeMode==="tile" && mode!=="play"){
+  // 选移:已选描边 + 框选矩形(自由/瓦片都画)
+  if(mode!=="play"){
     for(const i of selTiles){ const d=srcDims(i),p=parallaxOf(i.layer);
       const [cx,cy]=worldToScreen(i.x,i.y,p), iw=d.fw*i.scale*cam.zoom, ih=d.fh*i.scale*cam.zoom;
       ctx.strokeStyle="#ffd24a";ctx.lineWidth=2;ctx.strokeRect(cx-iw/2,cy-ih/2,iw,ih);
@@ -680,13 +691,17 @@ cv.addEventListener("pointerdown",e=>{
     sel=null;selMarker=null;updateActions();
     return;
   }
+  if(ins && selTiles.includes(ins)){                 // 点中已框选的成员 → 整组移动
+    drag={type:"selmove",sx,sy,orig:selTiles.map(i=>({i,x:i.x,y:i.y}))}; return;
+  }
   if(m||ins){
-    if(ins){sel=ins.id;selMarker=null;}else{selMarker=m;sel=null;}
+    if(ins){sel=ins.id;selMarker=null;selTiles=[];}else{selMarker=m;sel=null;selTiles=[];}
     updateActions();
     drag={type:"move",tgt:{kind:m?"marker":"ins",obj:m||ins},ox:(m?m.x:ins.x),oy:(m?m.y:ins.y),sx,sy};
   }else{
-    drag={type:"pan",camx:cam.x,camy:cam.y,sx,sy};
-    sel=null;selMarker=null;updateActions();
+    // 空白单指拖 = 框选多个(平移用双指/中键)
+    drag={type:"selbox",sx0:sx,sy0:sy}; selBox={x0:sx,y0:sy,x1:sx,y1:sy};
+    sel=null;selMarker=null;selTiles=[];updateActions();
   }
 });
 cv.addEventListener("pointermove",e=>{
@@ -698,8 +713,9 @@ cv.addEventListener("pointermove",e=>{
   if(drag&&drag.type==="selmove"){
     if(!drag.undone){pushUndo();drag.undone=true;}
     const dwx=(e.clientX-drag.sx)/cam.zoom, dwy=(e.clientY-drag.sy)/cam.zoom;
+    const snap=(placeMode==="tile"&&moveSnap);       // 自由摆放始终像素移动
     drag.orig.forEach(o=>{
-      if(moveSnap){ o.i.x=snapCenterX(o.i,o.x+dwx); o.i.y=snapCenterY(o.i,o.y+dwy); } // 按格:结果对齐网格(消除之前像素错位)
+      if(snap){ o.i.x=snapCenterX(o.i,o.x+dwx); o.i.y=snapCenterY(o.i,o.y+dwy); }
       else{ o.i.x=Math.round(o.x+dwx); o.i.y=Math.round(o.y+dwy); }
     }); return;
   }
@@ -845,12 +861,13 @@ function finalizeSelBox(){
   if(!selBox){selTiles=[];return;}
   const x0=Math.min(selBox.x0,selBox.x1),x1=Math.max(selBox.x0,selBox.x1);
   const y0=Math.min(selBox.y0,selBox.y1),y1=Math.max(selBox.y0,selBox.y1);
-  selTiles=scene.instances.filter(i=>i.layer===curLayer && i.tile && (()=>{
+  selTiles=scene.instances.filter(i=>i.layer===curLayer && (()=>{
     const p=parallaxOf(i.layer),[cx,cy]=worldToScreen(i.x,i.y,p);
     return cx>=x0&&cx<=x1&&cy>=y0&&cy<=y1;
   })());
   selBox=null;
-  showHint(selTiles.length?("选中 "+selTiles.length+" 块：拖动整体移动（"+(moveSnap?"按格":"像素")+"）·Del删除"):"框里没有瓦片");
+  const snapTxt=(placeMode==="tile"&&moveSnap)?"按格":"像素";
+  showHint(selTiles.length?("选中 "+selTiles.length+" 个：拖动整体移动（"+snapTxt+"）·Del删除"):"框里没有东西");
 }
 function findTileAt(cell){
   // 基准网格下按"半个瓦片"范围判重,避免细网格拖动堆叠大量重叠块
@@ -1057,7 +1074,7 @@ function setMode(m){
   if(m==="tile"){sel=null;selMarker=null;updateActions();
     if(loadLib().length){$("libDock").classList.add("show");renderLib();}
     showHint("瓦片：拖素材到画布铺 · 切「✋取」框选取块 · 切「⬚选」框选移动");}
-  else{hoverCell=null;selTiles=[];grabSel=null;$("libDock").classList.remove("show");showHint("自由摆放：点素材落到地面线，拖动摆位置");}
+  else{hoverCell=null;selTiles=[];grabSel=null;$("libDock").classList.remove("show");showHint("自由摆放：点素材落地·拖物件摆位·空白拖=框选多个·双指/中键=平移");}
 }
 document.querySelectorAll("#modesw button").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
 function setBrushFromPiece(it){
@@ -1335,7 +1352,7 @@ $("mExport").onclick=()=>{
 $("mImport").onclick=()=>{$("fileIn").click();closeMenu();};
 $("fileIn").onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
-  try{scene=normalizeScene(JSON.parse(await f.text()));sel=null;selMarker=null;resetToPlayView();showHint("已导入："+scene.name);}
+  try{scene=normalizeScene(JSON.parse(await f.text()));sel=null;selMarker=null;selTiles=[];saveLocal();resetToPlayView();showHint("已导入："+scene.name);}
   catch(err){showHint("JSON 解析失败");}
 };
 function normalizeScene(s){
@@ -1349,6 +1366,19 @@ function normalizeScene(s){
       x:i.x||0,y:i.y||0,scale:i.scale||1,rot:i.rot||0,flipX:!!i.flipX,z:i.z||0})),
     markers:s.markers||[]};
 }
+//==================== 自动保存到本机(刷新不丢) ====================
+const AUTOSAVE_KEY="aiengine.composer.autosave.v1";
+function saveLocal(){try{localStorage.setItem(AUTOSAVE_KEY,JSON.stringify(scene));}catch(e){}}
+function restoreLocal(){
+  try{const s=localStorage.getItem(AUTOSAVE_KEY); if(!s)return false;
+    const o=JSON.parse(s);
+    if(o&&((o.instances&&o.instances.length)||(o.markers&&o.markers.length))){scene=normalizeScene(o);return true;}
+  }catch(e){}
+  return false;
+}
+addEventListener("beforeunload",saveLocal);
+addEventListener("visibilitychange",()=>{if(document.hidden)saveLocal();});
+setInterval(saveLocal,4000);
 // 导出 PNG（当前视图）
 $("mPng").onclick=()=>{
   cv.toBlob(b=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);
@@ -1428,8 +1458,10 @@ $("mLoad").onclick=async()=>{
 $("loadCancel").onclick=closePanels;
 
 //==================== 启动 ====================
-buildLayers();loadManifest();updateActions();resetToPlayView();
-showHint("自由摆放：点素材落地 · 拖动摆位 · 拖金点缩放；切「瓦片铺」可在网格上连铺地面/墙");
+buildLayers();loadManifest();updateActions();
+const _restored=restoreLocal();
+resetToPlayView();
+showHint(_restored?"已自动恢复上次的场景（本机自动保存）":"自由摆放：点素材落地 · 拖动摆位 · 拖金点缩放；切「瓦片铺」可在网格上连铺地面/墙");
 </script>
 </body>
 </html>

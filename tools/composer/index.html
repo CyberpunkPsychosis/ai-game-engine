@@ -333,6 +333,7 @@ function draw(){
   const W=cv.width,H=cv.height;
   ctx.setTransform(DPR,0,0,DPR,0,0);
   const w=innerWidth,h=innerHeight;
+  ctx.imageSmoothingEnabled=false;          // 像素画:关插值,瓦片边缘不发虚/不露缝
   // 背景渐变
   const g=ctx.createLinearGradient(0,0,0,h);
   g.addColorStop(0,scene.background.top);
@@ -359,11 +360,14 @@ function draw(){
     const iw=fw*ins.scale*cam.zoom, ih=fh*ins.scale*cam.zoom;
     ctx.save();
     ctx.globalAlpha=ins.opacity==null?1:ins.opacity;
-    ctx.translate(sx,sy);
+    ctx.translate(Math.round(sx),Math.round(sy));    // 整数像素,避免半像素接缝
     ctx.rotate((ins.rot||0)*Math.PI/180);
     if(ins.flipX) ctx.scale(-1,1);
     if(e.loaded){
-      ctx.drawImage(e.img,srcx,srcy,fw,fh,-iw/2,-ih/2,iw,ih);
+      // 瓦片向外多铺 1px(屏幕),让相邻块叠住,彻底消缝
+      const bl=ins.tile?1:0;
+      const dw=Math.ceil(iw)+bl*2, dh=Math.ceil(ih)+bl*2;
+      ctx.drawImage(e.img,srcx,srcy,fw,fh,-Math.round(iw/2)-bl,-Math.round(ih/2)-bl,dw,dh);
     }else{ctx.fillStyle="#333";ctx.fillRect(-iw/2,-ih/2,iw,ih);}
     ctx.restore();
     // 选中描边 + 右下角缩放手柄(拖它改大小)
@@ -638,9 +642,9 @@ function fillToView(ins){
 }
 
 //==================== 瓦片格子 ====================
-function brushCell(){ // 当前刷的格子尺寸(世界单位)
+function brushCell(){ // 当前刷的格子尺寸(世界单位,取整避免累积缝)
   if(!brush) return null;
-  return {w:Math.max(1,brush.w*tileScale), h:Math.max(1,brush.h*tileScale)};
+  return {w:Math.max(1,Math.round(brush.w*tileScale)), h:Math.max(1,Math.round(brush.h*tileScale))};
 }
 // 屏幕点 -> 该格中心(世界坐标)。竖直按地面线分行(底边贴地面线/整数行)
 function cellAt(sx,sy){
@@ -668,7 +672,7 @@ function stampTile(sx,sy,erase){
   if(erase){ if(exist) scene.instances=scene.instances.filter(i=>i!==exist); return; }
   if(exist) return;                                    // 同格已有,不重复
   scene.instances.push({id:uid(),layer:curLayer,asset:brush.asset,
-    crop:brush.crop?brush.crop.slice():null,
+    crop:brush.crop?brush.crop.slice():null,tile:true,
     x:cell.x,y:cell.y,scale:+tileScale.toFixed(3),rot:0,flipX:false,z:0,opacity:1});
 }
 
@@ -1036,7 +1040,7 @@ function normalizeScene(s){
   return {...b,...s,background:{...b.background,...(s.background||{})},
     world, view,
     instances:(s.instances||[]).map(i=>({id:i.id||uid(),layer:i.layer||"play",
-      asset:i.asset,anim:i.anim,fps:i.fps,crop:i.crop||null,opacity:(i.opacity==null?1:i.opacity),
+      asset:i.asset,anim:i.anim,fps:i.fps,crop:i.crop||null,tile:!!i.tile,opacity:(i.opacity==null?1:i.opacity),
       x:i.x||0,y:i.y||0,scale:i.scale||1,rot:i.rot||0,flipX:!!i.flipX,z:i.z||0})),
     markers:s.markers||[]};
 }

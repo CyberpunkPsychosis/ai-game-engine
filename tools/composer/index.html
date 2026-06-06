@@ -467,11 +467,16 @@ function draw(){
     ctx.beginPath();ctx.moveTo(0,syTop);ctx.lineTo(w,syTop);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle="rgba(140,220,230,.95)";ctx.font="11px sans-serif";ctx.textAlign="left";
     ctx.textBaseline="top";ctx.fillText("▲ 画面上边（再高玩家看不到）",8,Math.max(2,syTop+4));
-    // 地面线 = 角色站立线(亮绿实线,醒目)
+    // 地面线 = 默认对齐/相机底边参考(亮绿实线,可拖)
     ctx.strokeStyle="rgba(80,230,120,.95)";ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(0,syBot);ctx.lineTo(w,syBot);ctx.stroke();
     ctx.fillStyle="rgba(120,255,160,.98)";ctx.font="bold 12px sans-serif";
-    ctx.textBaseline="bottom";ctx.fillText("──── 地面线 · 角色就站在这条线上 ────",8,Math.min(h-3,syBot-3));
+    ctx.textBaseline="bottom";ctx.fillText("──── 地面/对齐参考线（非硬地面，可上下拖）────",80,Math.min(h-3,syBot-3));
+    // 左侧拖拽把手
+    groundLineSY=syBot;
+    ctx.fillStyle="rgba(80,230,120,.92)";ctx.fillRect(6,syBot-13,66,26);
+    ctx.fillStyle="#0b1f12";ctx.font="bold 12px sans-serif";ctx.textBaseline="middle";ctx.textAlign="center";
+    ctx.fillText("⇕ 拖地面",39,syBot);ctx.textAlign="left";
     // 出生点处画一个小人脚标,直观看到角色站位
     const sp=scene.markers.find(m=>m.type==="spawn");
     if(sp){const fx=(sp.x-cam.x)*cam.zoom;
@@ -520,6 +525,7 @@ function draw(){
   requestAnimationFrame(draw);
 }
 let hoverCell=null;
+let groundLineSY=null;   // 地面参考线当前屏幕Y(供拖拽把手命中)
 requestAnimationFrame(draw);
 
 //==================== 命中测试 ====================
@@ -588,6 +594,10 @@ cv.addEventListener("pointerdown",e=>{
   }
   const sx=e.clientX,sy=e.clientY;
   if(e.button===1){ drag={type:"pan",camx:cam.x,camy:cam.y,sx,sy}; return; } // 中键拖=平移(各模式通用)
+  // 抓"拖地面"把手 → 上下拖调整地面线
+  if(mode!=="play" && groundLineSY!=null && sx<78 && Math.abs(sy-groundLineSY)<16){
+    drag={type:"ground"}; return;
+  }
   if(mode==="marker"){
     const [wx,wy]=screenToWorld(sx,sy,1);
     scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
@@ -659,6 +669,8 @@ cv.addEventListener("pointermove",e=>{
   if(drag.type==="pan"){
     cam.x=drag.camx-(e.clientX-drag.sx)/cam.zoom;
     cam.y=drag.camy-(e.clientY-drag.sy)/cam.zoom;
+  }else if(drag.type==="ground"){
+    scene.view.groundY=Math.max(100,Math.round(e.clientY/cam.zoom+cam.y));
   }else if(drag.type==="move"){
     const o=drag.tgt.obj;
     o.x=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom);

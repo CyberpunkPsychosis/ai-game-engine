@@ -115,7 +115,7 @@
 <canvas id="stage"></canvas>
 
 <div class="topbar">
-  <div class="title">关卡编辑器·b9</div>
+  <div class="title">关卡编辑器·b10</div>
   <div class="modesw" id="modesw">
     <button data-m="free" class="on">自由摆放</button>
     <button data-m="tile">瓦片铺</button>
@@ -259,12 +259,12 @@
     <button class="btn sm" id="pxCropT">✂ 取块</button>
     <label style="flex:0 0 auto;color:var(--muted)">笔</label>
     <span id="pxBrushRow"><button class="btn sm p" data-pb="1">1</button><button class="btn sm" data-pb="2">2</button><button class="btn sm" data-pb="4">4</button></span>
+    <button class="btn sm" id="pxZoomOut">－</button><span id="pxZoomV" style="font-size:12px;color:var(--muted);min-width:42px;text-align:center"></span><button class="btn sm" id="pxZoomIn">＋</button>
     <button class="btn sm" id="pxUndo">↩ 撤销</button>
   </div>
-  <div style="overflow:auto;max-height:60vh;text-align:center"><canvas id="pxCv"></canvas></div>
-  <div id="pxInfo" style="font-size:12px;color:var(--muted);text-align:center">橡皮:涂掉变透明 · 取块:拖一个像素矩形</div>
+  <div style="overflow:auto;max-height:62vh;text-align:center"><canvas id="pxCv"></canvas></div>
+  <div id="pxInfo" style="font-size:12px;color:var(--muted);text-align:center">橡皮:涂掉变透明(实时改这块) · 取块:拖一个像素矩形当刷子</div>
   <button class="btn p" id="pxGrab" style="width:100%;margin-top:6px">✂ 用框选当瓦片刷</button>
-  <button class="btn" id="pxApply" style="width:100%;margin-top:6px">💾 把擦除结果应用到这块</button>
   <button class="btn" id="pxClose" style="width:100%;margin-top:6px">关闭</button>
 </div>
 
@@ -1157,15 +1157,21 @@ function openPx(ins){
     const buf=document.createElement("canvas"); buf.width=fw; buf.height=fh;
     const bctx=buf.getContext("2d"); bctx.imageSmoothingEnabled=false;
     bctx.drawImage(e.img,d.sx,d.sy,fw,fh,0,0,fw,fh);
-    const maxDisp=Math.min(460,innerWidth-56,innerHeight*0.5);
-    const scale=Math.max(2,Math.floor(maxDisp/Math.max(fw,fh)));
+    const maxDisp=Math.min(640,innerWidth-40);
+    const scale=Math.max(10,Math.min(40,Math.floor(maxDisp/Math.max(fw,fh))));  // 像素够大看得清
+    pushUndo();                                                 // 进编辑前存档,主Ctrl+Z可整体回退
     pxState={ins,buf,bctx,fw,fh,scale,tool:"erase",brushSize:1,sel:null,drag:null,undo:[]};
-    const cv2=$("pxCv"); cv2.width=fw*scale; cv2.height=fh*scale;
     $("pxErase").classList.add("p");$("pxCropT").classList.remove("p");
-    renderPx(); openPanel("pxPanel");
+    pxApplyScale(); openPanel("pxPanel");
   };
   if(e.loaded)go(); else e.img.addEventListener("load",go,{once:true});
 }
+function pxApplyScale(){
+  const cv2=$("pxCv"); cv2.width=pxState.fw*pxState.scale; cv2.height=pxState.fh*pxState.scale;
+  $("pxZoomV").textContent=pxState.scale+"×";
+  renderPx();
+}
+function pxCommit(){ if(!pxState)return; pxState.ins.src=pxState.buf.toDataURL("image/png"); pxState.ins.crop=null; saveLocal(); } // 实时写回这块
 function renderPx(){
   if(!pxState)return;
   const {buf,scale,fw,fh}=pxState, cv2=$("pxCv"), c=cv2.getContext("2d");
@@ -1192,16 +1198,15 @@ function pxEraseAt(x,y){const bs=pxState.brushSize,o=bs>>1;pxState.bctx.clearRec
     if(pxState.drag.erase){pxEraseAt(x,y);renderPx();}
     else{const d=pxState.drag;pxState.sel=[Math.min(d.x,x),Math.min(d.y,y),Math.abs(x-d.x)+1,Math.abs(y-d.y)+1];
       $("pxInfo").textContent="选区 "+pxState.sel[2]+"×"+pxState.sel[3]+" px";renderPx();}});
-  cv2.addEventListener("pointerup",()=>{if(pxState)pxState.drag=null;});
+  cv2.addEventListener("pointerup",()=>{if(!pxState)return;const wasErase=pxState.drag&&pxState.drag.erase;pxState.drag=null;if(wasErase)pxCommit();}); // 松手即写回这块
 })();
 $("pxErase").onclick=()=>{pxState.tool="erase";$("pxErase").classList.add("p");$("pxCropT").classList.remove("p");};
 $("pxCropT").onclick=()=>{pxState.tool="crop";$("pxCropT").classList.add("p");$("pxErase").classList.remove("p");};
 $("pxBrushRow").addEventListener("click",e=>{const b=e.target.dataset.pb;if(!b)return;pxState.brushSize=+b;
   document.querySelectorAll("#pxBrushRow [data-pb]").forEach(x=>x.classList.toggle("p",+x.dataset.pb===pxState.brushSize));});
-$("pxUndo").onclick=()=>{if(pxState&&pxState.undo.length){pxState.bctx.putImageData(pxState.undo.pop(),0,0);renderPx();}};
-$("pxApply").onclick=()=>{ if(!pxState)return;
-  pushUndo(); pxState.ins.src=pxState.buf.toDataURL("image/png"); pxState.ins.crop=null;
-  saveLocal(); closePanels(); showHint("已把像素擦除应用到这块"); };
+$("pxUndo").onclick=()=>{if(pxState&&pxState.undo.length){pxState.bctx.putImageData(pxState.undo.pop(),0,0);renderPx();pxCommit();}};
+$("pxZoomIn").onclick=()=>{if(!pxState)return;pxState.scale=Math.min(60,pxState.scale+2);pxApplyScale();};
+$("pxZoomOut").onclick=()=>{if(!pxState)return;pxState.scale=Math.max(2,pxState.scale-2);pxApplyScale();};
 $("pxGrab").onclick=()=>{ if(!pxState||!pxState.sel||pxState.sel[2]<1){showHint("先用✂取块在图上框一块");return;}
   const[a,b,wd,ht]=pxState.sel; const sub=document.createElement("canvas");sub.width=wd;sub.height=ht;
   const sc=sub.getContext("2d");sc.imageSmoothingEnabled=false;sc.drawImage(pxState.buf,a,b,wd,ht,0,0,wd,ht);

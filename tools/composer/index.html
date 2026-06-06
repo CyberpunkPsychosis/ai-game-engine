@@ -508,26 +508,17 @@ function draw(){
 
   requestAnimationFrame(draw);
 }
-const SHEET_TITLE=22;
 function sheetRect(){
   if(!sheet)return null;
   const p=parallaxOf(curLayer), sc=tileScale*cam.zoom;
   const [x,y]=worldToScreen(sheet.wx,sheet.wy,p);
-  return {x,y,sc,iw:sheet.img.naturalWidth*sc, ih:sheet.img.naturalHeight*sc, title:SHEET_TITLE};
+  return {x,y,sc,iw:sheet.img.naturalWidth*sc, ih:sheet.img.naturalHeight*sc};
 }
 function drawSheet(){
   const r=sheetRect(), sc=r.sc;
   ctx.save();
-  // 标题条
-  ctx.fillStyle="rgba(12,16,22,.95)";ctx.fillRect(r.x-3,r.y-r.title,r.iw+6,r.title);
-  ctx.fillStyle="#bfe9f0";ctx.font="bold 11px sans-serif";ctx.textBaseline="middle";ctx.textAlign="left";
-  ctx.fillText("取块·"+sheet.file.replace(".png","")+" （点格拿来铺·拖移动）",r.x+2,r.y-r.title/2);
-  ctx.textAlign="right";
-  ctx.fillStyle="#ffd24a";ctx.fillText("★全存",r.x+r.iw-22,r.y-r.title/2);
-  ctx.fillStyle="#ff6b6b";ctx.fillText("✕",r.x+r.iw-2,r.y-r.title/2);ctx.textAlign="left";
-  // 背板+图
-  ctx.fillStyle="rgba(8,10,16,.96)";ctx.fillRect(r.x-3,r.y,r.iw+6,r.ih+3);
-  ctx.imageSmoothingEnabled=false;ctx.drawImage(sheet.img,r.x,r.y,r.iw,r.ih);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(sheet.img,r.x,r.y,r.iw,r.ih);
   // 网格
   const g=gridBase*sc;
   ctx.strokeStyle="rgba(255,210,74,.7)";ctx.lineWidth=1;
@@ -537,6 +528,12 @@ function drawSheet(){
   if(sheet.sel){const[a,b,wd,ht]=sheet.sel;
     ctx.fillStyle="rgba(92,192,204,.3)";ctx.fillRect(r.x+a*sc,r.y+b*sc,wd*sc,ht*sc);
     ctx.strokeStyle="#5cc0cc";ctx.lineWidth=2;ctx.strokeRect(r.x+a*sc,r.y+b*sc,wd*sc,ht*sc);}
+  // 外框 + 两个小角标(★全存 / ✕关闭),无标题栏
+  ctx.strokeStyle="rgba(92,192,204,.9)";ctx.lineWidth=2;ctx.strokeRect(r.x,r.y,r.iw,r.ih);
+  ctx.font="bold 13px sans-serif";ctx.textBaseline="middle";ctx.textAlign="center";
+  ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(r.x,r.y,20,18);ctx.fillStyle="#ffd24a";ctx.fillText("★",r.x+10,r.y+9);
+  ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(r.x+r.iw-20,r.y,20,18);ctx.fillStyle="#ff6b6b";ctx.fillText("✕",r.x+r.iw-10,r.y+9);
+  ctx.textAlign="left";
   ctx.restore();
 }
 let hoverCell=null;
@@ -613,17 +610,16 @@ cv.addEventListener("pointerdown",e=>{
     scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
     return;
   }
-  // 取块板:命中标题(移动/全存/关闭)或图面(点格取块)
+  // 取块板:角标(★全存/✕关闭) · 点格取块 · 拖动整体移动
   if(placeMode==="tile" && sheet && mode==="edit"){
     const r=sheetRect();
-    if(sx>=r.x-3 && sx<=r.x+r.iw+3 && sy>=r.y-r.title && sy<r.y){          // 标题条
-      if(sx>=r.x+r.iw-12){ sheet=null; return; }                          // ✕
-      if(sx>=r.x+r.iw-52 && sx<r.x+r.iw-12){ sheetSaveAll(); return; }     // ★全存
-      drag={type:"sheetmove",ox:sheet.wx,oy:sheet.wy,sx,sy}; return;       // 拖动移动(世界坐标)
+    if(sy>=r.y && sy<=r.y+18){
+      if(sx>=r.x && sx<=r.x+20){ sheetSaveAll(); return; }                 // ★全存
+      if(sx>=r.x+r.iw-20 && sx<=r.x+r.iw){ sheet=null; return; }           // ✕
     }
-    if(sx>=r.x && sx<=r.x+r.iw && sy>=r.y && sy<=r.y+r.ih){                // 图面:取块
+    if(sx>=r.x && sx<=r.x+r.iw && sy>=r.y && sy<=r.y+r.ih){
       if(e.button===2)return;                                             // 右键在板上不误擦
-      sheetPickAt(sx,sy,sx,sy); drag={type:"sheetpick",sx,sy}; return;
+      drag={type:"sheetpt",sx,sy,ox:sheet.wx,oy:sheet.wy,moved:false}; return; // 轻点=取格,拖=移动
     }
   }
   // 瓦片模式：单指 = 铺/擦；(双指走上面的缩放分支)
@@ -671,8 +667,11 @@ cv.addEventListener("pointermove",e=>{
   if(!ptrs.has(e.pointerId))return;
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(placeMode==="tile"&&brush&&mode==="edit") hoverCell=cellAt(e.clientX,e.clientY);
-  if(drag&&drag.type==="sheetmove"){ sheet.wx=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom); sheet.wy=Math.round(drag.oy+(e.clientY-drag.sy)/cam.zoom); return; }
-  if(drag&&drag.type==="sheetpick"){ sheetPickAt(drag.sx,drag.sy,e.clientX,e.clientY); return; }
+  if(drag&&drag.type==="sheetpt"){
+    if(!drag.moved&&Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)>6)drag.moved=true;
+    if(drag.moved){ sheet.wx=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom); sheet.wy=Math.round(drag.oy+(e.clientY-drag.sy)/cam.zoom); }
+    return;
+  }
   if(painting&&drag&&drag.type==="tile"&&ptrs.size<2){ stampTile(e.clientX,e.clientY,drag.erase); return; }
   if(pinch&&ptrs.size>=2){
     const pts=[...ptrs.values()];
@@ -706,11 +705,11 @@ cv.addEventListener("pointermove",e=>{
 });
 function endPtr(e){
   clearTimeout(lpTimer);
-  if(drag&&drag.type==="sheetpick"){   // 松手=把选中的格当刷子
-    if(sheet&&sheet.sel&&sheet.sel[2]>=2){brush={asset:sheet.file,crop:sheet.sel.slice(),w:sheet.sel[2],h:sheet.sel[3]};
-      updateBrushChip();showHint("已取 "+sheet.sel[2]+"×"+sheet.sel[3]+"：左键铺·右键擦");}
+  if(drag&&drag.type==="sheetpt"){     // 轻点=取这格当刷子;拖过=只是移动了板子
+    if(!drag.moved){ sheetPickAt(drag.sx,drag.sy,drag.sx,drag.sy);
+      if(sheet&&sheet.sel&&sheet.sel[2]>=2){brush={asset:sheet.file,crop:sheet.sel.slice(),w:sheet.sel[2],h:sheet.sel[3]};
+        updateBrushChip();showHint("已取 "+sheet.sel[2]+"×"+sheet.sel[3]+"：左键铺·右键擦");}}
     ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
-  if(drag&&drag.type==="sheetmove"){ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
   if(drag&&drag.type==="tile"){painting=false;lastCell=null;ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
   // 轻点(未长按未划动) = 选中
   if(drag&&drag.type==="pending"){
@@ -764,6 +763,19 @@ function showSheet(file){
       wx:Math.round(wcx-e.img.naturalWidth*tileScale/2),
       wy:Math.round(wcy-e.img.naturalHeight*tileScale/2), sel:null};
     showHint("取块板已放到画布：点格=拿来铺，拖标题移动，✕关闭");
+  };
+  if(e.loaded)setup(); else e.img.addEventListener("load",setup,{once:true});
+}
+// 拖拽落点版:放到松手处的世界坐标
+function showSheetAt(file,cx,cy){
+  const e=getImg(ASSET_BASE+file);
+  const setup=()=>{
+    const p=parallaxOf(curLayer);
+    const [wx,wy]=screenToWorld(cx,cy,p);
+    sheet={file,img:e.img,
+      wx:Math.round(wx-e.img.naturalWidth*tileScale/2),
+      wy:Math.round(wy-e.img.naturalHeight*tileScale/2), sel:null};
+    showHint("拖到画布了：点格=拿来铺");
   };
   if(e.loaded)setup(); else e.img.addEventListener("load",setup,{once:true});
 }
@@ -930,12 +942,35 @@ function buildPieces(){
       const im=document.createElement("img");im.src=ASSET_BASE+it.file;im.loading="lazy";
       d.appendChild(im);
       if(it.kind==="tile"){d.classList.add("tilekind");const tg=document.createElement("span");tg.className="tag";tg.textContent="瓦片";d.appendChild(tg);}
-      d.onclick=()=>{
-        if(placeMode==="tile") showSheet(it.file);   // 瓦片模式:把它贴到画布当取块板
-        else addPiece(it);
-      };
+      d.onclick=()=>{ if(placeMode!=="tile") addPiece(it); };   // 自由摆放:点=放
+      bindPieceDrag(d,it.file);                                  // 瓦片模式:拖到画布=取块板
     }
     el.appendChild(d);
+    return;
+  });
+  return;
+}
+// 瓦片模式下,把底部素材"拖拽"到画布 → 落点出现取块板;轻点=放到中间
+function bindPieceDrag(el,file){
+  el.addEventListener("pointerdown",e=>{
+    if(placeMode!=="tile")return;
+    e.preventDefault();
+    const start={x:e.clientX,y:e.clientY}; let moved=false,ghost=null;
+    const move=ev=>{
+      if(!moved&&Math.hypot(ev.clientX-start.x,ev.clientY-start.y)>8){moved=true;
+        ghost=document.createElement("img");ghost.src=ASSET_BASE+file;
+        ghost.style.cssText="position:fixed;pointer-events:none;opacity:.85;width:54px;height:54px;z-index:99;image-rendering:pixelated;";
+        document.body.appendChild(ghost);}
+      if(ghost){ghost.style.left=(ev.clientX-27)+"px";ghost.style.top=(ev.clientY-27)+"px";}
+    };
+    const up=ev=>{
+      window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",up);
+      if(ghost)ghost.remove();
+      const palTop=$("palette").getBoundingClientRect().top;
+      if(moved && ev.clientY<palTop-4) showSheetAt(file,ev.clientX,ev.clientY); // 拖到画布上松手
+      else if(!moved) showSheet(file);                                          // 轻点=放中间
+    };
+    window.addEventListener("pointermove",move);window.addEventListener("pointerup",up);
   });
 }
 function placeAt(){return screenToWorld(innerWidth/2,innerHeight/2,parallaxOf(curLayer));}

@@ -41,6 +41,7 @@ func _setup() -> void:
 func tunables() -> Array:
 	return [
 		{"name": "parry_window", "label": "弹反窗口s", "min": 0.04, "max": 0.5,  "step": 0.01},
+		{"name": "parry_damage", "label": "弹反伤害",  "min": 0.0,  "max": 40.0, "step": 1.0},
 		{"name": "dodge_time",   "label": "闪避无敌s", "min": 0.1,  "max": 0.5,  "step": 0.01},
 		{"name": "attack_reach", "label": "主角刀长",  "min": 20.0, "max": 80.0, "step": 1.0},
 	]

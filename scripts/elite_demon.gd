@@ -107,15 +107,6 @@ func _gather_intent(delta: float) -> void:
 			FX.screen_flash(Color(1, 0.35, 0.15), 0.6, 0.28)
 			Juice.shake(12.0)
 			FX.flash(sprite, 0.18, Color(2.0, 1.4, 0.7))
-	# 生气：全身红光一直闪
-	if sprite:
-		if _angry:
-			# 持续发烫发光(modulate 超过1)，再叠点脉动 → 红身上也明显"暴怒"
-			var p := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.022)
-			sprite.modulate = Color(1.5, 0.85, 0.4).lerp(Color(1.95, 1.3, 0.6), p)
-		elif sprite.modulate != Color.WHITE and _flinch_t <= 0.0 and not guard_broken:
-			sprite.modulate = Color.WHITE
-
 	# 向后大跳脱离(腾空中持续，头一直盯着玩家)
 	if _hopping:
 		facing = 1 if dx >= 0.0 else -1

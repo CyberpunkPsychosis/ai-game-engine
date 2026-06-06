@@ -145,6 +145,7 @@
   <button class="btn sm" data-a="rotL">↺</button>
   <button class="btn sm" data-a="rotR">↻</button>
   <button class="btn sm" data-a="flip">翻转</button>
+  <button class="btn sm p" data-a="fill">铺满可视区</button>
   <button class="btn sm" data-a="layer">层↔</button>
   <button class="btn sm" data-a="front">置顶</button>
   <button class="btn sm" data-a="back">置底</button>
@@ -260,7 +261,7 @@ function blankScene(){
     world:{width:4000,height:h},
     // 玩家相机：纵向可视高度 h，groundY=可视区底部(地面线)
     view:{h:Math.round(h*0.72), groundY:h-100},
-    background:{top:"#0c3340",bottom:"#0e5a63",fog:"#0e5a63",fogA:0.25,fireflies:40},
+    background:{top:"#0a1018",bottom:"#10202c",fog:"#10202c",fogA:0.12,fireflies:0},
     instances:[], markers:[]
   };
 }
@@ -521,7 +522,9 @@ cv.addEventListener("pointerdown",e=>{
   const hb=handleScreen();
   if(hb && Math.hypot(sx-hb[0],sy-hb[1])<28){
     const ins=curIns();
-    drag={type:"resize",ins,cx:hb[2],cy:hb[3],startScale:ins.scale,startDist:Math.max(10,Math.hypot(sx-hb[2],sy-hb[3]))};
+    const sd=srcDims(ins);
+    const bottom=ins.y+sd.fh*ins.scale/2;          // 记录底边世界坐标(缩放时保持不动)
+    drag={type:"resize",ins,fh:sd.fh,bottom,cx:hb[2],cy:hb[3],startScale:ins.scale,startDist:Math.max(10,Math.hypot(sx-hb[2],sy-hb[3]))};
     return;
   }
   // 点中物件/标记 = 直接选中(还能马上拖动)；点空白 = 取消选中并可平移
@@ -568,6 +571,7 @@ cv.addEventListener("pointermove",e=>{
   }else if(drag.type==="resize"){
     const d=Math.hypot(e.clientX-drag.cx,e.clientY-drag.cy);
     drag.ins.scale=Math.max(0.05,Math.min(12, +(drag.startScale*d/drag.startDist).toFixed(3)));
+    drag.ins.y=Math.round(drag.bottom-drag.fh*drag.ins.scale/2);   // 底边固定,向上长
   }
 });
 function endPtr(e){
@@ -594,6 +598,24 @@ cv.addEventListener("wheel",e=>{
   cam.zoom=nz;cam.x=wx-e.clientX/nz;cam.y=wy-e.clientY/nz;
 },{passive:false});
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+// 一键铺满可视区：缩放+定位让这张图盖满"画面上下边"之间的整块(cover)，并居中
+function fillToView(ins){
+  const d=srcDims(ins); if(d.e&&!d.e.loaded&&!ins.anim){showHint("图还没加载好，再点一次");return;}
+  const p=parallaxOf(ins.layer);
+  // 可视区在屏幕上的矩形（两条青色虚线之间，宽=整屏）
+  const syTop=(scene.view.groundY-scene.view.h-cam.y)*cam.zoom;
+  const syBot=(scene.view.groundY-cam.y)*cam.zoom;
+  const rectW=innerWidth, rectH=Math.max(1,syBot-syTop);
+  // 让图的屏幕尺寸 >= 该矩形(取较大比例=cover)，留 4% 余量
+  const sc=1.04*Math.max(rectW/(d.fw*cam.zoom), rectH/(d.fh*cam.zoom));
+  ins.scale=+sc.toFixed(3);
+  // 图中心对到矩形中心(屏幕)，再换算回该图层的世界坐标
+  const cxScreen=innerWidth/2, cyScreen=(syTop+syBot)/2;
+  ins.x=Math.round(cxScreen/cam.zoom+cam.x*p);
+  ins.y=Math.round(cyScreen/cam.zoom+cam.y*p);
+  showHint("已铺满可视区；若想横向接长，可换「瓦片铺」用背景平铺");
+}
 
 //==================== 瓦片格子 ====================
 function brushCell(){ // 当前刷的格子尺寸(世界单位)
@@ -658,6 +680,7 @@ $("actions").addEventListener("click",e=>{
   if(a==="rotL")ins.rot=(ins.rot||0)-5;
   if(a==="rotR")ins.rot=(ins.rot||0)+5;
   if(a==="flip")ins.flipX=!ins.flipX;
+  if(a==="fill")fillToView(ins);
   if(a==="layer"){const i=layerIndex(ins.layer);ins.layer=LAYER_DEF[(i+1)%LAYER_DEF.length].id;showHint("图层："+LAYER_DEF.find(l=>l.id===ins.layer).name);}
   if(a==="front")ins.z=Math.max(0,...scene.instances.filter(i=>i.layer===ins.layer).map(i=>i.z||0))+1;
   if(a==="back")ins.z=Math.min(0,...scene.instances.filter(i=>i.layer===ins.layer).map(i=>i.z||0))-1;
@@ -744,21 +767,13 @@ function placeAt(){return screenToWorld(innerWidth/2,innerHeight/2,parallaxOf(cu
 function addPiece(p){
   const [wx]=placeAt();
   const isBg=curCat() && /背景|Background/i.test(curCat().name);
-  let sc, wy, layer=curLayer;
-  if(isBg){
-    const vh=scene.view.h, vw=vh*16/9;            // 玩家可视区(16:9)
-    sc=+Math.max(vw/p.w, vh/p.h).toFixed(3);       // 铺满可视区(cover)
-    wy=scene.view.groundY-vh/2;                    // 视野中心
-    layer="far";                                   // 背景自动进远景层
-    showHint("背景已铺满可视区并放到远景层；拖动微调，拖右下角手柄缩放");
-  }else{
-    const target=innerHeight*0.5/cam.zoom;
-    sc=+Math.min(1.6,target/Math.max(p.w,p.h)).toFixed(3);
-    wy=scene.view.groundY-(p.h*sc)/2;              // 底边落在地面线上
-    showHint("已放到地面线；左右拖摆位置，拖右下角金点缩放");
-  }
-  const o={id:uid(),layer,asset:p.file,x:Math.round(wx),y:Math.round(wy),scale:sc,rot:0,flipX:false,z:0};
+  const layer=isBg?"far":curLayer;                  // 背景自动进远景层
+  const sc0=isBg?1:+Math.min(1.6,(innerHeight*0.5/cam.zoom)/Math.max(p.w,p.h)).toFixed(3);
+  const wy=scene.view.groundY-(p.h*sc0)/2;          // 暂落地面线
+  const o={id:uid(),layer,asset:p.file,x:Math.round(wx),y:Math.round(wy),scale:sc0,rot:0,flipX:false,z:0};
   scene.instances.push(o); sel=o.id; selMarker=null; updateActions();
+  if(isBg){ fillToView(o); showHint("背景已铺满可视区(远景层)；拖动微调，或再点「铺满可视区」"); }
+  else showHint("已放到地面线；左右拖摆位置，拖右下角金点缩放，或点「铺满可视区」");
 }
 function addAnim(clip){
   const c=ANIM[clip];const [wx,wy]=placeAt();

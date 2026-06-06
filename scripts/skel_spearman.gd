@@ -64,6 +64,7 @@ func tunables() -> Array:
 		{"name": "tele_combo_dur","label": "三连预警s",  "min": 0.2,  "max": 1.5,   "step": 0.02},
 		{"name": "pause_dur",     "label": "收招停顿s",  "min": 0.3,  "max": 2.5,   "step": 0.05},
 		{"name": "gap_dur",       "label": "三连间隔s",  "min": 0.05, "max": 0.5,   "step": 0.01},
+		{"name": "parry_flinch",  "label": "被弹硬直s",  "min": 0.2,  "max": 1.5,   "step": 0.05},
 	]
 
 func _gather_intent(delta: float) -> void:

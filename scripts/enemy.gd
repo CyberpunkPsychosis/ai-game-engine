@@ -41,6 +41,7 @@ func tunables() -> Array:
 		{"name": "speed",         "label": "移动速度", "min": 30.0,  "max": 260.0, "step": 5.0},
 		{"name": "feint_chance",  "label": "假动作率", "min": 0.0,   "max": 1.0,   "step": 0.05},
 		{"name": "aggro_range",   "label": "索敌距离", "min": 150.0, "max": 700.0, "step": 10.0},
+		{"name": "parry_flinch",  "label": "被弹硬直s","min": 0.2,   "max": 1.5,   "step": 0.05},
 	]
 
 func _gather_intent(delta: float) -> void:

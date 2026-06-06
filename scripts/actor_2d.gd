@@ -46,7 +46,7 @@ signal died
 @export var can_parry := false         ## 是否能弹反（玩家开）
 @export var parry_window := 0.18       ## 按下弹反后多少秒内算「完美弹反」
 @export var parry_posture_to_attacker := 34.0  ## 完美弹反给对方加的架势
-@export var parry_flinch := 0.35       ## 被弹反者的硬直时长（打断出招+击退）
+@export var parry_flinch := 0.75       ## 被弹反者的硬直时长（打断出招+击退）—— 弹反后能从容反击
 @export_group("战斗 · 格挡")
 @export var can_block := false         ## 是否能格挡（按住）
 @export var block_chip := 0.3          ## 格挡时仍承受的伤害比例（少量掉血）
@@ -449,8 +449,6 @@ func on_hit(hitbox: Hitbox) -> bool:
 		if from_front:
 			_take_hp(hitbox.damage * block_chip)
 			_add_posture(hitbox.posture_damage * block_posture_mult)
-			if attacker and attacker.has_method("on_block_received"):
-				attacker.on_block_received()   # 有的怪挡住也会硬直
 			if attacker is Node2D:
 				velocity.x = signf(global_position.x - (attacker as Node2D).global_position.x) * 90.0
 			_block_feedback(contact)

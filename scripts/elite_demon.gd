@@ -73,6 +73,7 @@ func tunables() -> Array:
 		{"name": "rage_per_dodge",  "label": "闪避涨怒",   "min": 0.1,  "max": 1.0,   "step": 0.02},
 		{"name": "rage_far_rate",   "label": "跑远涨怒/s", "min": 0.0,  "max": 0.6,   "step": 0.02},
 		{"name": "backjump_chance", "label": "大跳概率",   "min": 0.0,  "max": 1.0,   "step": 0.05},
+		{"name": "parry_flinch",    "label": "被弹硬直s",  "min": 0.2,  "max": 1.5,   "step": 0.05},
 	]
 
 func _gather_intent(delta: float) -> void:
@@ -193,21 +194,7 @@ func flinch(push_dir: float) -> void:
 	_hopping = false
 	lock_facing = false
 	if _angry:
-		_flinch_t = parry_flinch * 2.4   # 生气时被弹反 → 硬直更久(好处决)
-	_calm()
-	_st = ST_IDLE
-
-# 被「格挡」(按住挡住)：也给硬直，生气时更久。比弹反短一点(弹反才是满奖励)。
-func on_block_received() -> void:
-	if _dead or _flinch_t > 0.0:
-		return
-	attacking = false
-	hit_active = false
-	if _attack_hitbox:
-		_attack_hitbox.monitorable = false
-	_flinch_t = (0.55 if _angry else 0.28)
-	if sprite and sprite.sprite_frames and sprite.sprite_frames.has_animation("hurt"):
-		sprite.play("hurt")
+		_flinch_t = parry_flinch * 1.8   # 生气时被弹反 → 硬直更久(好处决)
 	_calm()
 	_st = ST_IDLE
 

@@ -114,7 +114,7 @@
 <canvas id="stage"></canvas>
 
 <div class="topbar">
-  <div class="title">关卡编辑器·对齐b4</div>
+  <div class="title">关卡编辑器·对齐b5</div>
   <div class="modesw" id="modesw">
     <button data-m="free" class="on">自由摆放</button>
     <button data-m="tile">瓦片铺</button>
@@ -138,6 +138,7 @@
   <button class="btn sm" id="btnSnap" data-t="snap" style="display:none">按格移</button>
   <button class="btn sm" id="btnErase" data-t="erase">🧹 擦除</button>
   <button class="btn sm" id="btnDbg" data-t="dbg">▦ 描边</button>
+  <button class="btn sm" id="btnDump" data-t="dump">📋 导出选中</button>
   <span style="font-size:11px;color:var(--muted);white-space:nowrap">铺/取/选 · 右键擦 · 双指平移</span>
 </div>
 
@@ -1075,8 +1076,26 @@ $("tilebar").addEventListener("click",e=>{
     showHint(moveSnap?"移动吸附到网格":"移动按像素微调"); }
   if(t==="grid"){cycleGrid();}
   if(t==="dbg"){dbgTiles=!dbgTiles;$("btnDbg").classList.toggle("p",dbgTiles);showHint(dbgTiles?"描边:每块瓦片画出精确像素边框(品红)":"关闭描边");}
+  if(t==="dump"){dumpSel();}
   $("tileScaleV").textContent=tileScale.toFixed(2)+"×";
 });
+// 导出选中瓦片的精确坐标(排查错位用)
+function dumpSel(){
+  if(!selTiles.length){showHint("先切「⬚选」框选要导出的瓦片,再点导出");return;}
+  const env={gridBase,tileScale,gridStepWorld:gridStepWorld(),groundY:scene.view.groundY,
+    cam:{x:cam.x,y:cam.y,zoom:cam.zoom},DPR,layer:curLayer};
+  const tiles=selTiles.map(i=>{
+    const d=srcDims(i),p=parallaxOf(i.layer),hw=d.fw*i.scale/2,DP=DPR;
+    const leftWorld=i.x-hw;
+    const screenL=Math.round((leftWorld-cam.x*p)*cam.zoom*DP)/DP;
+    return {asset:i.asset,crop:i.crop,x:i.x,y:i.y,scale:i.scale,fw:d.fw,fh:d.fh,sx:d.sx,
+      leftWorld:+leftWorld.toFixed(4),screenL:+screenL.toFixed(4)};
+  }).sort((a,b)=>a.x-b.x||a.y-b.y);
+  const out={env,tiles};
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="tiles_debug.json";a.click();
+  showHint("已导出 "+tiles.length+" 块的坐标数据");
+}
 const GRID_STEPS=[16,24,32,48,64];
 function cycleGrid(){
   const i=GRID_STEPS.indexOf(gridBase);

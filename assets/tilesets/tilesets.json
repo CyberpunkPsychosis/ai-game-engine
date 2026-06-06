@@ -1,5 +1,11 @@
 [
   {
+    "name": "无缝地面 Ground(草顶+泥/石·推荐)",
+    "file": "ground.png",
+    "tile": 16,
+    "cols": 6
+  },
+  {
     "name": "灰盒 Greybox(设计草稿)",
     "file": "greybox.png",
     "tile": 16,

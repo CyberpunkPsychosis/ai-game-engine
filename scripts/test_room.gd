@@ -21,12 +21,14 @@ var _demo := false
 var _force_touch := false
 var _archer_only := false
 var _spear_only := false
+var _war_only := false
 var _boss_only := false
 var _boss_show := false
 var _playtest := false        # 试玩演示：有界场地 + 一个一个出怪(先弓骷髅)
 var _wave := 0
 var _wave_busy := false
 var _demo_frames := 0
+var _bot_block_tapped := false   # 演示bot：每次敌人出招只点一下格挡(=弹反，不是按住硬抗)
 var _dead_count := 0
 var _parry_count := 0
 var player: Player
@@ -53,6 +55,9 @@ func _ready() -> void:
 		elif a == "--speardemo":
 			_demo = true
 			_spear_only = true
+		elif a == "--wardemo":
+			_demo = true
+			_war_only = true
 		elif a == "--boss":
 			_boss_only = true
 		elif a == "--bossdemo":
@@ -87,6 +92,8 @@ func _ready() -> void:
 		enemy = _spawn_enemy(SkelArcher.new(), 300.0)
 	elif _spear_only:
 		enemy = _spawn_enemy(SkelSpearman.new(), 200.0)
+	elif _war_only:
+		enemy = _spawn_enemy(SkelWarrior.new(), 220.0)
 	elif _playtest:
 		_spawn_wave()                  # 先出弓骷髅，打完自动换下一个
 	else:
@@ -289,11 +296,11 @@ func _demo_tick(_delta: float) -> void:
 
 	_demo_frames += 1
 	var tgt := _nearest_enemy()
-	if player == null or tgt == null:
+	if player == null or tgt == null or ((_war_only or _spear_only) and tgt.hp <= 0.0):
 		print("DEMO parries=%d" % _parry_count)
 		get_tree().quit()
 		return
-	if _demo_frames > (760 if _spear_only else 2400):
+	if _demo_frames > (760 if (_spear_only or _war_only) else 2400):
 		print("DEMO parries=%d" % _parry_count)
 		get_tree().quit()
 		return
@@ -306,6 +313,8 @@ func _demo_tick(_delta: float) -> void:
 	var do_parry := false
 	var do_dodge := false
 
+	if not tgt.attacking:
+		_bot_block_tapped = false      # 出招结束 → 下次再点一下
 	if tgt.guard_broken or tgt._flinch_t > 0.0:
 		# 抓硬直/破防：贴近砍身体（处决）
 		if dist > 50.0:
@@ -320,8 +329,9 @@ func _demo_tick(_delta: float) -> void:
 		if peril:
 			if fr >= maxi(1, tgt.attack_active_from - 2):
 				do_dodge = true       # 红光危 → 临近命中帧闪(i-frame 盖住)
-		elif fr >= maxi(1, tgt.attack_active_from - 1):
-			do_parry = true           # 普通 → 贴命中帧弹反(窗口收紧到 0.16)
+		elif fr >= maxi(1, tgt.attack_active_from - 1) and not _bot_block_tapped:
+			do_parry = true           # 只点一下=弹反(按住会变成格挡硬抗)
+			_bot_block_tapped = true
 	elif dist > 56.0:
 		go_right = dx > 0.0
 		go_left = dx < 0.0

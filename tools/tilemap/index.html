@@ -18,6 +18,10 @@
   .layers{position:fixed;top:46px;left:0;right:0;height:36px;display:flex;z-index:19;background:rgba(20,25,29,.9);border-bottom:1px solid var(--line);}
   .layers .lt{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--muted);border-right:1px solid var(--line);cursor:pointer;}
   .layers .lt.active{color:var(--ink);background:var(--panel2);box-shadow:inset 0 -2px 0 var(--accent);}
+  #markWrap{flex-wrap:wrap;gap:8px;padding:10px;}
+  .markBtn{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;}
+  .markBtn.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;}
+  .markBtn .dot{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;color:#fff;font-size:13px;font-weight:700;}
   .palette{position:fixed;left:0;right:0;bottom:0;height:170px;max-height:85vh;background:rgba(20,25,29,.97);border-top:1px solid var(--line);z-index:18;display:flex;flex-direction:column;}
   #palHandle{flex:0 0 20px;display:flex;align-items:center;justify-content:center;cursor:row-resize;touch-action:none;}
   #palHandle::before{content:"";width:46px;height:4px;border-radius:3px;background:var(--muted);opacity:.65;}
@@ -59,7 +63,7 @@
 </div>
 
 <div class="hint" id="hint"></div>
-<div class="palette" id="palette"><div id="palHandle" title="上拉/下拉调整高度"></div><div id="palBody"><div id="palEmpty" class="pill">先 ⋯ → 载入瓦片集</div><div id="palCanvasWrap" style="display:none"><canvas id="palCanvas"></canvas></div></div></div>
+<div class="palette" id="palette"><div id="palHandle" title="上拉/下拉调整高度"></div><div id="palBody"><div id="palEmpty" class="pill">先 ⋯ → 载入瓦片集</div><div id="palCanvasWrap" style="display:none"><canvas id="palCanvas"></canvas></div><div id="markWrap" style="display:none"></div></div></div>
 
 <div class="scrim" id="scrim"></div>
 <div class="panel" id="tsPanel">
@@ -78,6 +82,17 @@
 
 <script>
 const LAYERS=[{id:"bg",name:"背景",solid:false},{id:"main",name:"主层(碰撞)",solid:true},{id:"fg",name:"前景",solid:false}];
+// 放置标记类型(主角出生 + 五个怪)。行走路线等以后再加。
+const MARKS=[
+  {id:"player",  name:"主角",      color:"#5cc0cc", short:"主"},
+  {id:"archer",  name:"弓骷髅",    color:"#caa15a", short:"弓"},
+  {id:"spearman",name:"矛骷髅",    color:"#9aa0a6", short:"矛"},
+  {id:"warrior", name:"剑骷髅",    color:"#b06bd0", short:"剑"},
+  {id:"demon",   name:"恶魔史莱姆",color:"#e0533a", short:"魔"},
+  {id:"frost",   name:"霜卫",      color:"#4aa0e0", short:"霜"},
+];
+let marks=new Map();        // "col,row" -> markId
+let curMark="archer";
 const cv=document.getElementById("stage"), ctx=cv.getContext("2d");
 let DPR=Math.min(devicePixelRatio||1,2);
 let ts=null;            // {img, tw, th, cols, rows, name}
@@ -94,7 +109,25 @@ addEventListener("resize",resize);resize();
 function buildLayerTabs(){
   const el=$("layers");el.innerHTML="";
   LAYERS.forEach(l=>{const d=document.createElement("div");d.className="lt"+(l.id===curLayer?" active":"");
-    d.textContent=l.name;d.onclick=()=>{curLayer=l.id;buildLayerTabs();hint("当前层："+l.name);};el.appendChild(d);});
+    d.textContent=l.name;d.onclick=()=>{curLayer=l.id;buildLayerTabs();refreshPalette();hint("当前层："+l.name);};el.appendChild(d);});
+  const d=document.createElement("div");d.className="lt"+("marks"===curLayer?" active":"");
+  d.textContent="🎯标记";d.onclick=()=>{curLayer="marks";buildLayerTabs();refreshPalette();hint("放主角/怪标记(单指放·🧽擦)");};el.appendChild(d);
+}
+// 当前层是标记 → 显示标记按钮调色板；否则显示瓦片集
+function refreshPalette(){
+  const isMark=curLayer==="marks";
+  $("markWrap").style.display=isMark?"flex":"none";
+  $("palCanvasWrap").style.display=(!isMark&&ts)?"inline-block":"none";
+  $("palEmpty").style.display=(!isMark&&!ts)?"block":"none";
+  if(isMark)buildMarkPalette();
+}
+function buildMarkPalette(){
+  const w=$("markWrap");w.innerHTML="";
+  MARKS.forEach(m=>{const b=document.createElement("button");
+    b.className="markBtn"+(m.id===curMark?" on":"");
+    b.innerHTML='<span class="dot" style="background:'+m.color+'">'+m.short+'</span>'+m.name;
+    b.onclick=()=>{curMark=m.id;setMode("paint");buildMarkPalette();};
+    w.appendChild(b);});
 }
 buildLayerTabs();
 
@@ -113,10 +146,10 @@ function draw(){
   const c1=c0+Math.ceil(w/(TW*cam.zoom))+3, r1=r0+Math.ceil(h/(TH*cam.zoom))+3;
   // 网格线
   ctx.strokeStyle="rgba(255,255,255,.06)";ctx.lineWidth=1;
-  for(let c=c0;c<=c1;c++){const x=(c*TW-cam.x)*cam.zoom;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
-  for(let r=r0;r<=r1;r++){const y=(r*TH-cam.y)*cam.zoom;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  for(let c=c0;c<=c1;c++){const x=Math.round((c*TW-cam.x)*cam.zoom)+0.5;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let r=r0;r<=r1;r++){const y=Math.round((r*TH-cam.y)*cam.zoom)+0.5;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
   // 原点
-  const [ox,oy]=[(0-cam.x)*cam.zoom,(0-cam.y)*cam.zoom];
+  const [ox,oy]=[Math.round((0-cam.x)*cam.zoom)+0.5,Math.round((0-cam.y)*cam.zoom)+0.5];
   ctx.strokeStyle="rgba(92,192,204,.5)";ctx.beginPath();ctx.moveTo(ox,0);ctx.lineTo(ox,h);ctx.moveTo(0,oy);ctx.lineTo(w,oy);ctx.stroke();
   // 瓦片(各层)
   if(ts){
@@ -128,22 +161,51 @@ function draw(){
         const [c,r]=key.split(",").map(Number);
         if(c<c0||c>c1||r<r0||r>r1)continue;
         const sx=(idx%ts.cols)*TW, sy=Math.floor(idx/ts.cols)*TH;
-        const dx=(c*TW-cam.x)*cam.zoom, dy=(r*TH-cam.y)*cam.zoom;
-        ctx.drawImage(ts.img, sx,sy,TW,TH, dx,dy, TW*cam.zoom, TH*cam.zoom);
+        // 取整对齐：相邻格用同一条整数边界，消掉缩放时的 1px 缝/重叠
+        const dx=Math.round((c*TW-cam.x)*cam.zoom), dy=Math.round((r*TH-cam.y)*cam.zoom);
+        const dw=Math.round(((c+1)*TW-cam.x)*cam.zoom)-dx, dh=Math.round(((r+1)*TH-cam.y)*cam.zoom)-dy;
+        ctx.drawImage(ts.img, sx,sy,TW,TH, dx,dy, dw,dh);
       }
     }
     ctx.globalAlpha=1;
   }
+  drawMarks(TW,TH,c0,r0,c1,r1);
   requestAnimationFrame(draw);
+}
+// 画放置标记(圆点+字)。标记层非当前层时半透明。
+function drawMarks(TW,TH,c0,r0,c1,r1){
+  if(marks.size===0)return;
+  ctx.globalAlpha=(curLayer==="marks")?1:0.55;
+  for(const [key,mid] of marks){
+    const a=key.split(",");const c=+a[0],r=+a[1];
+    if(c<c0||c>c1||r<r0||r>r1)continue;
+    const m=MARKS.find(x=>x.id===mid)||MARKS[0];
+    const s=TW*cam.zoom;
+    const cx=(c*TW-cam.x)*cam.zoom+s/2, cy=(r*TH-cam.y)*cam.zoom+s/2;
+    const rad=Math.max(7,s*0.42);
+    ctx.beginPath();ctx.arc(cx,cy,rad,0,Math.PI*2);
+    ctx.fillStyle=m.color;ctx.fill();
+    ctx.lineWidth=2;ctx.strokeStyle="rgba(0,0,0,.55)";ctx.stroke();
+    ctx.fillStyle="#fff";ctx.font="bold "+Math.max(10,rad*1.1)+"px sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(m.short,cx,cy+1);
+  }
+  ctx.globalAlpha=1;
 }
 requestAnimationFrame(draw);
 
 // ---- 绘制操作 ----
 let _undo=null;   // 本次手势第一格的撤销信息(双指缩放时回退误画)
 function paintAt(sx,sy){
-  if(!ts)return;
   const [c,r]=cellAt(sx,sy);
-  const map=layers[curLayer]; const key=c+","+r;
+  const key=c+","+r;
+  if(curLayer==="marks"){   // 放/擦标记(不需要瓦片集)
+    if(_undo===null) _undo={map:marks,key,prev:marks.has(key)?marks.get(key):undefined};
+    if(mode==="erase") marks.delete(key);
+    else if(mode==="paint") marks.set(key,curMark);
+    return;
+  }
+  if(!ts)return;
+  const map=layers[curLayer];
   if(_undo===null) _undo={map,key,prev:map.has(key)?map.get(key):undefined};
   if(mode==="erase") map.delete(key);
   else if(mode==="paint" && curTile>=0) map.set(key, curTile);
@@ -277,7 +339,7 @@ function drawPalette(SC){
 }
 
 // ---- 清空/导入导出 ----
-$("mClear").onclick=()=>{if(confirm("清空当前层？")){layers[curLayer].clear();}closeMenu();};
+$("mClear").onclick=()=>{if(confirm("清空当前层？")){if(curLayer==="marks")marks.clear();else layers[curLayer].clear();}closeMenu();};
 function allBounds(){
   let minc=Infinity,minr=Infinity,maxc=-Infinity,maxr=-Infinity,any=false;
   for(const l of LAYERS)for(const k of layers[l.id].keys()){const a=k.split(",");const c=+a[0],r=+a[1];
@@ -300,8 +362,13 @@ $("mFit").onclick=()=>{closeMenu();const b=allBounds();const TW=tw(),TH=th();
   cam.zoom=z; cam.x=x0+w/2-(innerWidth/2)/z; cam.y=y0+h/2-(innerHeight*0.42)/z;
   hint("看全局："+(b.maxc-b.minc+1)+"×"+(b.maxr-b.minr+1)+" 格");};
 $("mHome").onclick=()=>{closeMenu();cam={x:-40,y:-40,zoom:2};hint("回到原点");};
+function marksOut(){
+  const TW=tw(),TH=th();
+  return Array.from(marks,([k,mid])=>{const a=k.split(",");const c=+a[0],r=+a[1];
+    return {type:mid,col:c,row:r,x:c*TW+TW/2,y:(r+1)*TH};});  // x=格中心 y=格底(脚下)
+}
 $("mExport").onclick=()=>{
-  if(!ts){hint("先载入瓦片集");return;}
+  if(!ts && marks.size===0){hint("先载入瓦片集");return;}
   // 计算世界范围
   let minc=Infinity,minr=Infinity,maxc=-Infinity,maxr=-Infinity;
   for(const l of LAYERS)for(const k of layers[l.id].keys()){const [c,r]=k.split(",").map(Number);minc=Math.min(minc,c);minr=Math.min(minr,r);maxc=Math.max(maxc,c);maxr=Math.max(maxr,r);}
@@ -310,7 +377,8 @@ $("mExport").onclick=()=>{
     tileset:{image:ts.name,tile_w:ts.tw,tile_h:ts.th,columns:ts.cols},
     grid:{tile_w:ts.tw,tile_h:ts.th},
     bounds:{col0:minc,row0:minr,cols:maxc-minc+1,rows:maxr-minr+1},
-    layers:LAYERS.map(l=>({name:l.id,solid:l.solid,tiles:Object.fromEntries(layers[l.id])}))};
+    layers:LAYERS.map(l=>({name:l.id,solid:l.solid,tiles:Object.fromEntries(layers[l.id])})),
+    markers:marksOut()};
   const blob=new Blob([JSON.stringify(out)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="tilemap.json";a.click();closeMenu();
 };
@@ -319,6 +387,7 @@ $("fileIn").onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
   try{const d=JSON.parse(await f.text());
     LAYERS.forEach(l=>layers[l.id]=new Map(Object.entries((d.layers.find(x=>x.name===l.id)||{tiles:{}}).tiles)));
+    marks=new Map();(d.markers||[]).forEach(m=>marks.set(m.col+","+m.row,m.type));
     hint("已导入(注意:还需重新载入对应瓦片集图片)");
   }catch(err){hint("JSON 解析失败");}
 };

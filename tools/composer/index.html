@@ -114,7 +114,7 @@
 <canvas id="stage"></canvas>
 
 <div class="topbar">
-  <div class="title">关卡编辑器·对齐b5</div>
+  <div class="title">关卡编辑器·对齐b6</div>
   <div class="modesw" id="modesw">
     <button data-m="free" class="on">自由摆放</button>
     <button data-m="tile">瓦片铺</button>
@@ -390,7 +390,8 @@ function draw(){
       const d=srcDims(ins);e=d.e;fw=d.fw;fh=d.fh;srcx=d.sx;srcy=d.sy;
     }
     const iw=fw*ins.scale*cam.zoom, ih=fh*ins.scale*cam.zoom;
-    const rot=(ins.rot||0), bl=ins.tile?1:0;
+    // 边已对齐到设备像素,相邻瓦片本就严丝合缝,无需"溢出"(溢出会因图大小不同把内容推偏→错位)
+    const rot=(ins.rot||0), bl=0;
     ctx.save();
     ctx.globalAlpha=ins.opacity==null?1:ins.opacity;
     if(rot===0){

@@ -530,6 +530,13 @@ cv.addEventListener("pointerdown",e=>{
   // 点中物件/标记 = 直接选中(还能马上拖动)；点空白 = 取消选中并可平移
   const m=hitMarker(sx,sy);
   const ins=m?null:hitInstance(sx,sy);
+  // 只能编辑"当前层"的零件：点到别层的零件 → 提示先切层，不误拖
+  if(ins && ins.layer!==curLayer){
+    showHint("这个在「"+(LAYER_DEF.find(l=>l.id===ins.layer)||{}).name+"」层，先点上方该层标签再选/拖");
+    drag={type:"pan",camx:cam.x,camy:cam.y,sx,sy};
+    sel=null;selMarker=null;updateActions();
+    return;
+  }
   if(m||ins){
     if(ins){sel=ins.id;selMarker=null;}else{selMarker=m;sel=null;}
     updateActions();
@@ -695,7 +702,7 @@ function buildLayers(){
     const d=document.createElement("div");
     d.className="lt"+(l.id===curLayer?" active":"");
     d.innerHTML=`${l.name}<small>×${PARALLAX[l.id]}</small>`;
-    d.onclick=()=>{curLayer=l.id;buildLayers();showHint("当前放置层："+l.name);};
+    d.onclick=()=>{curLayer=l.id;sel=null;selMarker=null;updateActions();buildLayers();showHint("当前层："+l.name+"（只能选/拖这一层）");};
     el.appendChild(d);
   });
 }

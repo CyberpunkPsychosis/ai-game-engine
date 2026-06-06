@@ -857,26 +857,26 @@ function loadCropImg(file){
     const maxW=Math.min(360,innerWidth-64);
     const sc=Math.min(maxW/e.img.naturalWidth, 360/e.img.naturalHeight, 6);
     cv2.width=Math.round(e.img.naturalWidth*sc);cv2.height=Math.round(e.img.naturalHeight*sc);
-    cropState={file,img:e.img,scale:sc,sel:null,drag:null,gw:0,gh:0};
+    cropState={file,img:e.img,scale:sc,sel:null,drag:null,gridX:null,gridY:null};
     renderCrop();
-    $("cropInfo").textContent="拖矩形框选；或上面选「等分」后点/拖格子";
+    $("cropInfo").textContent="拖矩形框选；或上面选「等分」后，分割线可拖、点/拖选格子";
   };
   if(e.loaded)draw(); else e.img.addEventListener("load",draw,{once:true});
 }
-// 设等分网格(源像素)；n>0 表示按整图÷n，px>0 表示固定格大小
+// 等分：生成一组分割线(含两端)，之后每条都能拖动 → 可切出不等分格子
 function setCropGrid(mode){
   if(!cropState){showHint("先选一个素材");return;}
   const iw=cropState.img.naturalWidth, ih=cropState.img.naturalHeight;
-  if(mode==="free"){cropState.gw=0;cropState.gh=0;}
-  else if(mode==="custom"){
-    cropState.gw=Math.max(1,+$("spW").value||0);cropState.gh=Math.max(1,+$("spH").value||0);
-  }else if(mode==="16"||mode==="32"){
-    cropState.gw=cropState.gh=+mode;
-  }else{ // ÷N
-    const n=+mode;cropState.gw=Math.round(iw/n);cropState.gh=Math.round(ih/n);
-  }
-  cropState.sel=null;
-  $("cropInfo").textContent=cropState.gw?`等分 ${cropState.gw}×${cropState.gh}px：点/拖选格子`:"自由框选";
+  if(mode==="free"){cropState.gridX=null;cropState.gridY=null;cropState.sel=null;
+    $("cropInfo").textContent="自由框选";renderCrop();return;}
+  let gw,gh;
+  if(mode==="custom"){gw=Math.max(1,+$("spW").value||0);gh=Math.max(1,+$("spH").value||0);}
+  else if(mode==="16"||mode==="32"){gw=gh=+mode;}
+  else{const n=+mode;gw=iw/n;gh=ih/n;}
+  const gx=[];for(let v=0;v<iw-0.5;v+=gw)gx.push(Math.round(v)); gx.push(iw);
+  const gy=[];for(let v=0;v<ih-0.5;v+=gh)gy.push(Math.round(v)); gy.push(ih);
+  cropState.gridX=gx;cropState.gridY=gy;cropState.sel=null;
+  $("cropInfo").textContent="等分完成：拖黄线微调，点/拖格子选块";
   renderCrop();
 }
 function renderCrop(){
@@ -884,11 +884,14 @@ function renderCrop(){
   const cv2=$("cropCv"),c=cv2.getContext("2d"),sc=cropState.scale;
   c.imageSmoothingEnabled=false;c.clearRect(0,0,cv2.width,cv2.height);
   c.drawImage(cropState.img,0,0,cv2.width,cv2.height);
-  // 等分网格线
-  if(cropState.gw>0&&cropState.gh>0){
-    c.strokeStyle="rgba(255,255,255,.25)";c.lineWidth=1;
-    for(let x=0;x<=cropState.img.naturalWidth;x+=cropState.gw){const sx=x*sc;c.beginPath();c.moveTo(sx,0);c.lineTo(sx,cv2.height);c.stroke();}
-    for(let y=0;y<=cropState.img.naturalHeight;y+=cropState.gh){const sy=y*sc;c.beginPath();c.moveTo(0,sy);c.lineTo(cv2.width,sy);c.stroke();}
+  const gx=cropState.gridX,gy=cropState.gridY;
+  if(gx&&gy){
+    for(let i=0;i<gx.length;i++){const x=gx[i]*sc,edge=(i===0||i===gx.length-1);
+      c.strokeStyle=edge?"rgba(255,255,255,.35)":"rgba(255,210,74,.85)";c.lineWidth=edge?1:2;
+      c.beginPath();c.moveTo(x,0);c.lineTo(x,cv2.height);c.stroke();}
+    for(let i=0;i<gy.length;i++){const y=gy[i]*sc,edge=(i===0||i===gy.length-1);
+      c.strokeStyle=edge?"rgba(255,255,255,.35)":"rgba(255,210,74,.85)";c.lineWidth=edge?1:2;
+      c.beginPath();c.moveTo(0,y);c.lineTo(cv2.width,y);c.stroke();}
   }
   if(cropState.sel){const[x,y,w,h]=cropState.sel.map(v=>v*sc);
     c.fillStyle="rgba(92,192,204,.28)";c.fillRect(x,y,w,h);
@@ -899,25 +902,38 @@ function renderCrop(){
   const toImg=(ev)=>{const r=cv2.getBoundingClientRect();
     return [Math.max(0,Math.min(cv2.width,(ev.clientX-r.left)*cv2.width/r.width))/cropState.scale,
             Math.max(0,Math.min(cv2.height,(ev.clientY-r.top)*cv2.height/r.height))/cropState.scale];};
-  // 等分时按格子吸附，得到整格选区
+  const cellIdx=(arr,v)=>{for(let i=0;i<arr.length-1;i++)if(v>=arr[i]&&v<arr[i+1])return i;return arr.length-2;};
   function selFrom(ax,ay,bx,by){
-    const iw=cropState.img.naturalWidth, ih=cropState.img.naturalHeight;
-    if(cropState.gw>0&&cropState.gh>0){
-      const gw=cropState.gw,gh=cropState.gh;
-      let c0=Math.floor(Math.min(ax,bx)/gw), c1=Math.floor(Math.max(ax,bx)/gw);
-      let r0=Math.floor(Math.min(ay,by)/gh), r1=Math.floor(Math.max(ay,by)/gh);
-      const x=c0*gw, y=r0*gh, w=Math.min(iw,(c1+1)*gw)-x, h=Math.min(ih,(r1+1)*gh)-y;
-      return [x,y,w,h];
+    const gx=cropState.gridX,gy=cropState.gridY;
+    if(gx&&gy){
+      const c0=cellIdx(gx,Math.min(ax,bx)),c1=cellIdx(gx,Math.max(ax,bx));
+      const r0=cellIdx(gy,Math.min(ay,by)),r1=cellIdx(gy,Math.max(ay,by));
+      return [gx[c0],gy[r0],gx[c1+1]-gx[c0],gy[r1+1]-gy[r0]];
     }
     return [Math.min(ax,bx),Math.min(ay,by),Math.abs(bx-ax),Math.abs(by-ay)];
   }
-  cv2.addEventListener("pointerdown",ev=>{if(!cropState)return;cv2.setPointerCapture(ev.pointerId);
-    const[x,y]=toImg(ev);cropState.drag={x,y};cropState.sel=selFrom(x,y,x,y);
-    info();renderCrop();});
-  cv2.addEventListener("pointermove",ev=>{if(!cropState||!cropState.drag)return;
-    const[x,y]=toImg(ev);const d=cropState.drag;cropState.sel=selFrom(d.x,d.y,x,y);info();renderCrop();});
-  cv2.addEventListener("pointerup",()=>{if(cropState)cropState.drag=null;});
+  function nearLine(px,py){
+    if(!cropState.gridX)return null;
+    const tol=9/cropState.scale,gx=cropState.gridX,gy=cropState.gridY;
+    for(let i=1;i<gx.length-1;i++)if(Math.abs(px-gx[i])<tol)return {axis:"x",idx:i};
+    for(let i=1;i<gy.length-1;i++)if(Math.abs(py-gy[i])<tol)return {axis:"y",idx:i};
+    return null;
+  }
   function info(){const s=(cropState.sel||[0,0,0,0]).map(Math.round);$("cropInfo").textContent=`选区 ${s[2]}×${s[3]} px`;}
+  cv2.addEventListener("pointerdown",ev=>{if(!cropState)return;cv2.setPointerCapture(ev.pointerId);
+    const[x,y]=toImg(ev);
+    const ln=nearLine(x,y);
+    if(ln){cropState.drag={line:ln};return;}             // 命中分割线 → 拖动它
+    cropState.drag={x,y};cropState.sel=selFrom(x,y,x,y);info();renderCrop();});
+  cv2.addEventListener("pointermove",ev=>{if(!cropState)return;
+    const[x,y]=toImg(ev);
+    if(!cropState.drag){cv2.style.cursor=nearLine(x,y)?(nearLine(x,y).axis==="x"?"ew-resize":"ns-resize"):"crosshair";return;}
+    if(cropState.drag.line){
+      const{axis,idx}=cropState.drag.line, arr=axis==="x"?cropState.gridX:cropState.gridY, v=axis==="x"?x:y;
+      arr[idx]=Math.round(Math.max(arr[idx-1]+2,Math.min(arr[idx+1]-2,v)));renderCrop();return;
+    }
+    const d=cropState.drag;cropState.sel=selFrom(d.x,d.y,x,y);info();renderCrop();});
+  cv2.addEventListener("pointerup",()=>{if(cropState)cropState.drag=null;});
 })();
 document.querySelector("#cropPanel .row").addEventListener("click",e=>{
   const sp=e.target.dataset.sp;if(sp)setCropGrid(sp);

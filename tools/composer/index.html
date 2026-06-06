@@ -90,6 +90,7 @@
   .pc{position:relative;}
   /* 取块面板 */
   #cropPanel canvas{max-width:100%;background:#0d1115;border:1px solid var(--line);border-radius:8px;touch-action:none;display:block;margin:8px auto;}
+  #pxCv{image-rendering:pixelated;background:#15191e;border:1px solid var(--line);border-radius:6px;touch-action:none;display:inline-block;margin:6px auto;cursor:crosshair;}
   /* 右侧刷库竖排 */
   #libDock{position:fixed;top:128px;right:0;bottom:0;width:88px;background:rgba(20,25,29,.97);
     border-left:1px solid var(--line);z-index:22;display:none;flex-direction:column;}
@@ -114,7 +115,7 @@
 <canvas id="stage"></canvas>
 
 <div class="topbar">
-  <div class="title">关卡编辑器·b8</div>
+  <div class="title">关卡编辑器·b9</div>
   <div class="modesw" id="modesw">
     <button data-m="free" class="on">自由摆放</button>
     <button data-m="tile">瓦片铺</button>
@@ -137,6 +138,7 @@
   <button class="btn sm" id="btnAct" data-t="act">🖌 铺</button>
   <button class="btn sm" id="btnSnap" data-t="snap" style="display:none">按格移</button>
   <button class="btn sm" id="btnErase" data-t="erase">🧹 擦除</button>
+  <button class="btn sm" id="btnPx" data-t="px">🔍 像素</button>
   <button class="btn sm" id="btnDbg" data-t="dbg">▦ 描边</button>
   <button class="btn sm" id="btnDump" data-t="dump">📋 导出选中</button>
   <span style="font-size:11px;color:var(--muted);white-space:nowrap">铺/取/选 · 右键擦 · 双指平移</span>
@@ -249,6 +251,23 @@
   <div id="libList"></div>
 </div>
 
+<!-- 像素放大器 -->
+<div class="panel" id="pxPanel" style="width:min(560px,96vw)">
+  <h3>像素放大器</h3>
+  <div class="row" style="flex-wrap:wrap;gap:6px;margin:2px 0">
+    <button class="btn sm p" id="pxErase">🧽 橡皮</button>
+    <button class="btn sm" id="pxCropT">✂ 取块</button>
+    <label style="flex:0 0 auto;color:var(--muted)">笔</label>
+    <span id="pxBrushRow"><button class="btn sm p" data-pb="1">1</button><button class="btn sm" data-pb="2">2</button><button class="btn sm" data-pb="4">4</button></span>
+    <button class="btn sm" id="pxUndo">↩ 撤销</button>
+  </div>
+  <div style="overflow:auto;max-height:60vh;text-align:center"><canvas id="pxCv"></canvas></div>
+  <div id="pxInfo" style="font-size:12px;color:var(--muted);text-align:center">橡皮:涂掉变透明 · 取块:拖一个像素矩形</div>
+  <button class="btn p" id="pxGrab" style="width:100%;margin-top:6px">✂ 用框选当瓦片刷</button>
+  <button class="btn" id="pxApply" style="width:100%;margin-top:6px">💾 把擦除结果应用到这块</button>
+  <button class="btn" id="pxClose" style="width:100%;margin-top:6px">关闭</button>
+</div>
+
 <input type="file" id="fileIn" accept="application/json" style="display:none">
 
 <script>
@@ -332,15 +351,16 @@ function getImg(url){
 }
 
 // 取实例的源图与裁剪信息（支持 crop 取块）
+function imgUrlOf(o){ return o.src ? o.src : ASSET_BASE+o.asset; }   // src=像素编辑后的dataURL优先
 function srcDims(ins){
   if(ins.anim){
     const c=ANIM[ins.anim];
     return {url:ANIM_BASE+c.file, fw:c.fw, fh:c.fh, sx:0, sy:0, sw:c.fw, sh:c.fh, anim:c};
   }
-  const e=getImg(ASSET_BASE+ins.asset);
-  if(ins.crop){const[cx,cy,cw,ch]=ins.crop;return {e,url:ASSET_BASE+ins.asset,fw:cw,fh:ch,sx:cx,sy:cy,sw:cw,sh:ch};}
+  const url=imgUrlOf(ins), e=getImg(url);
+  if(ins.crop && !ins.src){const[cx,cy,cw,ch]=ins.crop;return {e,url,fw:cw,fh:ch,sx:cx,sy:cy,sw:cw,sh:ch};}
   const nw=e.loaded?e.img.naturalWidth:64, nh=e.loaded?e.img.naturalHeight:64;
-  return {e,url:ASSET_BASE+ins.asset,fw:nw,fh:nh,sx:0,sy:0,sw:nw,sh:nh};
+  return {e,url,fw:nw,fh:nh,sx:0,sy:0,sw:nw,sh:nh};
 }
 
 // 世界<->屏幕（按图层视差）
@@ -902,7 +922,7 @@ function stampTile(sx,sy,erase){
   if(lastCell===key) return; lastCell=key;
   const exist=findTileAt(cell);
   if(exist) return;                                    // 同格已有,不重复
-  scene.instances.push({id:uid(),layer:curLayer,asset:brush.asset,
+  scene.instances.push({id:uid(),layer:curLayer,asset:brush.asset||null,src:brush.src||null,
     crop:brush.crop?brush.crop.slice():null,tile:true,
     x:cell.x,y:cell.y,scale:+tileScale.toFixed(3),rot:0,flipX:false,z:0,opacity:1});
 }
@@ -1086,8 +1106,8 @@ function updateBrushChip(){
   const chip=$("brushChip");
   if(!brush){chip.innerHTML='<span style="color:var(--muted)">未选瓦片</span>';return;}
   chip.innerHTML="";
-  const im=document.createElement("img");im.src=ASSET_BASE+brush.asset;chip.appendChild(im);
-  const t=document.createElement("span");t.textContent=brush.crop?"取块":brush.asset.replace(".png","");chip.appendChild(t);
+  const im=document.createElement("img");im.src=imgUrlOf(brush);chip.appendChild(im);
+  const t=document.createElement("span");t.textContent=brush.src?"像素块":brush.crop?"取块":(brush.asset||"").replace(".png","");chip.appendChild(t);
 }
 $("tilebar").addEventListener("click",e=>{
   const t=e.target.dataset.t;if(!t)return;
@@ -1108,6 +1128,7 @@ $("tilebar").addEventListener("click",e=>{
   if(t==="grid"){cycleGrid();}
   if(t==="dbg"){dbgTiles=!dbgTiles;$("btnDbg").classList.toggle("p",dbgTiles);showHint(dbgTiles?"描边:每块瓦片画出精确像素边框(品红)":"关闭描边");}
   if(t==="dump"){dumpSel();}
+  if(t==="px"){ if(selTiles.length>=1)openPx(selTiles[0]); else showHint("先切「⬚选」选中一块,再点🔍像素"); }
   $("tileScaleV").textContent=tileScale.toFixed(2)+"×";
 });
 // 导出选中瓦片的精确坐标(排查错位用)
@@ -1127,6 +1148,68 @@ function dumpSel(){
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="tiles_debug.json";a.click();
   showHint("已导出 "+tiles.length+" 块的坐标数据");
 }
+//==================== 像素放大器 ====================
+let pxState=null; // {ins,buf,bctx,fw,fh,scale,tool,brushSize,sel,drag,undo:[]}
+function openPx(ins){
+  const d=srcDims(ins), e=getImg(d.url);
+  const go=()=>{
+    const fw=d.fw, fh=d.fh;
+    const buf=document.createElement("canvas"); buf.width=fw; buf.height=fh;
+    const bctx=buf.getContext("2d"); bctx.imageSmoothingEnabled=false;
+    bctx.drawImage(e.img,d.sx,d.sy,fw,fh,0,0,fw,fh);
+    const maxDisp=Math.min(460,innerWidth-56,innerHeight*0.5);
+    const scale=Math.max(2,Math.floor(maxDisp/Math.max(fw,fh)));
+    pxState={ins,buf,bctx,fw,fh,scale,tool:"erase",brushSize:1,sel:null,drag:null,undo:[]};
+    const cv2=$("pxCv"); cv2.width=fw*scale; cv2.height=fh*scale;
+    $("pxErase").classList.add("p");$("pxCropT").classList.remove("p");
+    renderPx(); openPanel("pxPanel");
+  };
+  if(e.loaded)go(); else e.img.addEventListener("load",go,{once:true});
+}
+function renderPx(){
+  if(!pxState)return;
+  const {buf,scale,fw,fh}=pxState, cv2=$("pxCv"), c=cv2.getContext("2d");
+  c.imageSmoothingEnabled=false; c.clearRect(0,0,cv2.width,cv2.height);
+  for(let y=0;y<fh;y++)for(let x=0;x<fw;x++){c.fillStyle=((x+y)&1)?"#1a1e23":"#23282e";c.fillRect(x*scale,y*scale,scale,scale);} // 透明棋盘
+  c.drawImage(buf,0,0,fw,fh,0,0,fw*scale,fh*scale);
+  if(scale>=6){c.strokeStyle="rgba(255,255,255,.08)";c.lineWidth=1;
+    for(let x=0;x<=fw;x++){c.beginPath();c.moveTo(x*scale,0);c.lineTo(x*scale,fh*scale);c.stroke();}
+    for(let y=0;y<=fh;y++){c.beginPath();c.moveTo(0,y*scale);c.lineTo(fw*scale,y*scale);c.stroke();}}
+  if(pxState.sel){const[a,b,wd,ht]=pxState.sel;c.fillStyle="rgba(92,192,204,.22)";c.fillRect(a*scale,b*scale,wd*scale,ht*scale);
+    c.strokeStyle="#5cc0cc";c.lineWidth=2;c.strokeRect(a*scale,b*scale,wd*scale,ht*scale);}
+}
+function pxPix(ev){const cv2=$("pxCv"),r=cv2.getBoundingClientRect();
+  return [Math.floor((ev.clientX-r.left)*cv2.width/r.width/pxState.scale),
+          Math.floor((ev.clientY-r.top)*cv2.height/r.height/pxState.scale)];}
+function pxSnap(){pxState.undo.push(pxState.bctx.getImageData(0,0,pxState.fw,pxState.fh));if(pxState.undo.length>40)pxState.undo.shift();}
+function pxEraseAt(x,y){const bs=pxState.brushSize,o=bs>>1;pxState.bctx.clearRect(x-o,y-o,bs,bs);}
+(function bindPx(){const cv2=$("pxCv");
+  cv2.addEventListener("pointerdown",ev=>{if(!pxState)return;cv2.setPointerCapture(ev.pointerId);ev.preventDefault();
+    const[x,y]=pxPix(ev);
+    if(pxState.tool==="erase"){pxSnap();pxState.drag={erase:true};pxEraseAt(x,y);renderPx();}
+    else{pxState.drag={crop:true,x,y};pxState.sel=[x,y,1,1];renderPx();}});
+  cv2.addEventListener("pointermove",ev=>{if(!pxState||!pxState.drag)return;const[x,y]=pxPix(ev);
+    if(pxState.drag.erase){pxEraseAt(x,y);renderPx();}
+    else{const d=pxState.drag;pxState.sel=[Math.min(d.x,x),Math.min(d.y,y),Math.abs(x-d.x)+1,Math.abs(y-d.y)+1];
+      $("pxInfo").textContent="选区 "+pxState.sel[2]+"×"+pxState.sel[3]+" px";renderPx();}});
+  cv2.addEventListener("pointerup",()=>{if(pxState)pxState.drag=null;});
+})();
+$("pxErase").onclick=()=>{pxState.tool="erase";$("pxErase").classList.add("p");$("pxCropT").classList.remove("p");};
+$("pxCropT").onclick=()=>{pxState.tool="crop";$("pxCropT").classList.add("p");$("pxErase").classList.remove("p");};
+$("pxBrushRow").addEventListener("click",e=>{const b=e.target.dataset.pb;if(!b)return;pxState.brushSize=+b;
+  document.querySelectorAll("#pxBrushRow [data-pb]").forEach(x=>x.classList.toggle("p",+x.dataset.pb===pxState.brushSize));});
+$("pxUndo").onclick=()=>{if(pxState&&pxState.undo.length){pxState.bctx.putImageData(pxState.undo.pop(),0,0);renderPx();}};
+$("pxApply").onclick=()=>{ if(!pxState)return;
+  pushUndo(); pxState.ins.src=pxState.buf.toDataURL("image/png"); pxState.ins.crop=null;
+  saveLocal(); closePanels(); showHint("已把像素擦除应用到这块"); };
+$("pxGrab").onclick=()=>{ if(!pxState||!pxState.sel||pxState.sel[2]<1){showHint("先用✂取块在图上框一块");return;}
+  const[a,b,wd,ht]=pxState.sel; const sub=document.createElement("canvas");sub.width=wd;sub.height=ht;
+  const sc=sub.getContext("2d");sc.imageSmoothingEnabled=false;sc.drawImage(pxState.buf,a,b,wd,ht,0,0,wd,ht);
+  brush={asset:pxState.ins.asset||null, src:sub.toDataURL("image/png"), crop:null, w:wd, h:ht};
+  updateBrushChip(); pushRecent(brush); if(placeMode!=="tile")setMode("tile"); closePanels();
+  showHint("已取像素块 "+wd+"×"+ht+"：左键铺"); };
+$("pxClose").onclick=closePanels;
+
 const GRID_STEPS=[16,24,32,48,64];
 function cycleGrid(){
   const i=GRID_STEPS.indexOf(gridBase);
@@ -1229,19 +1312,20 @@ function sameCrop(a,b){return JSON.stringify(a||null)===JSON.stringify(b||null);
 // 每次取块/选刷子自动记入最近(去重移到最前,封顶30)
 function pushRecent(b){
   if(!b)return;
-  let lib=loadLib().filter(x=>!(x.asset===b.asset && sameCrop(x.crop,b.crop)));
+  let lib=loadLib().filter(x=>!((x.src||null)===(b.src||null) && x.asset===b.asset && sameCrop(x.crop,b.crop)));
   const name=b.crop?("块"+b.crop[2]+"×"+b.crop[3]):b.asset.replace(".png","");
-  lib.unshift({id:uid(),name,asset:b.asset,crop:b.crop||null,w:b.w,h:b.h});
+  lib.unshift({id:uid(),name,asset:b.asset||null,src:b.src||null,crop:b.crop||null,w:b.w,h:b.h});
   if(lib.length>30)lib=lib.slice(0,30);
   saveLib(lib);
   if(placeMode==="tile")$("libDock").classList.add("show");
   renderLib();
 }
 function drawBrushThumb(cvT,b){
-  const e=getImg(ASSET_BASE+b.asset);
+  const e=getImg(imgUrlOf(b));
   const paint=()=>{const c=cvT.getContext("2d");c.imageSmoothingEnabled=false;c.clearRect(0,0,64,64);
-    const sx=b.crop?b.crop[0]:0, sy=b.crop?b.crop[1]:0;
-    const sw=b.crop?b.crop[2]:e.img.naturalWidth, sh=b.crop?b.crop[3]:e.img.naturalHeight;
+    const useCrop=b.crop&&!b.src;
+    const sx=useCrop?b.crop[0]:0, sy=useCrop?b.crop[1]:0;
+    const sw=useCrop?b.crop[2]:e.img.naturalWidth, sh=useCrop?b.crop[3]:e.img.naturalHeight;
     const sc=Math.min(60/sw,60/sh), dw=sw*sc, dh=sh*sc;
     c.drawImage(e.img,sx,sy,sw,sh,(64-dw)/2,(64-dh)/2,dw,dh);};
   if(e.loaded)paint(); else e.img.addEventListener("load",paint,{once:true});
@@ -1255,7 +1339,7 @@ function renderLib(){
       (brush&&brush.asset===b.asset&&sameCrop(brush.crop,b.crop)?" cur":"");
     const cvT=document.createElement("canvas");cvT.width=64;cvT.height=64;
     drawBrushThumb(cvT,b);
-    cvT.onclick=()=>{brush={asset:b.asset,crop:b.crop?b.crop.slice():null,w:b.w,h:b.h};
+    cvT.onclick=()=>{brush={asset:b.asset||null,src:b.src||null,crop:b.crop?b.crop.slice():null,w:b.w,h:b.h};
       updateBrushChip();if(placeMode!=="tile")setMode("tile");renderLib();showHint("已选刷子："+b.name);};
     const del=document.createElement("button");del.className="delx";del.textContent="✕";
     del.onclick=(e)=>{e.stopPropagation();saveLib(loadLib().filter(x=>x.id!==b.id));renderLib();};
@@ -1362,7 +1446,7 @@ function normalizeScene(s){
   return {...b,...s,background:{...b.background,...(s.background||{})},
     world, view,
     instances:(s.instances||[]).map(i=>({id:i.id||uid(),layer:i.layer||"play",
-      asset:i.asset,anim:i.anim,fps:i.fps,crop:i.crop||null,tile:!!i.tile,opacity:(i.opacity==null?1:i.opacity),
+      asset:i.asset,src:i.src||null,anim:i.anim,fps:i.fps,crop:i.crop||null,tile:!!i.tile,opacity:(i.opacity==null?1:i.opacity),
       x:i.x||0,y:i.y||0,scale:i.scale||1,rot:i.rot||0,flipX:!!i.flipX,z:i.z||0})),
     markers:s.markers||[]};
 }

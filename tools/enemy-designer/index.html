@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>怪物设计器 · AI Game Engine</title>
+<title>2D 怪物设计器 · AI Game Engine</title>
 <style>
-  :root{--ink:#eae6dd;--muted:#9a958a;--panel:#1d2226;--panel2:#262c31;--line:#333b41;--clay:#cc785c;--accent:#5cc0cc;--sel:#ffd24a;}
+  :root{--ink:#eae6dd;--muted:#9a958a;--panel:#1d2226;--panel2:#262c31;--line:#333b41;--clay:#cc785c;--accent:#5cc0cc;}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;height:100%;background:#11151a;color:var(--ink);
     font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}
@@ -20,12 +20,11 @@
   .col{flex:1 1 380px;min-width:300px;}
   .preview{flex:1 1 340px;min-width:300px;position:sticky;top:60px;}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;}
-  .card h3{margin:0 0 8px;font-size:14px;}
+  .card h3{margin:0 0 8px;font-size:14px;display:flex;align-items:center;gap:8px;}
   .row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px;flex-wrap:wrap;}
-  .row label{flex:0 0 96px;color:var(--muted);}
+  .row label{flex:0 0 92px;color:var(--muted);}
   input[type=text],input[type=number],select{background:var(--panel2);border:1px solid var(--line);
-    color:var(--ink);border-radius:7px;padding:7px;font-size:13px;flex:1;min-width:60px;}
-  input[type=range]{flex:1;}
+    color:var(--ink);border-radius:7px;padding:7px;font-size:13px;flex:1;min-width:56px;}
   input[type=checkbox]{width:18px;height:18px;}
   .atk{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;background:var(--panel2);}
   .atk.sel{outline:2px solid var(--accent);}
@@ -36,18 +35,23 @@
   .tl{height:34px;border-radius:6px;overflow:hidden;display:flex;margin:8px 0;border:1px solid var(--line);position:relative;}
   .tl .seg{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0b1118;white-space:nowrap;}
   .tl .ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 6px #fff;}
-  .hint{font-size:12px;color:var(--muted);}
+  .hint{font-size:12px;color:var(--muted);line-height:1.5;}
   .pill{font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:2px 8px;color:var(--muted);}
   textarea{width:100%;height:120px;background:#0d1115;color:var(--ink);border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:12px;padding:8px;}
   .chk{display:flex;align-items:center;gap:4px;font-size:12px;}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex:1;}
+  .tg{font-size:12px;background:#33403a;border:1px solid #46594f;color:#bfe3d2;border-radius:14px;padding:3px 8px;cursor:pointer;}
+  .tg .x{opacity:.7;margin-left:4px;}
+  .tgsug{font-size:11px;background:var(--panel);border:1px dashed var(--line);color:var(--muted);border-radius:14px;padding:3px 8px;cursor:pointer;}
+  .grp{border-left:2px solid var(--line);padding-left:8px;margin:6px 0;}
 </style>
 </head>
 <body>
 <div class="topbar">
-  <div class="title">🐲 怪物设计器</div>
+  <div class="title">👾 2D 怪物设计器</div>
   <button class="btn sm" id="bNew">新建</button>
   <button class="btn sm" id="bCopy">复制给AI</button>
-  <button class="btn sm" id="bExport">导出spec</button>
+  <button class="btn sm" id="bExport">导出</button>
   <button class="btn sm" id="bImport">导入</button>
   <input type="file" id="fileIn" accept="application/json" style="display:none">
 </div>
@@ -55,8 +59,8 @@
 <div class="wrap">
   <div class="col">
     <div class="card" id="cBasic"><h3>基本</h3></div>
-    <div class="card" id="cAI"><h3>AI · 选招与节奏</h3></div>
-    <div class="card" id="cPhase"><h3>阶段</h3><div id="phaseList"></div><button class="btn sm" id="bAddPhase">＋ 加阶段</button></div>
+    <div class="card" id="cAI"><h3>移动 / AI</h3></div>
+    <div class="card"><h3>阶段 <span class="tag">可选·按血量切换招式或速度</span></h3><div id="phaseList"></div><button class="btn sm" id="bAddPhase">＋ 加阶段</button></div>
     <div class="card"><h3>招式</h3><div id="atkList"></div><button class="btn sm p" id="bAddAtk">＋ 加招式</button></div>
   </div>
   <div class="preview">
@@ -67,34 +71,40 @@
       <div class="row" style="justify-content:center">
         <button class="btn p" id="bPlay">▶ 播放此招</button>
         <button class="btn sm" id="bLoop">循环：关</button>
-        <label class="chk"><input type="checkbox" id="cDash"> 演示移动</label>
       </div>
-      <div class="hint" id="pvInfo"></div>
+      <div class="hint">青=玩家，橙=怪。黄=前摇，红=判定/弹道/范围生效，灰=后摇。</div>
     </div>
-    <div class="card"><h3>spec 文本（可复制/编辑）</h3><textarea id="specOut" spellcheck="false"></textarea></div>
+    <div class="card"><h3>spec 文本（复制/编辑）</h3><textarea id="specOut" spellcheck="false"></textarea></div>
   </div>
 </div>
 
 <script>
 const $=id=>document.getElementById(id);
-const LS="aiengine.enemyDesigner.v1";
+const LS="aiengine.enemyDesigner.v2";
 function uid(){return Math.random().toString(36).slice(2,8);}
 
-function blankAttack(){return {id:uid(),name:"新招式",teleDur:0.5,activeDur:0.18,recovery:0.8,
-  reach:40,hbW:50,hbH:60,hbYOff:0,dmg:12,knockback:160,parryable:true,parryResult:"硬直",move:"none",moveSpeed:300};}
+const ATK_TYPES=[["melee","近战(判定框)"],["projectile","远程(弹道)"],["aoe","范围(圈/地刺)"],["charge","冲撞(身体撞)"],["summon","召唤"]];
+const SUG_TAGS=["可弹反","可打断","不可格挡","击飞","破防","附加中毒","附加减速","无敌帧","穿墙","蓄力可取消"];
+
+function blankAttack(){return {id:uid(),name:"新招式",type:"melee",
+  teleDur:0.5,activeDur:0.18,recovery:0.6, dmg:12,knockback:160,
+  reach:40,hbW:50,hbH:60,hbYOff:0,
+  projCount:1,projSpread:0,projSpeed:320,projSize:10,projLife:2,projHoming:0,
+  aoeRadius:70,aoeDelay:0.1,aoeAtPlayer:true,
+  summonWhat:"小怪",summonCount:2,
+  move:"none",moveSpeed:300, tags:[]};}
 function blankSpec(){return {
-  name:"新怪物",hp:120,parryDeaths:3,bodyW:40,bodyH:70,speed:150,facesLeft:false,
-  selectMode:"random",engageRange:120,keepDistance:0,gapDur:0.6,
-  phases:[{name:"阶段1",trigType:"none",trigVal:50,speedMul:1.0,atks:[]}],
-  attacks:[blankAttack()]
-};}
+  name:"新怪物",perspective:"side",maxHP:120,contactDamage:8,moveSpeed:150,bodyW:40,bodyH:70,flying:false,
+  behavior:"chase",detectRange:300,attackRange:120,keepDistance:0,
+  selectMode:"random",gapDur:0.6,
+  phases:[],
+  attacks:[blankAttack()]};}
 let spec=load()||blankSpec();
 let curAtk=spec.attacks[0]?spec.attacks[0].id:null;
 
 function load(){try{const s=localStorage.getItem(LS);if(s)return JSON.parse(s);}catch(e){}return null;}
 function save(){try{localStorage.setItem(LS,JSON.stringify(spec));}catch(e){}}
 
-// ---- 通用输入控件 ----
 function field(parent,label,obj,key,type,opts){
   opts=opts||{};
   const r=document.createElement("div");r.className="row";
@@ -102,49 +112,68 @@ function field(parent,label,obj,key,type,opts){
   let inp;
   if(type==="select"){inp=document.createElement("select");opts.options.forEach(o=>{const op=document.createElement("option");op.value=o[0];op.textContent=o[1];inp.appendChild(op);});inp.value=obj[key];}
   else if(type==="check"){inp=document.createElement("input");inp.type="checkbox";inp.checked=!!obj[key];}
-  else{inp=document.createElement("input");inp.type=type;inp.value=obj[key];if(type==="number"){inp.step=opts.step||"any";if(opts.min!=null)inp.min=opts.min;if(opts.max!=null)inp.max=opts.max;}}
+  else{inp=document.createElement("input");inp.type=type;inp.value=obj[key];if(type==="number"){inp.step=opts.step||"any";if(opts.min!=null)inp.min=opts.min;}}
   inp.oninput=()=>{obj[key]= type==="check"?inp.checked : (type==="number"?(+inp.value):inp.value); onChange();};
+  if(type==="select")inp.onchange=inp.oninput;
   r.appendChild(inp);
   if(opts.unit){const u=document.createElement("span");u.className="tag";u.textContent=opts.unit;r.appendChild(u);}
   parent.appendChild(r);
   return inp;
 }
 
+function tagEditor(parent,a){
+  const r=document.createElement("div");r.className="row";r.innerHTML='<label>标签</label>';
+  const box=document.createElement("div");box.className="tags";
+  a.tags.forEach((t,i)=>{const c=document.createElement("span");c.className="tg";c.innerHTML=t+'<span class="x">×</span>';
+    c.onclick=()=>{a.tags.splice(i,1);onChange();};box.appendChild(c);});
+  const inp=document.createElement("input");inp.type="text";inp.placeholder="输入标签回车";inp.style.flex="0 0 110px";
+  inp.onkeydown=e=>{if(e.key==="Enter"&&inp.value.trim()){a.tags.push(inp.value.trim());onChange();}};
+  box.appendChild(inp);
+  r.appendChild(box);parent.appendChild(r);
+  const r2=document.createElement("div");r2.className="row";r2.innerHTML='<label></label>';
+  const sg=document.createElement("div");sg.className="tags";
+  SUG_TAGS.filter(t=>!a.tags.includes(t)).forEach(t=>{const c=document.createElement("span");c.className="tgsug";c.textContent="+"+t;
+    c.onclick=()=>{a.tags.push(t);onChange();};sg.appendChild(c);});
+  r2.appendChild(sg);parent.appendChild(r2);
+}
+
 function renderBasic(){
   const c=$("cBasic");c.innerHTML="<h3>基本</h3>";
   field(c,"名字",spec,"name","text");
-  field(c,"血量",spec,"hp","number",{min:1,step:1});
-  field(c,"弹反几次死",spec,"parryDeaths","number",{min:0,step:1,unit:"0=不靠弹反"});
+  field(c,"视角",spec,"perspective","select",{options:[["side","侧视 / 平台(有重力)"],["top","俯视 / 顶视(无重力)"]]});
+  field(c,"血量",spec,"maxHP","number",{min:1,step:1});
+  field(c,"碰撞伤害",spec,"contactDamage","number",{min:0,step:1,unit:"0=碰到不掉血"});
+  field(c,"移动速度",spec,"moveSpeed","number",{min:0,step:5,unit:"px/s"});
   field(c,"体宽",spec,"bodyW","number",{min:1,step:1,unit:"px"});
   field(c,"体高",spec,"bodyH","number",{min:1,step:1,unit:"px"});
-  field(c,"移动速度",spec,"speed","number",{min:0,step:5,unit:"px/s"});
-  field(c,"素材朝左",spec,"facesLeft","check");
+  if(spec.perspective==="side")field(c,"会飞",spec,"flying","check",{unit:"无视重力"});
 }
 function renderAI(){
-  const c=$("cAI");c.innerHTML="<h3>AI · 选招与节奏</h3>";
-  field(c,"选招方式",spec,"selectMode","select",{options:[["random","随机"],["sequence","固定顺序循环"],["distance","按距离选"]]});
-  field(c,"交战距离",spec,"engageRange","number",{min:0,step:5,unit:"px 进到这才出招"});
-  field(c,"保持距离",spec,"keepDistance","number",{min:0,step:5,unit:"px 0=贴脸"});
-  field(c,"招间隔",spec,"gapDur","number",{min:0,step:0.05,unit:"s 一招一停的空隙"});
+  const c=$("cAI");c.innerHTML="<h3>移动 / AI</h3>";
+  field(c,"行为",spec,"behavior","select",{options:[["passive","被动(不动/不主动)"],["patrol","巡逻"],["chase","追玩家"],["kite","放风筝(保持距离射)"],["flee","逃跑"]]});
+  field(c,"察觉范围",spec,"detectRange","number",{min:0,step:10,unit:"px 进入才激活"});
+  field(c,"出招范围",spec,"attackRange","number",{min:0,step:5,unit:"px 进入才攻击"});
+  field(c,"保持距离",spec,"keepDistance","number",{min:0,step:5,unit:"px 放风筝/远程用,0=贴脸"});
+  field(c,"选招",spec,"selectMode","select",{options:[["random","随机"],["sequence","固定顺序循环"],["distance","按距离选"]]});
+  field(c,"招间隔",spec,"gapDur","number",{min:0,step:0.05,unit:"s 招与招的空隙"});
 }
 function renderPhases(){
   const list=$("phaseList");list.innerHTML="";
+  if(spec.phases.length===0){const h=document.createElement("div");h.className="hint";h.textContent="未设阶段 = 全程可用所有招式。需要 Boss 多阶段（如某血量后加速/换招）时再加。";list.appendChild(h);}
   spec.phases.forEach((ph,i)=>{
     const box=document.createElement("div");box.className="atk";
     const h=document.createElement("div");h.className="ahdr";
-    const nm=document.createElement("input");nm.type="text";nm.value=ph.name;nm.oninput=()=>{ph.name=nm.value;onChange();};
-    h.appendChild(nm);
-    if(spec.phases.length>1){const del=document.createElement("button");del.className="btn sm";del.textContent="🗑";del.onclick=()=>{spec.phases.splice(i,1);onChange();};h.appendChild(del);}
+    const nm=document.createElement("input");nm.type="text";nm.value=ph.name;nm.oninput=()=>{ph.name=nm.value;onChange();};h.appendChild(nm);
+    const del=document.createElement("button");del.className="btn sm";del.textContent="🗑";del.onclick=()=>{spec.phases.splice(i,1);onChange();};h.appendChild(del);
     box.appendChild(h);
-    field(box,"触发",ph,"trigType","select",{options:[["none","开场就在"],["hp","血量≤%"],["hits","受击次数≥"],["time","时间≥s"]]});
-    if(ph.trigType!=="none")field(box,"触发值",ph,"trigVal","number",{step:1});
+    field(box,"触发",ph,"trigType","select",{options:[["start","开场就在"],["hp","血量≤%"],["hits","受击次数≥"],["time","时间≥s"]]});
+    if(ph.trigType!=="start")field(box,"触发值",ph,"trigVal","number",{step:1});
     field(box,"速度倍率",ph,"speedMul","number",{step:0.1,unit:"×"});
-    // 启用招式
     const r=document.createElement("div");r.className="row";r.innerHTML='<label>启用招式</label>';
     const wrap=document.createElement("div");wrap.style.cssText="display:flex;flex-wrap:wrap;gap:8px;flex:1";
     spec.attacks.forEach(a=>{const lab=document.createElement("label");lab.className="chk";
       const cb=document.createElement("input");cb.type="checkbox";cb.checked=ph.atks.includes(a.id);
-      cb.onchange=()=>{if(cb.checked){if(!ph.atks.includes(a.id))ph.atks.push(a.id);}else{ph.atks=ph.atks.filter(x=>x!==a.id);}onChange();};
+      cb.onchange=()=>{if(cb.checked){if(!ph.atks.includes(a.id))ph.atks.push(a.id);}else ph.atks=ph.atks.filter(x=>x!==a.id);onChange();};
       lab.appendChild(cb);lab.appendChild(document.createTextNode(a.name));wrap.appendChild(lab);});
     r.appendChild(wrap);box.appendChild(r);
     list.appendChild(box);
@@ -155,127 +184,175 @@ function renderAttacks(){
   spec.attacks.forEach((a,i)=>{
     const box=document.createElement("div");box.className="atk"+(a.id===curAtk?" sel":"");
     const h=document.createElement("div");h.className="ahdr";
-    const nm=document.createElement("input");nm.type="text";nm.value=a.name;nm.oninput=()=>{a.name=nm.value;onChange();};
-    h.appendChild(nm);
-    const pv=document.createElement("button");pv.className="btn sm";pv.textContent="▶预览";pv.onclick=()=>{curAtk=a.id;onChange();playAtk();};
-    h.appendChild(pv);
-    const del=document.createElement("button");del.className="btn sm";del.textContent="🗑";del.onclick=()=>{spec.attacks.splice(i,1);if(curAtk===a.id)curAtk=spec.attacks[0]&&spec.attacks[0].id;onChange();};
-    h.appendChild(del);
+    const nm=document.createElement("input");nm.type="text";nm.value=a.name;nm.oninput=()=>{a.name=nm.value;onChange();};h.appendChild(nm);
+    const pv=document.createElement("button");pv.className="btn sm";pv.textContent="▶";pv.onclick=()=>{curAtk=a.id;onChange();playAtk();};h.appendChild(pv);
+    const del=document.createElement("button");del.className="btn sm";del.textContent="🗑";del.onclick=()=>{spec.attacks.splice(i,1);if(curAtk===a.id)curAtk=spec.attacks[0]&&spec.attacks[0].id;onChange();};h.appendChild(del);
     box.appendChild(h);
-    box.onclick=(e)=>{if(e.target===box){curAtk=a.id;onChange();}};
-    field(box,"前摇",a,"teleDur","number",{min:0,step:0.05,unit:"s 预警/蓄力"});
-    field(box,"判定时长",a,"activeDur","number",{min:0.02,step:0.02,unit:"s 攻击框存在"});
-    field(box,"后摇",a,"recovery","number",{min:0,step:0.05,unit:"s 打完僵直(可打)"});
-    field(box,"判定前伸",a,"reach","number",{step:2,unit:"px 框离身体多远"});
-    field(box,"判定长",a,"hbW","number",{step:2,unit:"px 朝前的长度"});
-    field(box,"判定高",a,"hbH","number",{step:2,unit:"px"});
-    field(box,"判定Y偏",a,"hbYOff","number",{step:2,unit:"px 负=偏上"});
-    field(box,"伤害",a,"dmg","number",{step:1});
-    field(box,"击退",a,"knockback","number",{step:10,unit:"px/s"});
-    field(box,"可弹反",a,"parryable","check");
-    field(box,"弹反后果",a,"parryResult","select",{options:[["硬直","硬直(处决窗)"],["必死","直接死"],["反弹","反弹/被弹飞"]]});
-    field(box,"攻击移动",a,"move","select",{options:[["none","原地"],["dash","向前冲"],["jump","跳起下砸"]]});
-    field(box,"移动速度",a,"moveSpeed","number",{step:20,unit:"px/s"});
+    box.onclick=e=>{if(e.target===box){curAtk=a.id;onChange();}};
+    field(box,"类型",a,"type","select",{options:ATK_TYPES});
+    const g=document.createElement("div");g.className="grp";
+    field(g,"前摇",a,"teleDur","number",{min:0,step:0.05,unit:"s 预警/蓄力"});
+    field(g,"判定时长",a,"activeDur","number",{min:0.02,step:0.02,unit:"s"});
+    field(g,"后摇",a,"recovery","number",{min:0,step:0.05,unit:"s 打完僵直"});
+    field(g,"伤害",a,"dmg","number",{step:1});
+    field(g,"击退",a,"knockback","number",{step:10,unit:"px/s"});
+    box.appendChild(g);
+    const ts=document.createElement("div");ts.className="grp";
+    if(a.type==="melee"||a.type==="charge"){
+      field(ts,"判定前伸",a,"reach","number",{step:2,unit:"px"});
+      field(ts,"判定长",a,"hbW","number",{step:2,unit:"px"});
+      field(ts,"判定高",a,"hbH","number",{step:2,unit:"px"});
+      field(ts,"判定Y偏",a,"hbYOff","number",{step:2,unit:"px 负=上"});
+    }
+    if(a.type==="projectile"){
+      field(ts,"弹数",a,"projCount","number",{min:1,step:1});
+      field(ts,"散射角",a,"projSpread","number",{step:5,unit:"° 总扇形"});
+      field(ts,"弹速",a,"projSpeed","number",{step:20,unit:"px/s"});
+      field(ts,"弹大小",a,"projSize","number",{step:1,unit:"px 半径"});
+      field(ts,"存活",a,"projLife","number",{step:0.2,unit:"s"});
+      field(ts,"追踪",a,"projHoming","number",{min:0,step:0.1,unit:"0=直线,>0=跟踪强度"});
+    }
+    if(a.type==="aoe"){
+      field(ts,"半径",a,"aoeRadius","number",{step:5,unit:"px"});
+      field(ts,"延迟",a,"aoeDelay","number",{step:0.05,unit:"s 预警到生效"});
+      field(ts,"落在玩家脚下",a,"aoeAtPlayer","check",{unit:"否=落在自身"});
+    }
+    if(a.type==="summon"){
+      field(ts,"召唤物",a,"summonWhat","text");
+      field(ts,"数量",a,"summonCount","number",{min:1,step:1});
+    }
+    box.appendChild(ts);
+    const mv=document.createElement("div");mv.className="grp";
+    field(mv,"攻击移动",a,"move","select",{options:[["none","原地"],["forward","冲向玩家"],["back","后撤"],["jump","跳起下砸"],["teleport","瞬移"]]});
+    if(a.move!=="none"&&a.move!=="teleport")field(mv,"移动速度",a,"moveSpeed","number",{step:20,unit:"px/s"});
+    box.appendChild(mv);
+    tagEditor(box,a);
     list.appendChild(box);
   });
 }
-
 function curAttack(){return spec.attacks.find(a=>a.id===curAtk);}
 
 function renderTimeline(){
-  const a=curAttack(), tl=$("timeline");tl.innerHTML="";
-  if(!a){return;}
-  const total=a.teleDur+a.activeDur+a.recovery||1;
-  const segs=[["前摇",a.teleDur,"#ffd24a"],["判定",a.activeDur,"#ff6b6b"],["后摇",a.recovery,"#7a8690"]];
-  segs.forEach(([t,d,col])=>{const s=document.createElement("div");s.className="seg";s.style.flex=Math.max(0.001,d);s.style.background=col;
+  const a=curAttack(),tl=$("timeline");tl.innerHTML="";if(!a)return;
+  [["前摇",a.teleDur,"#ffd24a"],["判定",a.activeDur,"#ff6b6b"],["后摇",a.recovery,"#7a8690"]].forEach(([t,d,col])=>{
+    const s=document.createElement("div");s.className="seg";s.style.flex=Math.max(0.001,d);s.style.background=col;
     s.textContent=(d>=0.06)?(t+" "+d.toFixed(2)+"s"):"";tl.appendChild(s);});
   const ph=document.createElement("div");ph.className="ph";ph.id="tlph";ph.style.left="0%";tl.appendChild(ph);
 }
 
 function specText(){
-  const lines=[];
-  lines.push("怪物: "+spec.name);
-  lines.push("血量: "+spec.hp+(spec.parryDeaths>0?(" (弹反"+spec.parryDeaths+"次死)"):""));
-  lines.push("体型: "+spec.bodyW+"×"+spec.bodyH+", 速度 "+spec.speed+(spec.facesLeft?", 素材朝左":""));
-  lines.push("AI: 选招="+({random:"随机",sequence:"顺序循环",distance:"按距离"}[spec.selectMode])+", 交战距离 "+spec.engageRange+", 保持距离 "+spec.keepDistance+", 招间隔 "+spec.gapDur+"s");
-  lines.push("阶段:");
-  spec.phases.forEach(ph=>{const trig={none:"开场就在",hp:"血量≤"+ph.trigVal+"%",hits:"受击≥"+ph.trigVal,time:"时间≥"+ph.trigVal+"s"}[ph.trigType];
+  const L=[];
+  L.push("怪物: "+spec.name+"  ["+( spec.perspective==="side"?"侧视/平台":"俯视")+"]");
+  L.push("血量 "+spec.maxHP+", 碰撞伤害 "+spec.contactDamage+", 移速 "+spec.moveSpeed+", 体型 "+spec.bodyW+"×"+spec.bodyH+(spec.perspective==="side"&&spec.flying?", 会飞":""));
+  const bmap={passive:"被动",patrol:"巡逻",chase:"追击",kite:"放风筝",flee:"逃跑"};
+  L.push("AI: "+bmap[spec.behavior]+", 察觉 "+spec.detectRange+", 出招范围 "+spec.attackRange+", 保持距离 "+spec.keepDistance+", 选招 "+({random:"随机",sequence:"顺序",distance:"按距离"}[spec.selectMode])+", 招间隔 "+spec.gapDur+"s");
+  if(spec.phases.length){L.push("阶段:");spec.phases.forEach(ph=>{const trig={start:"开场",hp:"血量≤"+ph.trigVal+"%",hits:"受击≥"+ph.trigVal,time:"时间≥"+ph.trigVal+"s"}[ph.trigType];
     const names=ph.atks.map(id=>{const a=spec.attacks.find(x=>x.id===id);return a?a.name:"?";});
-    lines.push("  - "+ph.name+": 触发["+trig+"], 速度×"+ph.speedMul+", 启用招式["+(names.join("、")||"未选")+"]");});
-  lines.push("招式:");
-  spec.attacks.forEach(a=>{lines.push("  - "+a.name+": 前摇"+a.teleDur+"s → 判定"+a.activeDur+"s → 后摇"+a.recovery+"s; "+
-    "判定框[前伸"+a.reach+" 长"+a.hbW+" 高"+a.hbH+" Y偏"+a.hbYOff+"]; 伤害"+a.dmg+" 击退"+a.knockback+"; "+
-    "弹反"+(a.parryable?("可("+a.parryResult+")"):"不可")+"; 移动"+({none:"原地",dash:"向前冲",jump:"跳起下砸"}[a.move])+(a.move!=="none"?("@"+a.moveSpeed):""));});
-  return lines.join("\n");
+    L.push("  - "+ph.name+": 触发["+trig+"], 速度×"+ph.speedMul+", 招["+(names.join("、")||"未选")+"]");});}
+  L.push("招式:");
+  const tmap={melee:"近战",projectile:"远程",aoe:"范围",charge:"冲撞",summon:"召唤"};
+  spec.attacks.forEach(a=>{
+    let d="  - "+a.name+" ["+tmap[a.type]+"]: 前摇"+a.teleDur+"s→判定"+a.activeDur+"s→后摇"+a.recovery+"s; 伤害"+a.dmg+" 击退"+a.knockback+"; ";
+    if(a.type==="melee"||a.type==="charge")d+="判定框[前伸"+a.reach+" 长"+a.hbW+" 高"+a.hbH+" Y偏"+a.hbYOff+"]; ";
+    if(a.type==="projectile")d+="弹道["+a.projCount+"发 散"+a.projSpread+"° 速"+a.projSpeed+" 半径"+a.projSize+" 存活"+a.projLife+"s"+(a.projHoming>0?(" 追踪"+a.projHoming):"")+"]; ";
+    if(a.type==="aoe")d+="范围[半径"+a.aoeRadius+" 延迟"+a.aoeDelay+"s 落点"+(a.aoeAtPlayer?"玩家脚下":"自身")+"]; ";
+    if(a.type==="summon")d+="召唤["+a.summonWhat+"×"+a.summonCount+"]; ";
+    d+="移动"+({none:"原地",forward:"冲向玩家",back:"后撤",jump:"跳砸",teleport:"瞬移"}[a.move])+((a.move!=="none"&&a.move!=="teleport")?("@"+a.moveSpeed):"");
+    if(a.tags.length)d+="; 标签["+a.tags.join("、")+"]";
+    L.push(d);});
+  return L.join("\n");
 }
 
 function onChange(){
-  renderPhases();renderAttacks();renderTimeline();
+  renderBasic();renderAI();renderPhases();renderAttacks();renderTimeline();
   $("pvName").textContent=(curAttack()&&curAttack().name)||"";
   $("specOut").value=specText()+"\n\n```json\n"+JSON.stringify(spec,null,2)+"\n```";
   save();
 }
 
-// ---- 预览舞台 ----
-const cv=$("stage"), ctx=cv.getContext("2d");
-let play=null; // {t0, a}
-let loop=false;
-function playAtk(){const a=curAttack();if(!a)return;play={t0:performance.now(),a};}
+// ---- 预览 ----
+const cv=$("stage"),ctx=cv.getContext("2d");
+let play=null,loop=false;
+function playAtk(){const a=curAttack();if(!a)return;play={t0:performance.now()};}
 function drawStage(){
-  const w=cv.width,h=cv.height;
-  ctx.clearRect(0,0,w,h);
-  ctx.fillStyle="#0d1115";ctx.fillRect(0,0,w,h);
-  // 地面
-  const gy=h-30;ctx.strokeStyle="#2a3138";ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();
-  // 玩家(左) 与 怪(右)
-  const px=70, ex0=250;
+  const w=cv.width,h=cv.height,S=0.6;
+  ctx.clearRect(0,0,w,h);ctx.fillStyle="#0d1115";ctx.fillRect(0,0,w,h);
+  const side=spec.perspective==="side";
+  const gy=h-30;
+  if(side){ctx.strokeStyle="#2a3138";ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();}
   const a=curAttack();
-  let ex=ex0, ey=0, tint=null, showHb=false, phase="";
+  const bw=Math.max(10,spec.bodyW*S),bh=Math.max(10,spec.bodyH*S);
+  const px=70;                                   // 玩家中心x
+  let ex=250, ey=0;                              // 怪偏移
+  const pcy=side?gy-22:h/2;                       // 玩家中心y
+  let phase="",tint=null,bodyTint=null;
+  let drawHb=false, projs=[], aoe=null, summons=0;
   if(play&&a){
     const t=(performance.now()-play.t0)/1000;
-    const T=play.a.teleDur, A=play.a.activeDur, R=play.a.recovery, total=T+A+R;
-    if(t>=total){ if(loop){play.t0=performance.now();} else {play=null;} }
+    const T=a.teleDur,A=a.activeDur,R=a.recovery,total=T+A+R;
+    const php=$("tlph");if(php)php.style.left=(100*Math.min(t,total)/total)+"%";
+    if(t>=total){if(loop)play.t0=performance.now();else play=null;}
     else{
-      let frac;
-      if(t<T){phase="前摇";tint="#ffd24a";frac=t/total; if(play.a.move==="dash")ex=ex0+8*(t/T); if(play.a.move==="jump")ey=-50*(t/T);}
-      else if(t<T+A){phase="判定";tint="#ff6b6b";showHb=true;
-        const at=(t-T)/A;
-        if(play.a.move==="dash")ex=ex0 - (ex0-px-60)*at;          // 冲向玩家
-        if(play.a.move==="jump"){ey=-50+ (50)*at;}                 // 砸下
+      if(t<T){phase="前摇";tint="#ffd24a";const f=t/T;
+        if(a.move==="forward")ex=250+6*f; if(a.move==="jump")ey=-50*f; if(a.move==="back")ex=250+10*f;}
+      else if(t<T+A){phase="判定";tint="#ff6b6b";const at=(t-T)/A;
+        if(a.move==="forward")ex=250-(250-px-70)*at;
+        if(a.move==="back")ex=250+40*at;
+        if(a.move==="jump")ey=-50+50*at;
+        if(a.move==="teleport"&&at>0.1)ex=px+90;
+        if(a.type==="melee")drawHb=true;
+        if(a.type==="charge"){drawHb=true;bodyTint="#ff6b6b";}
       }
-      else{phase="后摇";tint="#7a8690"; const rt=(t-T-A)/R; if(play.a.move==="dash")ex=(ex0 - (ex0-px-60)) + ((ex0)-(ex0-(ex0-px-60)))*rt;}
-      // 时间轴playhead
-      const php=$("tlph"); if(php) php.style.left=(100*t/total)+"%";
+      else{phase="后摇";tint="#7a8690";}
+      const ecx=ex, ecy=(side?gy-bh/2:h/2)+ey;
+      // 弹道: 前摇结束后生成,一直飞
+      if(a.type==="projectile"&&t>=T){
+        const since=t-T;const n=Math.max(1,a.projCount|0);
+        const base=Math.atan2(pcy-ecy, px-ecx);
+        for(let i=0;i<n;i++){
+          const off=(n===1)?0:((i/(n-1))-0.5)*(a.projSpread*Math.PI/180);
+          let ang=base+off;
+          if(since<=a.projLife){
+            const dist=a.projSpeed*S*since;
+            projs.push({x:ecx+Math.cos(ang)*dist, y:ecy+Math.sin(ang)*dist, r:Math.max(3,a.projSize*S)});
+          }}
+      }
+      // 范围
+      if(a.type==="aoe"&&t>=T+a.aoeDelay){
+        const cx=a.aoeAtPlayer?px:ecx, cy=a.aoeAtPlayer?pcy:ecy;
+        const ga=Math.min(1,(t-T-a.aoeDelay)/Math.max(0.05,A));
+        aoe={x:cx,y:cy,r:a.aoeRadius*S*ga};
+      }
+      if(a.type==="summon"&&t>=T)summons=Math.max(1,a.summonCount|0);
     }
   }
-  const bw=Math.max(8,spec.bodyW*0.6), bh=Math.max(8,spec.bodyH*0.6);
+  const ecx=ex, ecy=(side?gy-bh/2:h/2)+ey;
   // 玩家
-  ctx.fillStyle="#5cc0cc";ctx.fillRect(px-12,gy-44,24,44);
+  ctx.fillStyle="#5cc0cc";ctx.fillRect(px-12,pcy-22,24,44);
   // 怪
-  ctx.save();
-  ctx.fillStyle=tint||"#c98b6b";
-  ctx.fillRect(ex-bw/2, gy-bh+ey, bw, bh);
-  ctx.restore();
-  // 判定框(朝玩家方向=左)
-  if(showHb&&a){
-    const front=ex-bw/2;                       // 怪朝左,前方=左侧
-    const hx=front - a.reach - a.hbW*0.4;
-    const hy=gy-bh*0.6 + a.hbYOff*0.6 + ey;
+  ctx.fillStyle=bodyTint||tint||"#c98b6b";ctx.fillRect(ecx-bw/2,ecy-bh/2,bw,bh);
+  // 近战/冲撞判定框(朝左)
+  if(drawHb&&a){const front=ecx-bw/2;const hx=front-a.reach*S-a.hbW*S*0.5;const hy=ecy+a.hbYOff*S;
+    const HW=Math.max(6,a.hbW*S),HH=Math.max(6,a.hbH*S);
     ctx.fillStyle="rgba(255,80,80,.35)";ctx.strokeStyle="#ff5a5a";ctx.lineWidth=2;
-    const HW=a.hbW*0.6, HH=a.hbH*0.6;
-    ctx.fillRect(hx-HW/2,hy-HH/2,HW,HH);ctx.strokeRect(hx-HW/2,hy-HH/2,HW,HH);
-  }
-  // 文字
+    ctx.fillRect(hx-HW/2,hy-HH/2,HW,HH);ctx.strokeRect(hx-HW/2,hy-HH/2,HW,HH);}
+  // 弹道
+  projs.forEach(p=>{ctx.fillStyle="#ff8a4a";ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();});
+  // 范围
+  if(aoe){ctx.strokeStyle="#ff5a5a";ctx.fillStyle="rgba(255,80,80,.22)";ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(aoe.x,aoe.y,Math.max(2,aoe.r),0,7);ctx.fill();ctx.stroke();}
+  // 召唤
+  for(let i=0;i<summons;i++){ctx.fillStyle="#b07acc";ctx.fillRect(ecx-bw/2-24-i*16, ecy+bh/2-12, 12,12);}
+  // 标注
   ctx.fillStyle="#9a958a";ctx.font="11px sans-serif";ctx.textAlign="left";
-  ctx.fillText("玩家",px-12,gy+14);ctx.fillText(spec.name,ex-bw/2,gy+14);
-  if(phase){ctx.fillStyle=tint;ctx.font="bold 13px sans-serif";ctx.textAlign="center";ctx.fillText(phase,w/2,20);}
+  ctx.fillText("玩家",px-12,(side?gy+14:h-8));ctx.fillText(spec.name,ecx-bw/2,(side?gy+14:h-8));
+  if(phase){ctx.fillStyle=tint;ctx.font="bold 13px sans-serif";ctx.textAlign="center";ctx.fillText(phase,w/2,18);}
   requestAnimationFrame(drawStage);
 }
 requestAnimationFrame(drawStage);
 
-// ---- 按钮 ----
 $("bAddAtk").onclick=()=>{const a=blankAttack();spec.attacks.push(a);curAtk=a.id;onChange();};
-$("bAddPhase").onclick=()=>{spec.phases.push({name:"阶段"+(spec.phases.length+1),trigType:"hp",trigVal:50,speedMul:1.0,atks:[]});onChange();};
+$("bAddPhase").onclick=()=>{spec.phases.push({name:"阶段"+(spec.phases.length+1),trigType:spec.phases.length?"hp":"start",trigVal:50,speedMul:1.0,atks:spec.attacks.map(a=>a.id)});onChange();};
 $("bPlay").onclick=playAtk;
 $("bLoop").onclick=()=>{loop=!loop;$("bLoop").textContent="循环："+(loop?"开":"关");};
 $("bNew").onclick=()=>{if(confirm("新建空白怪物？")){spec=blankSpec();curAtk=spec.attacks[0].id;onChange();}};
@@ -283,10 +360,11 @@ $("bExport").onclick=()=>{const blob=new Blob([JSON.stringify(spec,null,2)],{typ
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(spec.name||"enemy")+".json";a.click();};
 $("bImport").onclick=()=>$("fileIn").click();
 $("fileIn").onchange=async e=>{const f=e.target.files[0];if(!f)return;
-  try{spec=JSON.parse(await f.text());if(!spec.attacks)spec.attacks=[blankAttack()];if(!spec.phases)spec.phases=[{name:"阶段1",trigType:"none",trigVal:50,speedMul:1,atks:[]}];curAtk=spec.attacks[0]&&spec.attacks[0].id;onChange();}catch(err){alert("解析失败");}};
+  try{const o=JSON.parse(await f.text());spec=Object.assign(blankSpec(),o);if(!spec.attacks.length)spec.attacks=[blankAttack()];
+    spec.attacks.forEach(a=>{if(!a.tags)a.tags=[];});curAtk=spec.attacks[0].id;onChange();}catch(err){alert("解析失败");}};
 $("bCopy").onclick=async()=>{try{await navigator.clipboard.writeText(specText());$("bCopy").textContent="已复制✓";setTimeout(()=>$("bCopy").textContent="复制给AI",1200);}catch(e){$("specOut").select();}};
 
-renderBasic();renderAI();onChange();
+onChange();
 </script>
 </body>
 </html>

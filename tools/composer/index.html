@@ -115,7 +115,7 @@
 <canvas id="stage"></canvas>
 
 <div class="topbar">
-  <div class="title">关卡编辑器·b11</div>
+  <div class="title">关卡编辑器·b12</div>
   <div class="modesw" id="modesw">
     <button data-m="free" class="on">自由摆放</button>
     <button data-m="tile">瓦片铺</button>
@@ -557,6 +557,16 @@ function draw(){
     ctx.fillStyle="rgba(92,192,204,.28)";ctx.fillRect(gx,gy,grabSel.ww*zx,grabSel.wh*zx);
     ctx.strokeStyle="#5cc0cc";ctx.lineWidth=2;ctx.strokeRect(gx,gy,grabSel.ww*zx,grabSel.wh*zx);
   }
+  // 智能吸附对齐线
+  if(snapGuides && mode!=="play"){
+    const p=parallaxOf(curLayer);
+    ctx.strokeStyle="rgba(92,192,204,.95)";ctx.lineWidth=1;ctx.setLineDash([4,4]);
+    for(const [ax,val] of snapGuides){
+      if(ax==="x"){const sx=(val-cam.x*p)*cam.zoom;ctx.beginPath();ctx.moveTo(sx,0);ctx.lineTo(sx,h);ctx.stroke();}
+      else{const sy=(val-cam.y*p)*cam.zoom;ctx.beginPath();ctx.moveTo(0,sy);ctx.lineTo(w,sy);ctx.stroke();}
+    }
+    ctx.setLineDash([]);
+  }
   // 选移:已选描边 + 框选矩形(自由/瓦片都画)
   if(mode!=="play"){
     for(const i of selTiles){ const d=srcDims(i),p=parallaxOf(i.layer);
@@ -615,6 +625,25 @@ function hitMarker(sx,sy){
     if(Math.hypot(sx-mx,sy-my)<16) return m;
   }
   return null;
+}
+
+//==================== 自由摆放:智能吸附对齐 ====================
+let snapGuides=null;   // 拖动时画的对齐参考线 [['x'|'y', 世界坐标],...]
+function snapMove(o,nx,ny){
+  const d=srcDims(o), hw=d.fw*o.scale/2, hh=d.fh*o.scale/2, thr=10/cam.zoom;
+  const tX=[], tY=[];                                  // 其它同层零件的 左/右/中 与 上/下/中
+  for(const i of scene.instances){ if(i===o||i.layer!==o.layer) continue;
+    const dd=srcDims(i), a=dd.fw*i.scale/2, b=dd.fh*i.scale/2;
+    tX.push(i.x-a,i.x+a,i.x); tY.push(i.y-b,i.y+b,i.y);
+  }
+  let bestX=null,gx=0; for(const off of [-hw,hw,0]){const edge=nx+off;
+    for(const t of tX){const diff=t-edge; if(Math.abs(diff)<thr&&(bestX===null||Math.abs(diff)<Math.abs(bestX))){bestX=diff;gx=t;}}}
+  let bestY=null,gy=0; for(const off of [-hh,hh,0]){const edge=ny+off;
+    for(const t of tY){const diff=t-edge; if(Math.abs(diff)<thr&&(bestY===null||Math.abs(diff)<Math.abs(bestY))){bestY=diff;gy=t;}}}
+  const guides=[];
+  if(bestX!==null){nx+=bestX; guides.push(['x',gx]);}
+  if(bestY!==null){ny+=bestY; guides.push(['y',gy]);}
+  return {x:nx,y:ny,guides};
 }
 
 //==================== 撤销(Ctrl+Z) ====================
@@ -762,8 +791,9 @@ cv.addEventListener("pointermove",e=>{
   }else if(drag.type==="move"){
     if(!drag.undone){pushUndo();drag.undone=true;}
     const o=drag.tgt.obj;
-    o.x=Math.round(drag.ox+(e.clientX-drag.sx)/cam.zoom);
-    o.y=Math.round(drag.oy+(e.clientY-drag.sy)/cam.zoom);
+    let nx=drag.ox+(e.clientX-drag.sx)/cam.zoom, ny=drag.oy+(e.clientY-drag.sy)/cam.zoom;
+    if(placeMode==="free" && drag.tgt.kind==="ins"){const s=snapMove(o,nx,ny);nx=s.x;ny=s.y;snapGuides=s.guides;}
+    o.x=Math.round(nx);o.y=Math.round(ny);
   }else if(drag.type==="resize"){
     if(!drag.undone){pushUndo();drag.undone=true;}
     const d=Math.hypot(e.clientX-drag.cx,e.clientY-drag.cy);
@@ -773,6 +803,7 @@ cv.addEventListener("pointermove",e=>{
 });
 function endPtr(e){
   clearTimeout(lpTimer);
+  snapGuides=null;
   if(drag&&drag.type==="grab"){ finalizeGrab(); ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
   if(drag&&drag.type==="selbox"){ finalizeSelBox(); ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
   if(drag&&drag.type==="selmove"){ ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}

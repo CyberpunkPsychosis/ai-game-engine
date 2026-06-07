@@ -6,6 +6,13 @@
       "headers": {
         "Authentication": "ApiKey ${LUDO_API_KEY}"
       }
+    },
+    "scenario": {
+      "type": "http",
+      "url": "https://mcp.scenario.com/mcp",
+      "headers": {
+        "Authorization": "Basic ${SCENARIO_AUTH_B64}"
+      }
     }
   }
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>2D 怪物设计器 · AI Game Engine</title>
+<title>怪物导演 · 行动编排</title>
 <style>
   :root{--ink:#eae6dd;--muted:#9a958a;--panel:#1d2226;--panel2:#262c31;--line:#333b41;--clay:#cc785c;--accent:#5cc0cc;}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -17,39 +17,35 @@
   .btn:active{background:#30373d;} .btn.p{background:var(--clay);border-color:var(--clay);}
   .btn.sm{padding:5px 8px;font-size:12px;}
   .wrap{display:flex;gap:12px;padding:12px;align-items:flex-start;flex-wrap:wrap;}
-  .col{flex:1 1 380px;min-width:300px;}
+  .col{flex:1 1 400px;min-width:300px;}
   .preview{flex:1 1 340px;min-width:300px;position:sticky;top:60px;}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;}
-  .card h3{margin:0 0 8px;font-size:14px;display:flex;align-items:center;gap:8px;}
+  .card h3{margin:0 0 8px;font-size:14px;}
   .row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px;flex-wrap:wrap;}
-  .row label{flex:0 0 92px;color:var(--muted);}
   input[type=text],input[type=number],select{background:var(--panel2);border:1px solid var(--line);
-    color:var(--ink);border-radius:7px;padding:7px;font-size:13px;flex:1;min-width:56px;}
-  input[type=checkbox]{width:18px;height:18px;}
-  .atk{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;background:var(--panel2);}
-  .atk.sel{outline:2px solid var(--accent);}
-  .atk .ahdr{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
-  .atk .ahdr input{font-weight:700;}
-  .tag{font-size:11px;color:var(--muted);}
+    color:var(--ink);border-radius:7px;padding:7px;font-size:13px;}
+  input[type=range]{flex:1;}
+  .ent{display:flex;align-items:center;gap:8px;margin:6px 0;}
+  .dot{width:14px;height:14px;border-radius:4px;flex:0 0 auto;}
+  .beat{border:1px solid var(--line);border-radius:10px;padding:8px;margin:7px 0;background:var(--panel2);}
+  .beat.now{outline:2px solid var(--accent);}
+  .beat .bh{display:flex;align-items:center;gap:6px;}
+  .bnum{font-weight:800;color:var(--muted);flex:0 0 22px;}
+  .who{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0;}
+  .chip{font-size:12px;border-radius:14px;padding:3px 9px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--muted);}
+  .chip.on{background:#33403a;border-color:#46594f;color:#bfe3d2;}
   canvas{background:#0d1115;border:1px solid var(--line);border-radius:8px;display:block;width:100%;}
-  .tl{height:34px;border-radius:6px;overflow:hidden;display:flex;margin:8px 0;border:1px solid var(--line);position:relative;}
-  .tl .seg{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#0b1118;white-space:nowrap;}
-  .tl .ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 6px #fff;}
-  .hint{font-size:12px;color:var(--muted);line-height:1.5;}
-  .pill{font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:2px 8px;color:var(--muted);}
-  textarea{width:100%;height:120px;background:#0d1115;color:var(--ink);border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:12px;padding:8px;}
-  .chk{display:flex;align-items:center;gap:4px;font-size:12px;}
-  .tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex:1;}
-  .tg{font-size:12px;background:#33403a;border:1px solid #46594f;color:#bfe3d2;border-radius:14px;padding:3px 8px;cursor:pointer;}
-  .tg .x{opacity:.7;margin-left:4px;}
-  .tgsug{font-size:11px;background:var(--panel);border:1px dashed var(--line);color:var(--muted);border-radius:14px;padding:3px 8px;cursor:pointer;}
-  .grp{border-left:2px solid var(--line);padding-left:8px;margin:6px 0;}
+  .cap{font-size:13px;min-height:20px;margin-top:6px;color:#bfe3d2;font-weight:600;}
+  .hint{font-size:12px;color:var(--muted);line-height:1.55;}
+  textarea{width:100%;height:150px;background:#0d1115;color:var(--ink);border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:12px;padding:8px;}
+  .mini{font-size:11px;color:var(--muted);}
 </style>
 </head>
 <body>
 <div class="topbar">
-  <div class="title">👾 2D 怪物设计器</div>
+  <div class="title">🎬 怪物导演 · 行动编排</div>
   <button class="btn sm" id="bNew">新建</button>
+  <button class="btn sm" id="bSample">示例</button>
   <button class="btn sm" id="bCopy">复制给AI</button>
   <button class="btn sm" id="bExport">导出</button>
   <button class="btn sm" id="bImport">导入</button>
@@ -58,311 +54,236 @@
 
 <div class="wrap">
   <div class="col">
-    <div class="card" id="cBasic"><h3>基本</h3></div>
-    <div class="card" id="cAI"><h3>移动 / AI</h3></div>
-    <div class="card"><h3>阶段 <span class="tag">可选·按血量切换招式或速度</span></h3><div id="phaseList"></div><button class="btn sm" id="bAddPhase">＋ 加阶段</button></div>
-    <div class="card"><h3>招式</h3><div id="atkList"></div><button class="btn sm p" id="bAddAtk">＋ 加招式</button></div>
+    <div class="card">
+      <h3>场景里的怪</h3>
+      <div class="row"><span class="mini">名字</span><input type="text" id="sTitle" style="flex:1"></div>
+      <div id="entList"></div>
+      <button class="btn sm" id="bAddEnt">＋ 加一只怪</button>
+      <div class="row" style="margin-top:10px"><span class="mini" style="flex:0 0 70px">玩家位置</span><input type="range" id="pPos" min="0" max="1" step="0.01"></div>
+      <div class="hint">滑块 = 它们在场上从左到右的起始位置。位置/血量/伤害这些之后我来定，你试玩时用游戏里的 ⚙调参 面板拖滑块即时改。</div>
+    </div>
+    <div class="card">
+      <h3>行动路线 <span class="mini">从上到下 = 时间顺序，一拍一个动作</span></h3>
+      <div id="beatList"></div>
+      <button class="btn sm p" id="bAddBeat">＋ 加一拍</button>
+    </div>
   </div>
   <div class="preview">
     <div class="card">
-      <h3>预览 <span class="pill" id="pvName"></span></h3>
-      <canvas id="stage" width="360" height="210"></canvas>
-      <div class="tl" id="timeline"></div>
+      <h3>预览（粗略演示，看节奏走位）</h3>
+      <canvas id="stage" width="360" height="200"></canvas>
+      <div class="cap" id="cap"></div>
       <div class="row" style="justify-content:center">
-        <button class="btn p" id="bPlay">▶ 播放此招</button>
+        <button class="btn p" id="bPlay">▶ 播放整段</button>
         <button class="btn sm" id="bLoop">循环：关</button>
       </div>
-      <div class="hint">青=玩家，橙=怪。黄=前摇，红=判定/弹道/范围生效，灰=后摇。</div>
     </div>
-    <div class="card"><h3>spec 文本（复制/编辑）</h3><textarea id="specOut" spellcheck="false"></textarea></div>
+    <div class="card"><h3>行动路线文本（复制给我）</h3><textarea id="out" spellcheck="false"></textarea></div>
   </div>
 </div>
 
 <script>
 const $=id=>document.getElementById(id);
-const LS="aiengine.enemyDesigner.v2";
+const LS="aiengine.director.v1";
 function uid(){return Math.random().toString(36).slice(2,8);}
+const COLORS=["#cc785c","#5cc0cc","#c2a85a","#b07acc","#7ac28a","#cc6a8a"];
 
-const ATK_TYPES=[["melee","近战(判定框)"],["projectile","远程(弹道)"],["aoe","范围(圈/地刺)"],["charge","冲撞(身体撞)"],["summon","召唤"]];
-const SUG_TAGS=["可弹反","可打断","不可格挡","击飞","破防","附加中毒","附加减速","无敌帧","穿墙","蓄力可取消"];
+// 动作表: [key, 标签, {n:需要次数, secs:需要秒数, text:需要文字}]
+const ACTIONS=[
+ ["idle","待命不动",{}],["look","盯着玩家",{}],["wait","等待",{secs:1}],
+ ["approach","走向玩家",{}],["dash","冲向玩家",{}],["jumpTo","跳向玩家",{}],
+ ["circle","绕到玩家身侧",{}],["back","后退一点",{}],["retreat","退回原位",{}],
+ ["attack","攻击",{n:1}],["combo","连续攻击",{n:1}],
+ ["summon","召唤小怪",{n:1}],["say","说话",{text:1}],["enrage","进入狂暴/下一阶段",{}],
+];
+const ACT=Object.fromEntries(ACTIONS.map(a=>[a[0],a]));
 
-function blankAttack(){return {id:uid(),name:"新招式",type:"melee",
-  teleDur:0.5,activeDur:0.18,recovery:0.6, dmg:12,knockback:160,
-  reach:40,hbW:50,hbH:60,hbYOff:0,
-  projCount:1,projSpread:0,projSpeed:320,projSize:10,projLife:2,projHoming:0,
-  aoeRadius:70,aoeDelay:0.1,aoeAtPlayer:true,
-  summonWhat:"小怪",summonCount:2,
-  move:"none",moveSpeed:300, tags:[]};}
-function blankSpec(){return {
-  name:"新怪物",perspective:"side",maxHP:120,contactDamage:8,moveSpeed:150,bodyW:40,bodyH:70,flying:false,
-  behavior:"chase",detectRange:300,attackRange:120,keepDistance:0,
-  selectMode:"random",gapDur:0.6,
-  phases:[],
-  attacks:[blankAttack()]};}
-let spec=load()||blankSpec();
-let curAtk=spec.attacks[0]?spec.attacks[0].id:null;
+function blankScene(){return {title:"新场景",players:0.4,
+  enemies:[{id:uid(),name:"怪A",x:0.7}],
+  beats:[{id:uid(),who:"all",action:"idle",n:1,secs:1,text:""}]};}
+function sampleScene(){
+  const A=uid(),B=uid(),C=uid();
+  return {title:"三螳螂",players:0.38,
+    enemies:[{id:A,name:"螳A",x:0.66},{id:B,name:"螳B",x:0.8},{id:C,name:"螳C",x:0.94}],
+    beats:[
+      {id:uid(),who:"all",action:"look",n:1,secs:1,text:""},
+      {id:uid(),who:[B],action:"dash",n:1,secs:1,text:""},
+      {id:uid(),who:[B],action:"combo",n:3,secs:1,text:""},
+      {id:uid(),who:[B],action:"retreat",n:1,secs:1,text:""},
+      {id:uid(),who:[A,C],action:"jumpTo",n:1,secs:1,text:""},
+      {id:uid(),who:[A,C],action:"attack",n:1,secs:1,text:""},
+      {id:uid(),who:[A,C],action:"retreat",n:1,secs:1,text:""},
+      {id:uid(),who:"all",action:"enrage",n:1,secs:1,text:"血量50%后"},
+      {id:uid(),who:"all",action:"dash",n:1,secs:1,text:""},
+    ]};
+}
+let scene=load()||sampleScene();
 
 function load(){try{const s=localStorage.getItem(LS);if(s)return JSON.parse(s);}catch(e){}return null;}
-function save(){try{localStorage.setItem(LS,JSON.stringify(spec));}catch(e){}}
+function save(){try{localStorage.setItem(LS,JSON.stringify(scene));}catch(e){}}
+function colorOf(i){return COLORS[i%COLORS.length];}
+function entIndex(id){return scene.enemies.findIndex(e=>e.id===id);}
+function whoIds(b){return b.who==="all"?scene.enemies.map(e=>e.id):b.who.filter(id=>entIndex(id)>=0);}
+function whoNames(b){return b.who==="all"?"全部":whoIds(b).map(id=>{const e=scene.enemies.find(x=>x.id===id);return e?e.name:"?";}).join("、");}
 
-function field(parent,label,obj,key,type,opts){
-  opts=opts||{};
-  const r=document.createElement("div");r.className="row";
-  const l=document.createElement("label");l.textContent=label;r.appendChild(l);
-  let inp;
-  if(type==="select"){inp=document.createElement("select");opts.options.forEach(o=>{const op=document.createElement("option");op.value=o[0];op.textContent=o[1];inp.appendChild(op);});inp.value=obj[key];}
-  else if(type==="check"){inp=document.createElement("input");inp.type="checkbox";inp.checked=!!obj[key];}
-  else{inp=document.createElement("input");inp.type=type;inp.value=obj[key];if(type==="number"){inp.step=opts.step||"any";if(opts.min!=null)inp.min=opts.min;}}
-  inp.oninput=()=>{obj[key]= type==="check"?inp.checked : (type==="number"?(+inp.value):inp.value); onChange();};
-  if(type==="select")inp.onchange=inp.oninput;
-  r.appendChild(inp);
-  if(opts.unit){const u=document.createElement("span");u.className="tag";u.textContent=opts.unit;r.appendChild(u);}
-  parent.appendChild(r);
-  return inp;
-}
-
-function tagEditor(parent,a){
-  const r=document.createElement("div");r.className="row";r.innerHTML='<label>标签</label>';
-  const box=document.createElement("div");box.className="tags";
-  a.tags.forEach((t,i)=>{const c=document.createElement("span");c.className="tg";c.innerHTML=t+'<span class="x">×</span>';
-    c.onclick=()=>{a.tags.splice(i,1);onChange();};box.appendChild(c);});
-  const inp=document.createElement("input");inp.type="text";inp.placeholder="输入标签回车";inp.style.flex="0 0 110px";
-  inp.onkeydown=e=>{if(e.key==="Enter"&&inp.value.trim()){a.tags.push(inp.value.trim());onChange();}};
-  box.appendChild(inp);
-  r.appendChild(box);parent.appendChild(r);
-  const r2=document.createElement("div");r2.className="row";r2.innerHTML='<label></label>';
-  const sg=document.createElement("div");sg.className="tags";
-  SUG_TAGS.filter(t=>!a.tags.includes(t)).forEach(t=>{const c=document.createElement("span");c.className="tgsug";c.textContent="+"+t;
-    c.onclick=()=>{a.tags.push(t);onChange();};sg.appendChild(c);});
-  r2.appendChild(sg);parent.appendChild(r2);
-}
-
-function renderBasic(){
-  const c=$("cBasic");c.innerHTML="<h3>基本</h3>";
-  field(c,"名字",spec,"name","text");
-  field(c,"视角",spec,"perspective","select",{options:[["side","侧视 / 平台(有重力)"],["top","俯视 / 顶视(无重力)"]]});
-  field(c,"血量",spec,"maxHP","number",{min:1,step:1});
-  field(c,"碰撞伤害",spec,"contactDamage","number",{min:0,step:1,unit:"0=碰到不掉血"});
-  field(c,"移动速度",spec,"moveSpeed","number",{min:0,step:5,unit:"px/s"});
-  field(c,"体宽",spec,"bodyW","number",{min:1,step:1,unit:"px"});
-  field(c,"体高",spec,"bodyH","number",{min:1,step:1,unit:"px"});
-  if(spec.perspective==="side")field(c,"会飞",spec,"flying","check",{unit:"无视重力"});
-}
-function renderAI(){
-  const c=$("cAI");c.innerHTML="<h3>移动 / AI</h3>";
-  field(c,"行为",spec,"behavior","select",{options:[["passive","被动(不动/不主动)"],["patrol","巡逻"],["chase","追玩家"],["kite","放风筝(保持距离射)"],["flee","逃跑"]]});
-  field(c,"察觉范围",spec,"detectRange","number",{min:0,step:10,unit:"px 进入才激活"});
-  field(c,"出招范围",spec,"attackRange","number",{min:0,step:5,unit:"px 进入才攻击"});
-  field(c,"保持距离",spec,"keepDistance","number",{min:0,step:5,unit:"px 放风筝/远程用,0=贴脸"});
-  field(c,"选招",spec,"selectMode","select",{options:[["random","随机"],["sequence","固定顺序循环"],["distance","按距离选"]]});
-  field(c,"招间隔",spec,"gapDur","number",{min:0,step:0.05,unit:"s 招与招的空隙"});
-}
-function renderPhases(){
-  const list=$("phaseList");list.innerHTML="";
-  if(spec.phases.length===0){const h=document.createElement("div");h.className="hint";h.textContent="未设阶段 = 全程可用所有招式。需要 Boss 多阶段（如某血量后加速/换招）时再加。";list.appendChild(h);}
-  spec.phases.forEach((ph,i)=>{
-    const box=document.createElement("div");box.className="atk";
-    const h=document.createElement("div");h.className="ahdr";
-    const nm=document.createElement("input");nm.type="text";nm.value=ph.name;nm.oninput=()=>{ph.name=nm.value;onChange();};h.appendChild(nm);
-    const del=document.createElement("button");del.className="btn sm";del.textContent="🗑";del.onclick=()=>{spec.phases.splice(i,1);onChange();};h.appendChild(del);
-    box.appendChild(h);
-    field(box,"触发",ph,"trigType","select",{options:[["start","开场就在"],["hp","血量≤%"],["hits","受击次数≥"],["time","时间≥s"]]});
-    if(ph.trigType!=="start")field(box,"触发值",ph,"trigVal","number",{step:1});
-    field(box,"速度倍率",ph,"speedMul","number",{step:0.1,unit:"×"});
-    const r=document.createElement("div");r.className="row";r.innerHTML='<label>启用招式</label>';
-    const wrap=document.createElement("div");wrap.style.cssText="display:flex;flex-wrap:wrap;gap:8px;flex:1";
-    spec.attacks.forEach(a=>{const lab=document.createElement("label");lab.className="chk";
-      const cb=document.createElement("input");cb.type="checkbox";cb.checked=ph.atks.includes(a.id);
-      cb.onchange=()=>{if(cb.checked){if(!ph.atks.includes(a.id))ph.atks.push(a.id);}else ph.atks=ph.atks.filter(x=>x!==a.id);onChange();};
-      lab.appendChild(cb);lab.appendChild(document.createTextNode(a.name));wrap.appendChild(lab);});
-    r.appendChild(wrap);box.appendChild(r);
-    list.appendChild(box);
+function renderEnts(){
+  const c=$("entList");c.innerHTML="";
+  scene.enemies.forEach((e,i)=>{
+    const r=document.createElement("div");r.className="ent";
+    const d=document.createElement("div");d.className="dot";d.style.background=colorOf(i);r.appendChild(d);
+    const nm=document.createElement("input");nm.type="text";nm.value=e.name;nm.style.flex="0 0 90px";nm.oninput=()=>{e.name=nm.value;onChange();};r.appendChild(nm);
+    const sl=document.createElement("input");sl.type="range";sl.min=0;sl.max=1;sl.step=0.01;sl.value=e.x;sl.oninput=()=>{e.x=+sl.value;onChange();};r.appendChild(sl);
+    if(scene.enemies.length>1){const del=document.createElement("button");del.className="btn sm";del.textContent="🗑";del.onclick=()=>{scene.enemies.splice(i,1);scene.beats.forEach(b=>{if(b.who!=="all")b.who=b.who.filter(id=>id!==e.id);});onChange();};r.appendChild(del);}
+    c.appendChild(r);
   });
 }
-function renderAttacks(){
-  const list=$("atkList");list.innerHTML="";
-  spec.attacks.forEach((a,i)=>{
-    const box=document.createElement("div");box.className="atk"+(a.id===curAtk?" sel":"");
-    const h=document.createElement("div");h.className="ahdr";
-    const nm=document.createElement("input");nm.type="text";nm.value=a.name;nm.oninput=()=>{a.name=nm.value;onChange();};h.appendChild(nm);
-    const pv=document.createElement("button");pv.className="btn sm";pv.textContent="▶";pv.onclick=()=>{curAtk=a.id;onChange();playAtk();};h.appendChild(pv);
-    const del=document.createElement("button");del.className="btn sm";del.textContent="🗑";del.onclick=()=>{spec.attacks.splice(i,1);if(curAtk===a.id)curAtk=spec.attacks[0]&&spec.attacks[0].id;onChange();};h.appendChild(del);
-    box.appendChild(h);
-    box.onclick=e=>{if(e.target===box){curAtk=a.id;onChange();}};
-    field(box,"类型",a,"type","select",{options:ATK_TYPES});
-    const g=document.createElement("div");g.className="grp";
-    field(g,"前摇",a,"teleDur","number",{min:0,step:0.05,unit:"s 预警/蓄力"});
-    field(g,"判定时长",a,"activeDur","number",{min:0.02,step:0.02,unit:"s"});
-    field(g,"后摇",a,"recovery","number",{min:0,step:0.05,unit:"s 打完僵直"});
-    field(g,"伤害",a,"dmg","number",{step:1});
-    field(g,"击退",a,"knockback","number",{step:10,unit:"px/s"});
-    box.appendChild(g);
-    const ts=document.createElement("div");ts.className="grp";
-    if(a.type==="melee"||a.type==="charge"){
-      field(ts,"判定前伸",a,"reach","number",{step:2,unit:"px"});
-      field(ts,"判定长",a,"hbW","number",{step:2,unit:"px"});
-      field(ts,"判定高",a,"hbH","number",{step:2,unit:"px"});
-      field(ts,"判定Y偏",a,"hbYOff","number",{step:2,unit:"px 负=上"});
-    }
-    if(a.type==="projectile"){
-      field(ts,"弹数",a,"projCount","number",{min:1,step:1});
-      field(ts,"散射角",a,"projSpread","number",{step:5,unit:"° 总扇形"});
-      field(ts,"弹速",a,"projSpeed","number",{step:20,unit:"px/s"});
-      field(ts,"弹大小",a,"projSize","number",{step:1,unit:"px 半径"});
-      field(ts,"存活",a,"projLife","number",{step:0.2,unit:"s"});
-      field(ts,"追踪",a,"projHoming","number",{min:0,step:0.1,unit:"0=直线,>0=跟踪强度"});
-    }
-    if(a.type==="aoe"){
-      field(ts,"半径",a,"aoeRadius","number",{step:5,unit:"px"});
-      field(ts,"延迟",a,"aoeDelay","number",{step:0.05,unit:"s 预警到生效"});
-      field(ts,"落在玩家脚下",a,"aoeAtPlayer","check",{unit:"否=落在自身"});
-    }
-    if(a.type==="summon"){
-      field(ts,"召唤物",a,"summonWhat","text");
-      field(ts,"数量",a,"summonCount","number",{min:1,step:1});
-    }
-    box.appendChild(ts);
-    const mv=document.createElement("div");mv.className="grp";
-    field(mv,"攻击移动",a,"move","select",{options:[["none","原地"],["forward","冲向玩家"],["back","后撤"],["jump","跳起下砸"],["teleport","瞬移"]]});
-    if(a.move!=="none"&&a.move!=="teleport")field(mv,"移动速度",a,"moveSpeed","number",{step:20,unit:"px/s"});
-    box.appendChild(mv);
-    tagEditor(box,a);
-    list.appendChild(box);
+
+function renderBeats(){
+  const c=$("beatList");c.innerHTML="";
+  scene.beats.forEach((b,i)=>{
+    const box=document.createElement("div");box.className="beat"+(i===playIdx&&playing?" now":"");box.id="beat"+i;
+    const hd=document.createElement("div");hd.className="bh";
+    const num=document.createElement("div");num.className="bnum";num.textContent=(i+1);hd.appendChild(num);
+    // 动作
+    const sel=document.createElement("select");ACTIONS.forEach(a=>{const o=document.createElement("option");o.value=a[0];o.textContent=a[1];sel.appendChild(o);});
+    sel.value=b.action;sel.onchange=()=>{b.action=sel.value;onChange();};hd.appendChild(sel);
+    const meta=ACT[b.action][2];
+    if(meta.n){const inp=document.createElement("input");inp.type="number";inp.min=1;inp.step=1;inp.value=b.n;inp.style.width="56px";inp.oninput=()=>{b.n=+inp.value;onChange();};hd.appendChild(inp);const s=document.createElement("span");s.className="mini";s.textContent="次/下";hd.appendChild(s);}
+    if(meta.secs){const inp=document.createElement("input");inp.type="number";inp.min=0;inp.step=0.5;inp.value=b.secs;inp.style.width="60px";inp.oninput=()=>{b.secs=+inp.value;onChange();};hd.appendChild(inp);const s=document.createElement("span");s.className="mini";s.textContent="秒";hd.appendChild(s);}
+    const sp=document.createElement("span");sp.style.flex="1";hd.appendChild(sp);
+    const up=document.createElement("button");up.className="btn sm";up.textContent="↑";up.onclick=()=>{if(i>0){[scene.beats[i-1],scene.beats[i]]=[scene.beats[i],scene.beats[i-1]];onChange();}};hd.appendChild(up);
+    const dn=document.createElement("button");dn.className="btn sm";dn.textContent="↓";dn.onclick=()=>{if(i<scene.beats.length-1){[scene.beats[i+1],scene.beats[i]]=[scene.beats[i],scene.beats[i+1]];onChange();}};hd.appendChild(dn);
+    const del=document.createElement("button");del.className="btn sm";del.textContent="🗑";del.onclick=()=>{scene.beats.splice(i,1);onChange();};hd.appendChild(del);
+    box.appendChild(hd);
+    // 谁
+    const who=document.createElement("div");who.className="who";
+    const all=document.createElement("span");all.className="chip"+(b.who==="all"?" on":"");all.textContent="全部";all.onclick=()=>{b.who="all";onChange();};who.appendChild(all);
+    scene.enemies.forEach((e,ei)=>{const ids=whoIds(b);const on=b.who!=="all"&&ids.includes(e.id);
+      const ch=document.createElement("span");ch.className="chip"+(on?" on":"");ch.textContent=e.name;
+      ch.onclick=()=>{let cur=b.who==="all"?scene.enemies.map(x=>x.id):b.who.slice();
+        if(cur.includes(e.id))cur=cur.filter(x=>x!==e.id);else cur.push(e.id);
+        b.who=(cur.length===scene.enemies.length)?"all":cur;onChange();};who.appendChild(ch);});
+    box.appendChild(who);
+    // 文字/备注
+    if(meta.text){const inp=document.createElement("input");inp.type="text";inp.placeholder="台词…";inp.value=b.text;inp.style.width="100%";inp.oninput=()=>{b.text=inp.value;onChange();};box.appendChild(inp);}
+    else{const inp=document.createElement("input");inp.type="text";inp.placeholder="备注（可选，如：血量50%后）";inp.value=b.text;inp.style.width="100%";inp.oninput=()=>{b.text=inp.value;onChange();};box.appendChild(inp);}
+    c.appendChild(box);
   });
 }
-function curAttack(){return spec.attacks.find(a=>a.id===curAtk);}
 
-function renderTimeline(){
-  const a=curAttack(),tl=$("timeline");tl.innerHTML="";if(!a)return;
-  [["前摇",a.teleDur,"#ffd24a"],["判定",a.activeDur,"#ff6b6b"],["后摇",a.recovery,"#7a8690"]].forEach(([t,d,col])=>{
-    const s=document.createElement("div");s.className="seg";s.style.flex=Math.max(0.001,d);s.style.background=col;
-    s.textContent=(d>=0.06)?(t+" "+d.toFixed(2)+"s"):"";tl.appendChild(s);});
-  const ph=document.createElement("div");ph.className="ph";ph.id="tlph";ph.style.left="0%";tl.appendChild(ph);
+function beatLine(b,i){
+  const a=ACT[b.action],meta=a[2];let act=a[1];
+  if(meta.n)act+=" "+(b.n||1)+"下";
+  if(meta.secs)act+=" "+(b.secs||0)+"秒";
+  if(meta.text&&b.text)act+='："'+b.text+'"';
+  let s=(i+1)+". "+whoNames(b)+" "+act;
+  if(!meta.text&&b.text)s+="  —— "+b.text;
+  return s;
 }
-
-function specText(){
+function sceneText(){
   const L=[];
-  L.push("怪物: "+spec.name+"  ["+( spec.perspective==="side"?"侧视/平台":"俯视")+"]");
-  L.push("血量 "+spec.maxHP+", 碰撞伤害 "+spec.contactDamage+", 移速 "+spec.moveSpeed+", 体型 "+spec.bodyW+"×"+spec.bodyH+(spec.perspective==="side"&&spec.flying?", 会飞":""));
-  const bmap={passive:"被动",patrol:"巡逻",chase:"追击",kite:"放风筝",flee:"逃跑"};
-  L.push("AI: "+bmap[spec.behavior]+", 察觉 "+spec.detectRange+", 出招范围 "+spec.attackRange+", 保持距离 "+spec.keepDistance+", 选招 "+({random:"随机",sequence:"顺序",distance:"按距离"}[spec.selectMode])+", 招间隔 "+spec.gapDur+"s");
-  if(spec.phases.length){L.push("阶段:");spec.phases.forEach(ph=>{const trig={start:"开场",hp:"血量≤"+ph.trigVal+"%",hits:"受击≥"+ph.trigVal,time:"时间≥"+ph.trigVal+"s"}[ph.trigType];
-    const names=ph.atks.map(id=>{const a=spec.attacks.find(x=>x.id===id);return a?a.name:"?";});
-    L.push("  - "+ph.name+": 触发["+trig+"], 速度×"+ph.speedMul+", 招["+(names.join("、")||"未选")+"]");});}
-  L.push("招式:");
-  const tmap={melee:"近战",projectile:"远程",aoe:"范围",charge:"冲撞",summon:"召唤"};
-  spec.attacks.forEach(a=>{
-    let d="  - "+a.name+" ["+tmap[a.type]+"]: 前摇"+a.teleDur+"s→判定"+a.activeDur+"s→后摇"+a.recovery+"s; 伤害"+a.dmg+" 击退"+a.knockback+"; ";
-    if(a.type==="melee"||a.type==="charge")d+="判定框[前伸"+a.reach+" 长"+a.hbW+" 高"+a.hbH+" Y偏"+a.hbYOff+"]; ";
-    if(a.type==="projectile")d+="弹道["+a.projCount+"发 散"+a.projSpread+"° 速"+a.projSpeed+" 半径"+a.projSize+" 存活"+a.projLife+"s"+(a.projHoming>0?(" 追踪"+a.projHoming):"")+"]; ";
-    if(a.type==="aoe")d+="范围[半径"+a.aoeRadius+" 延迟"+a.aoeDelay+"s 落点"+(a.aoeAtPlayer?"玩家脚下":"自身")+"]; ";
-    if(a.type==="summon")d+="召唤["+a.summonWhat+"×"+a.summonCount+"]; ";
-    d+="移动"+({none:"原地",forward:"冲向玩家",back:"后撤",jump:"跳砸",teleport:"瞬移"}[a.move])+((a.move!=="none"&&a.move!=="teleport")?("@"+a.moveSpeed):"");
-    if(a.tags.length)d+="; 标签["+a.tags.join("、")+"]";
-    L.push(d);});
+  L.push("场景: "+scene.title+"（侧视/平台）");
+  L.push("出场: "+scene.enemies.map(e=>e.name+"("+posLabel(e.x)+")").join("、"));
+  L.push("玩家起始: "+posLabel(scene.players));
+  L.push("行动路线:");
+  scene.beats.forEach((b,i)=>L.push("  "+beatLine(b,i)));
+  L.push("");
+  L.push("（数值/手感我来定，做好后你试玩，用游戏里 ⚙调参 面板即时微调）");
   return L.join("\n");
 }
+function posLabel(x){return x<0.34?"左":x<0.67?"中":"右";}
 
 function onChange(){
-  renderBasic();renderAI();renderPhases();renderAttacks();renderTimeline();
-  $("pvName").textContent=(curAttack()&&curAttack().name)||"";
-  $("specOut").value=specText()+"\n\n```json\n"+JSON.stringify(spec,null,2)+"\n```";
+  $("sTitle").value=scene.title;$("pPos").value=scene.players;
+  renderEnts();renderBeats();
+  $("out").value=sceneText()+"\n\n```json\n"+JSON.stringify(scene,null,2)+"\n```";
   save();
 }
 
-// ---- 预览 ----
+// ---------- 预览 ----------
 const cv=$("stage"),ctx=cv.getContext("2d");
-let play=null,loop=false;
-function playAtk(){const a=curAttack();if(!a)return;play={t0:performance.now()};}
+let playing=false,playIdx=0,beatT0=0,loop=false;
+let est={},fromX={},flash=0,summons={},enraged=false,speech=null;
+function pad(){return 28;}
+function X(x){return pad()+x*(cv.width-2*pad());}
+function resetPlay(){est={};fromX={};summons={};enraged=false;speech=null;scene.enemies.forEach(e=>{est[e.id]={x:e.x,y:0};});}
+function beatDur(b){const m=b.action;
+  if(m==="wait")return Math.max(0.2,b.secs||1);
+  if(m==="attack"||m==="combo")return 0.32*Math.max(1,b.n||1)+0.25;
+  if(m==="say")return 1.5;
+  if(m==="approach")return 0.8;if(m==="dash")return 0.5;if(m==="jumpTo")return 0.6;
+  if(m==="enrage")return 0.7;return 0.6;}
+function targetX(e,act){const p=scene.players;const sign=(est[e.id].x>=p)?1:-1;
+  if(act==="approach")return p+sign*0.1;
+  if(act==="dash")return p+sign*0.06;
+  if(act==="jumpTo")return p+sign*0.07;
+  if(act==="circle")return p-sign*0.07;
+  if(act==="back")return Math.max(0,Math.min(1,est[e.id].x+sign*0.1));
+  if(act==="retreat"){const o=scene.enemies.find(x=>x.id===e.id);return o?o.x:est[e.id].x;}
+  return est[e.id].x;}
+function startBeat(){const b=scene.beats[playIdx];if(!b)return;beatT0=performance.now();flash=0;
+  whoIds(b).forEach(id=>{fromX[id]=est[id]?est[id].x:0.5;});
+  if(b.action==="say")speech={ids:whoIds(b),text:b.text||"…"};else speech=null;}
+function playAll(){if(!scene.beats.length)return;playing=true;playIdx=0;resetPlay();startBeat();renderBeats();}
 function drawStage(){
-  const w=cv.width,h=cv.height,S=0.6;
+  const w=cv.width,h=cv.height,gy=h-26;
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#0d1115";ctx.fillRect(0,0,w,h);
-  const side=spec.perspective==="side";
-  const gy=h-30;
-  if(side){ctx.strokeStyle="#2a3138";ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();}
-  const a=curAttack();
-  const bw=Math.max(10,spec.bodyW*S),bh=Math.max(10,spec.bodyH*S);
-  const px=70;                                   // 玩家中心x
-  let ex=250, ey=0;                              // 怪偏移
-  const pcy=side?gy-22:h/2;                       // 玩家中心y
-  let phase="",tint=null,bodyTint=null;
-  let drawHb=false, projs=[], aoe=null, summons=0;
-  if(play&&a){
-    const t=(performance.now()-play.t0)/1000;
-    const T=a.teleDur,A=a.activeDur,R=a.recovery,total=T+A+R;
-    const php=$("tlph");if(php)php.style.left=(100*Math.min(t,total)/total)+"%";
-    if(t>=total){if(loop)play.t0=performance.now();else play=null;}
+  ctx.strokeStyle="#2a3138";ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();
+  let curHit=null,capTxt="";
+  if(playing){
+    const b=scene.beats[playIdx];
+    if(!b){playing=false;}
     else{
-      if(t<T){phase="前摇";tint="#ffd24a";const f=t/T;
-        if(a.move==="forward")ex=250+6*f; if(a.move==="jump")ey=-50*f; if(a.move==="back")ex=250+10*f;}
-      else if(t<T+A){phase="判定";tint="#ff6b6b";const at=(t-T)/A;
-        if(a.move==="forward")ex=250-(250-px-70)*at;
-        if(a.move==="back")ex=250+40*at;
-        if(a.move==="jump")ey=-50+50*at;
-        if(a.move==="teleport"&&at>0.1)ex=px+90;
-        if(a.type==="melee")drawHb=true;
-        if(a.type==="charge"){drawHb=true;bodyTint="#ff6b6b";}
+      const dur=beatDur(b),t=(performance.now()-beatT0)/1000,pr=Math.min(1,t/dur),ids=whoIds(b);
+      capTxt="▶ 第"+(playIdx+1)+"拍："+beatLine(b,playIdx).replace(/^\d+\.\s/,"");
+      ids.forEach(id=>{if(!est[id])return;const e=scene.enemies.find(x=>x.id===id);
+        const tx=targetX(e,b.action),f=fromX[id]!=null?fromX[id]:est[id].x;
+        if(["approach","dash","jumpTo","circle","back","retreat"].includes(b.action)){est[id].x=f+(tx-f)*pr;}
+        est[id].y=(b.action==="jumpTo")?-34*Math.sin(Math.PI*pr):0;});
+      if(b.action==="attack"||b.action==="combo"){const n=Math.max(1,b.n||1);flash=(Math.floor(pr*n*2)%2===0)?1:0;curHit=ids;}
+      if(t>=dur){
+        if(b.action==="enrage")enraged=true;
+        if(b.action==="summon")ids.forEach(id=>summons[id]=(summons[id]||0)+Math.max(1,b.n||1));
+        ids.forEach(id=>{if(est[id])est[id].x=targetX(e_dummy(id),b.action),est[id].y=0;});
+        playIdx++;
+        if(playIdx>=scene.beats.length){if(loop){playIdx=0;resetPlay();startBeat();}else{playing=false;capTxt="✔ 播放完";}}
+        else startBeat();
+        renderBeats();
       }
-      else{phase="后摇";tint="#7a8690";}
-      const ecx=ex, ecy=(side?gy-bh/2:h/2)+ey;
-      // 弹道: 前摇结束后生成,一直飞
-      if(a.type==="projectile"&&t>=T){
-        const since=t-T;const n=Math.max(1,a.projCount|0);
-        const base=Math.atan2(pcy-ecy, px-ecx);
-        for(let i=0;i<n;i++){
-          const off=(n===1)?0:((i/(n-1))-0.5)*(a.projSpread*Math.PI/180);
-          let ang=base+off;
-          if(since<=a.projLife){
-            const dist=a.projSpeed*S*since;
-            projs.push({x:ecx+Math.cos(ang)*dist, y:ecy+Math.sin(ang)*dist, r:Math.max(3,a.projSize*S)});
-          }}
-      }
-      // 范围
-      if(a.type==="aoe"&&t>=T+a.aoeDelay){
-        const cx=a.aoeAtPlayer?px:ecx, cy=a.aoeAtPlayer?pcy:ecy;
-        const ga=Math.min(1,(t-T-a.aoeDelay)/Math.max(0.05,A));
-        aoe={x:cx,y:cy,r:a.aoeRadius*S*ga};
-      }
-      if(a.type==="summon"&&t>=T)summons=Math.max(1,a.summonCount|0);
     }
   }
-  const ecx=ex, ecy=(side?gy-bh/2:h/2)+ey;
   // 玩家
-  ctx.fillStyle="#5cc0cc";ctx.fillRect(px-12,pcy-22,24,44);
+  ctx.fillStyle="#7fd4dd";ctx.fillRect(X(scene.players)-7,gy-30,14,30);
+  ctx.fillStyle="#9a958a";ctx.font="10px sans-serif";ctx.textAlign="center";ctx.fillText("玩家",X(scene.players),gy+12);
   // 怪
-  ctx.fillStyle=bodyTint||tint||"#c98b6b";ctx.fillRect(ecx-bw/2,ecy-bh/2,bw,bh);
-  // 近战/冲撞判定框(朝左)
-  if(drawHb&&a){const front=ecx-bw/2;const hx=front-a.reach*S-a.hbW*S*0.5;const hy=ecy+a.hbYOff*S;
-    const HW=Math.max(6,a.hbW*S),HH=Math.max(6,a.hbH*S);
-    ctx.fillStyle="rgba(255,80,80,.35)";ctx.strokeStyle="#ff5a5a";ctx.lineWidth=2;
-    ctx.fillRect(hx-HW/2,hy-HH/2,HW,HH);ctx.strokeRect(hx-HW/2,hy-HH/2,HW,HH);}
-  // 弹道
-  projs.forEach(p=>{ctx.fillStyle="#ff8a4a";ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();});
-  // 范围
-  if(aoe){ctx.strokeStyle="#ff5a5a";ctx.fillStyle="rgba(255,80,80,.22)";ctx.lineWidth=2;
-    ctx.beginPath();ctx.arc(aoe.x,aoe.y,Math.max(2,aoe.r),0,7);ctx.fill();ctx.stroke();}
-  // 召唤
-  for(let i=0;i<summons;i++){ctx.fillStyle="#b07acc";ctx.fillRect(ecx-bw/2-24-i*16, ecy+bh/2-12, 12,12);}
-  // 标注
-  ctx.fillStyle="#9a958a";ctx.font="11px sans-serif";ctx.textAlign="left";
-  ctx.fillText("玩家",px-12,(side?gy+14:h-8));ctx.fillText(spec.name,ecx-bw/2,(side?gy+14:h-8));
-  if(phase){ctx.fillStyle=tint;ctx.font="bold 13px sans-serif";ctx.textAlign="center";ctx.fillText(phase,w/2,18);}
+  scene.enemies.forEach((e,i)=>{const s=est[e.id]||{x:e.x,y:0};const ex=X(s.x),ey=gy-24+s.y;
+    ctx.fillStyle=enraged?"#ff6b6b":colorOf(i);ctx.fillRect(ex-8,ey,16,24);
+    if(curHit&&curHit.includes(e.id)&&flash){ctx.fillStyle="rgba(255,80,80,.5)";const front=(s.x>=scene.players)?-1:1;ctx.fillRect(ex+front*16-6,ey+2,16,18);}
+    ctx.fillStyle="#cfc9bd";ctx.font="10px sans-serif";ctx.textAlign="center";ctx.fillText(e.name,ex,gy+12);
+    const sm=summons[e.id]||0;for(let k=0;k<sm;k++){ctx.fillStyle="#b07acc";ctx.fillRect(ex-8-(k+1)*12,gy-12,9,12);}
+    if(speech&&speech.ids.includes(e.id)){ctx.fillStyle="#0d1115";ctx.strokeStyle="#5cc0cc";ctx.lineWidth=1;
+      const tw=ctx.measureText(speech.text).width+12;ctx.fillRect(ex-tw/2,ey-22,tw,16);ctx.strokeRect(ex-tw/2,ey-22,tw,16);
+      ctx.fillStyle="#bfe3d2";ctx.fillText(speech.text,ex,ey-10);}
+  });
+  $("cap").textContent=capTxt;
   requestAnimationFrame(drawStage);
 }
+function e_dummy(id){return scene.enemies.find(x=>x.id===id)||{id};}
 requestAnimationFrame(drawStage);
 
-$("bAddAtk").onclick=()=>{const a=blankAttack();spec.attacks.push(a);curAtk=a.id;onChange();};
-$("bAddPhase").onclick=()=>{spec.phases.push({name:"阶段"+(spec.phases.length+1),trigType:spec.phases.length?"hp":"start",trigVal:50,speedMul:1.0,atks:spec.attacks.map(a=>a.id)});onChange();};
-$("bPlay").onclick=playAtk;
+// 按钮
+$("sTitle").oninput=()=>{scene.title=$("sTitle").value;save();$("out").value=sceneText()+"\n\n```json\n"+JSON.stringify(scene,null,2)+"\n```";};
+$("pPos").oninput=()=>{scene.players=+$("pPos").value;onChange();};
+$("bAddEnt").onclick=()=>{scene.enemies.push({id:uid(),name:"怪"+String.fromCharCode(65+scene.enemies.length),x:0.6+Math.random()*0.3});onChange();};
+$("bAddBeat").onclick=()=>{scene.beats.push({id:uid(),who:"all",action:"dash",n:1,secs:1,text:""});onChange();};
+$("bPlay").onclick=playAll;
 $("bLoop").onclick=()=>{loop=!loop;$("bLoop").textContent="循环："+(loop?"开":"关");};
-$("bNew").onclick=()=>{if(confirm("新建空白怪物？")){spec=blankSpec();curAtk=spec.attacks[0].id;onChange();}};
-$("bExport").onclick=()=>{const blob=new Blob([JSON.stringify(spec,null,2)],{type:"application/json"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(spec.name||"enemy")+".json";a.click();};
+$("bNew").onclick=()=>{if(confirm("新建空场景？")){scene=blankScene();onChange();}};
+$("bSample").onclick=()=>{if(confirm("载入三螳螂示例？")){scene=sampleScene();onChange();}};
+$("bExport").onclick=()=>{const blob=new Blob([JSON.stringify(scene,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(scene.title||"scene")+".json";a.click();};
 $("bImport").onclick=()=>$("fileIn").click();
-$("fileIn").onchange=async e=>{const f=e.target.files[0];if(!f)return;
-  try{const o=JSON.parse(await f.text());spec=Object.assign(blankSpec(),o);if(!spec.attacks.length)spec.attacks=[blankAttack()];
-    spec.attacks.forEach(a=>{if(!a.tags)a.tags=[];});curAtk=spec.attacks[0].id;onChange();}catch(err){alert("解析失败");}};
-$("bCopy").onclick=async()=>{try{await navigator.clipboard.writeText(specText());$("bCopy").textContent="已复制✓";setTimeout(()=>$("bCopy").textContent="复制给AI",1200);}catch(e){$("specOut").select();}};
+$("fileIn").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{scene=Object.assign(blankScene(),JSON.parse(await f.text()));onChange();}catch(err){alert("解析失败");}};
+$("bCopy").onclick=async()=>{try{await navigator.clipboard.writeText(sceneText());$("bCopy").textContent="已复制✓";setTimeout(()=>$("bCopy").textContent="复制给AI",1200);}catch(e){$("out").select();}};
 
 onChange();
 </script>

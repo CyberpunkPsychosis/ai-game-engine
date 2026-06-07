@@ -1,0 +1,10 @@
+{
+  "_说明": "把本文件复制到你 Unity 项目根目录,改名为 .mcp.json,再把下面 command/args 换成你选的 Unity MCP 方案 README 里给的实际启动命令。详见 ../unity/setup-unity-mcp.md",
+  "mcpServers": {
+    "unity": {
+      "command": "uvx",
+      "args": ["REPLACE_WITH_ACTUAL_SERVER_COMMAND"],
+      "env": {}
+    }
+  }
+}

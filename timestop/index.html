@@ -23,6 +23,7 @@
   #btns button:active{background:rgba(92,192,204,.55);}
   #btns .full{background:rgba(92,143,204,.6);}
   #btns .full:active{background:rgba(143,211,255,.6);}
+  #btns button.dim{opacity:.32;}
 </style>
 </head>
 <body>
@@ -41,7 +42,7 @@ const W=960,H=540, GROUND=H-70;
 // ---------- 输入 ----------
 const keys={};
 let mouse={x:W/2,y:H/2,down:false};
-let touchMode=false, touchMove=0, jumpReq=false;
+let touchMode=false, touchMove=0, jumpReq=false, barFlash=0;
 addEventListener("keydown",e=>{keys[e.code]=true; if(["Space","KeyF","KeyR"].includes(e.code))e.preventDefault();});
 addEventListener("keyup",e=>{keys[e.code]=false;});
 function mpos(e){const r=cv.getBoundingClientRect();mouse.x=(e.clientX-r.left)*(W/r.width);mouse.y=(e.clientY-r.top)*(H/r.height);}
@@ -53,11 +54,11 @@ cv.addEventListener("touchstart",e=>{e.preventDefault();const t=e.touches[0];mpo
 
 // ---------- 状态 ----------
 let player, enemies, bullets, sparks, energy, ENERGY_MAX, globalFreeze, wave, killCount, shake, gameover, floatTexts;
-const SINGLE_COST=22, SINGLE_DUR=2.6, FULL_DUR=3.0;
+const SINGLE_COST=18, SINGLE_DUR=2.6, FULL_DUR=3.0;
 function reset(){
   player={x:160,y:GROUND-44,w:26,h:44,vx:0,vy:0,onground:false,hp:100,maxhp:100,facing:1,atk:0,atkcd:0,iframe:0};
   enemies=[];bullets=[];sparks=[];floatTexts=[];
-  energy=0;ENERGY_MAX=100;globalFreeze=0;wave=0;killCount=0;shake=0;gameover=false;
+  energy=50;ENERGY_MAX=100;globalFreeze=0;wave=0;killCount=0;shake=0;gameover=false;barFlash=0;
   spawnWave();
 }
 function spawnWave(){
@@ -90,11 +91,11 @@ function attack(){ if(gameover){return;} if(player.atkcd>0)return; player.atk=0.
   // 也能打掉子弹
   for(const b of bullets){ if(!b.dead && Math.abs(b.x-ax)<(aw/2+b.r) && Math.abs(b.y-ay)<(ah/2+b.r)){ b.dead=true; spark(b.x,b.y,"#ffd24a"); }}
 }
-function damage(e,dmg){ e.hp-=dmg; e.flash=0.1; addEnergy(6);
-  if(e.hp<=0){ e.dead=true; killCount++; addEnergy(20); for(let i=0;i<8;i++)spark(e.x,e.y,e.color); floaty(e.x,e.y-20,"KILL"); }
+function damage(e,dmg){ e.hp-=dmg; e.flash=0.1; addEnergy(8);
+  if(e.hp<=0){ e.dead=true; killCount++; addEnergy(28); for(let i=0;i<8;i++)spark(e.x,e.y,e.color); floaty(e.x,e.y-20,"KILL"); }
 }
 function addEnergy(v){ energy=Math.min(ENERGY_MAX, energy+v); }
-function freezeSingle(){ if(gameover){return;} if(energy<SINGLE_COST)return;
+function freezeSingle(){ if(gameover){return;} if(energy<SINGLE_COST){ floaty(player.x,player.y-54,"能量不足"); barFlash=0.35; return; }
   // 冻住离光标最近的(敌人或子弹)
   const rx=touchMode?player.x:mouse.x, ry=touchMode?player.y:mouse.y;
   let best=null,bd=touchMode?340:240,kind=null;
@@ -102,7 +103,7 @@ function freezeSingle(){ if(gameover){return;} if(energy<SINGLE_COST)return;
   for(const b of bullets){if(b.dead)continue;const d=Math.hypot(b.x-rx,b.y-ry); if(d<bd){bd=d;best=b;kind="b";}}
   if(best){ energy-=SINGLE_COST; best.frozen=SINGLE_DUR; floaty(best.x,best.y-20,"冻"); }
 }
-function fullFreeze(){ if(gameover){return;} if(energy<ENERGY_MAX)return; energy=0; globalFreeze=FULL_DUR; shake=14; }
+function fullFreeze(){ if(gameover){return;} if(energy<ENERGY_MAX){ floaty(player.x,player.y-54,"还没攒满"); barFlash=0.35; return; } energy=0; globalFreeze=FULL_DUR; shake=14; }
 
 function spark(x,y,c){ for(let i=0;i<5;i++)sparks.push({x,y,vx:(Math.random()-.5)*220,vy:(Math.random()-.7)*220,life:0.4,c}); }
 function floaty(x,y,t){ floatTexts.push({x,y,t,life:0.7}); }
@@ -175,6 +176,7 @@ function update(dt){
   for(const f of floatTexts){ f.y-=30*dt; f.life-=dt; }
   floatTexts=floatTexts.filter(f=>f.life>0);
   shake=Math.max(0,shake-dt*30);
+  barFlash=Math.max(0,barFlash-dt);
 
   if(enemies.length===0) spawnWave();
   if(player.hp<=0) gameover=true;
@@ -236,7 +238,7 @@ function render(){
   // 能量条
   ctx.fillStyle="#000a";ctx.fillRect(14,14,220,16);
   ctx.fillStyle=energy>=ENERGY_MAX?"#8fd3ff":"#5c8fcc";ctx.fillRect(14,14,220*(energy/ENERGY_MAX),16);
-  ctx.strokeStyle="#456";ctx.strokeRect(14,14,220,16);
+  ctx.strokeStyle=barFlash>0?"#ff6b6b":"#456";ctx.lineWidth=barFlash>0?2.5:1;ctx.strokeRect(14,14,220,16);ctx.lineWidth=1;
   ctx.fillStyle="#cdd6df";ctx.font="11px sans-serif";ctx.textAlign="left";
   ctx.fillText(energy>=ENERGY_MAX?"能量满! 按F全场定格":"时间能量(打怪攒/冻结花)",16,44);
   // 血
@@ -268,6 +270,11 @@ document.querySelectorAll("#btns button").forEach(b=>{
   b.addEventListener("pointerdown",e=>{e.preventDefault();touchMode=true;const a=b.dataset.a;
     if(a==="jump")jumpReq=true; else if(a==="atk")attack(); else if(a==="frz")freezeSingle(); else if(a==="full")fullFreeze();});
 });
+// 按钮可用性(能量不够时变暗)
+const frzBtn=document.querySelector('[data-a="frz"]'), fullBtn=document.querySelector('[data-a="full"]');
+setInterval(()=>{ if(typeof energy==="number"){
+  frzBtn.classList.toggle("dim",energy<SINGLE_COST);
+  fullBtn.classList.toggle("dim",energy<ENERGY_MAX); } },120);
 
 function loop(now){ const dt=Math.min(0.033,(now-last)/1000); last=now; update(dt); render(); requestAnimationFrame(loop); }
 reset(); requestAnimationFrame(loop);

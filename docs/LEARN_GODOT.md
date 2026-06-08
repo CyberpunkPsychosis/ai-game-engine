@@ -1,57 +1,57 @@
-# 学 Godot · 每日私教课程（LEARN_GODOT）
+# 学 Godot · 私教课程（LEARN_GODOT）
 
-> 用户在系统学 Godot（边做自己这个 2D 动作游戏边学）。**Claude 当私教，一天一课。**
-> 节奏：用户**白天在公司读文档**（下面每课的"📖读"）→ **回家/网页版编辑器动手验证**（"🛠️做"）。
-> 用户同时在学画画，所以每天动手任务**控制在 15–30 分钟**，别贪多。
+> 用户边做自己这个 2D 动作游戏边学 Godot。**Claude 当私教，一课一课讲。**
+> 节奏：用户**白天公司读文档/我讲** → **回家或网页版编辑器动手验证**。同时在学画画。
+>
+> **【方向已定 · 2026-06】用户选择：只学"我要自己亲手做"的部分。**
+> 系统逻辑（战斗/AI/状态机/手感算法）→ **交给 Claude 写，用户看懂原理即可，不专门学手写。**
+> 用户亲手做的（关卡/动画/摆位/调参/音效）→ **重点学扎实**，因为手做比口述给 AI 快。
 
 ## 怎么上课
-- 用户每天来说一句「**上课**」或「今天学啥」，Claude 就讲**下一课**：先讲清概念，再给当天「📖读」链接 + 「🛠️做」的小任务，答疑。
-- 每上完一课，把下面对应行的 `[ ]` 改成 `[x]`，并更新「当前进度」。
-- 原则：**能让用户自己在编辑器里做的，就别替他写**（「教我」模式）。卡住了再点拨。
-- 一切尽量落到**用户自己的项目**（`scripts/player.gd`、`scripts/enemy.gd`、关卡）上，不做一次性 demo。
+- 用户说「**上课**」/「下一课」，Claude 讲下一课：概念 + 「📖读」+ 「🛠️做」小任务 + 答疑。
+- 文档太复杂时，用户会说"简化"，Claude 给"照着点 + 最少代码"的极简版。
+- 上完一课把 `[ ]` 改 `[x]`，更新「当前进度」。
+- 「教我」模式：能让用户自己在编辑器里做的就别替他写，卡住再点拨。尽量落到用户真实项目上。
 
 ## 当前进度
-> 👉 **下一课：第 10 课（可变跳 / 土狼时间 / 跳跃缓冲）**　[D6 实操待用户后补]
+> 👉 **下一阶段第 1 课：动画（把图接进游戏）**　[D6 实操、地基复习待用户随时后补]
 
 ---
 
-## 第一周 · 地基（节点 / 场景 / 脚本 / 信号）
-目标：理解 Godot 的"世界观"——一切都是节点，场景是节点的组合。
+## ✅ 第一阶段 · 地基（已完成 D1–D10）
+> 给了用户"读代码 + 跟 AI 沟通"的能力。**不用再深挖，够用。**
+- [x] D1 节点与场景树
+- [x] D2 第一个脚本 `_ready`/`_process`
+- [x] D3 输入 Input（含向量 / lerp 平滑跟随）
+- [x] D4 信号 Signals
+- [x] D5 场景实例化 `preload`→`instantiate`→`add_child`
+- [ ] D6 复盘自己串一遍（用户跳过，后补）
+- [x] D7 读真实 `player.gd`
+- [x] D8 CharacterBody2D + move_and_slide
+- [x] D9 重力 + 跳跃
+- [x] D10 跳跃手感三件套（可变跳/土狼时间/跳跃缓冲）— **看懂即可，已交给 Actor2D**
 
-- [x] **D1 节点与场景树**
-- [x] **D2 第一个脚本 · _ready/_process**　📖 [Creating your first script](https://docs.godotengine.org/en/stable/getting_started/step_by_step/scripting_first_script.html)　🛠️ 给节点挂脚本，让它每帧旋转/移动一点。
-- [x] **D3 输入 Input**　📖 [Input examples](https://docs.godotengine.org/en/stable/tutorials/inputs/input_examples.html)　🛠️ 按方向键让方块左右移动。（含向量/lerp 平滑跟随）
-- [x] **D4 信号 Signals**　📖 [Signals](https://docs.godotengine.org/en/stable/getting_started/step_by_step/signals.html)　🛠️ 用编辑器连一个按钮的 `pressed` 信号到脚本；再用代码连一次。
-- [x] **D5 场景实例化 Instancing**　📖 [Creating instances](https://docs.godotengine.org/en/stable/getting_started/step_by_step/instancing.html)　🛠️ 把"方块"存成场景，在另一个场景里复制出 3 个。
-- [ ] **D6 复盘 + 串起来**　🛠️ 做一个"方块能左右走"的小场景，自己从头搭一遍（不看上面的步骤）。
-- [x] **D7 读真实代码**　跟 Claude 一起读 `scripts/player.gd` 开头，把这周学的概念对到项目里。
+---
 
-## 第二周 · 2D 动作核心
-目标：能让一个角色走、跳、打（先用色块）。
+## 🎯 第二阶段 · 只学"用户亲手做"的（当前重点）
+目标：用户能**自己摆关卡、把画的图接进游戏、摆怪调手感**，不依赖 AI 做这些视觉/空间活。
 
-- [x] **D8 CharacterBody2D + move_and_slide**　📖 [Using CharacterBody2D](https://docs.godotengine.org/en/stable/tutorials/physics/using_character_body_2d.html)
-- [x] **D9 重力 + 跳跃**　🛠️ 加重力、空格起跳。
-- [ ] **D10 可变跳 / 土狼时间 / 跳跃缓冲**　跟 Claude 读 `player.gd` 里这部分手感代码，看官方做法对比。
-- [ ] **D11 碰撞层与掩码 Collision layers/masks**　📖 [Physics introduction](https://docs.godotengine.org/en/stable/tutorials/physics/physics_introduction.html)
-- [ ] **D12 Area2D 做命中判定**　对照项目 `scripts/components/hitbox.gd`、`hurtbox.gd`。
-- [ ] **D13 动画 AnimatedSprite2D / AnimationPlayer**　📖 [2D sprite animation](https://docs.godotengine.org/en/stable/tutorials/2d/2d_sprite_animation.html)
-- [ ] **D14 整合**　色块角色：走 + 跳 + 挥一下（攻击框出现）。
+- [ ] **L1 动画 · 把图接进游戏**　📖 [2D sprite animation](https://docs.godotengine.org/en/stable/tutorials/2d/2d_sprite_animation.html)
+  　🛠️ 用 `AnimatedSprite2D` 把几张图做成"待机/走"动画，按移动切换。← 直接挂钩用户学画画
+- [ ] **L2 TileMap · 自己刷一张关卡**　📖 [Using TileMaps](https://docs.godotengine.org/en/stable/tutorials/2d/using_tilemaps.html)
+  　🛠️ 导入一套 tileset，刷出地面/平台，加碰撞，角色能站上去。← 用户要接管的"关卡"
+- [ ] **L3 相机跟随**　🛠️ `Camera2D` 跟着角色走（可配合学过的 lerp 做平滑跟随）。
+- [ ] **L4 把怪摆进关卡 + ⚙调参**　🛠️ 用项目现成的 enemy 实例摆进关卡，进游戏用 F1/⚙ 拖滑块调手感（不写战斗系统）。
+- [ ] **L5 音效 · 最便宜的手感放大器**　📖 [Audio streams](https://docs.godotengine.org/en/stable/tutorials/audio/audio_streams.html)
+  　🛠️ 丢个 `.wav` 进 `assets/sfx/`，攻击/跳跃时播放，立刻"有肉感"。
+- [ ] **L6 自己拼一小关 / 接手项目关卡**　🛠️ 用户主导摆关卡，Claude 接逻辑。从"教程"正式进入"你的游戏"。
 
-## 第三周 · 世界与内容
-- [ ] **D15 TileMap 关卡**　📖 [Using TileMaps](https://docs.godotengine.org/en/stable/tutorials/2d/using_tilemaps.html)　← 用户将来"自己接管关卡"的关键
-- [ ] **D16 相机 Camera2D**（跟随角色）
-- [ ] **D17 音效 AudioStreamPlayer**　📖 [Audio streams](https://docs.godotengine.org/en/stable/tutorials/audio/audio_streams.html)
-- [ ] **D18 UI 与 CanvasLayer**（血条）
-- [ ] **D19 场景切换**（对照 `autoload/scene_manager.gd`）
-- [ ] **D20 状态机思想**（对照 `scripts/state_machine/`）
-- [ ] **D21 整合 + 复盘**
-
-## 第四周 · 接管自己的项目
-- [ ] **D22–24 读懂 `player.gd` / `enemy.gd` 全貌**
-- [ ] **D25–26 自己用 TileMap 摆一小关**（用户主导，Claude 接逻辑）
-- [ ] **D27 自己给一只怪加一个行为**（「教我」模式，Claude 只点拨）
-- [ ] **D28 复盘：哪些自己做更快、哪些交给 AI** → 定下长期分工
+## 🤝 交给 AI 的（用户不用学手写，遇到再让 Claude 讲原理）
+战斗结算 / 弹反格挡 / 敌人 AI 选招 / 状态机 / 受击特效系统 / 数值平衡。
+→ 对应项目文件：`scripts/actor_2d.gd`、`scripts/enemy.gd`、`scripts/components/`、`scripts/state_machine/`、`scripts/autoload/fx.gd`。
 
 ## 备注
-- 网页版编辑器：[editor.godotengine.org](https://editor.godotengine.org/)（电脑 Chrome/Edge；公司网可能拦 SharedArrayBuffer，拦了就回家用装好的 Godot 验证）。
-- 装正式版：[godotengine.org/download](https://godotengine.org/download)（免费、单文件、不用安装，下载即用）。
+- 网页版编辑器：[editor.godotengine.org](https://editor.godotengine.org/)（用户已能打开）。
+- 装正式版：[godotengine.org/download](https://godotengine.org/download)。
+- 免费素材：[Kenney](https://kenney.nl/)（CC0，做 tileset/动画练习直接用）。
+- AI 出动作帧的新工具：`tools/sprite-forge/`（参考图→整表生成→切帧），动画素材以后从这来。

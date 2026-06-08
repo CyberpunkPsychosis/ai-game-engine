@@ -11,7 +11,7 @@
 - 一切尽量落到**用户自己的项目**（`scripts/player.gd`、`scripts/enemy.gd`、关卡）上，不做一次性 demo。
 
 ## 当前进度
-> 👉 **下一课：第 8 课（CharacterBody2D + move_and_slide）**　[D6 实操待用户后补]
+> 👉 **下一课：第 9 课（重力 + 跳跃）**　[D6 实操待用户后补]
 
 ---
 
@@ -29,7 +29,7 @@
 ## 第二周 · 2D 动作核心
 目标：能让一个角色走、跳、打（先用色块）。
 
-- [ ] **D8 CharacterBody2D + move_and_slide**　📖 [Using CharacterBody2D](https://docs.godotengine.org/en/stable/tutorials/physics/using_character_body_2d.html)
+- [x] **D8 CharacterBody2D + move_and_slide**　📖 [Using CharacterBody2D](https://docs.godotengine.org/en/stable/tutorials/physics/using_character_body_2d.html)
 - [ ] **D9 重力 + 跳跃**　🛠️ 加重力、空格起跳。
 - [ ] **D10 可变跳 / 土狼时间 / 跳跃缓冲**　跟 Claude 读 `player.gd` 里这部分手感代码，看官方做法对比。
 - [ ] **D11 碰撞层与掩码 Collision layers/masks**　📖 [Physics introduction](https://docs.godotengine.org/en/stable/tutorials/physics/physics_introduction.html)

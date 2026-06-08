@@ -42,7 +42,7 @@ const W=960,H=540, GROUND=H-70;
 // ---------- 输入 ----------
 const keys={};
 let mouse={x:W/2,y:H/2,down:false};
-let touchMode=false, touchMove=0, jumpReq=false, barFlash=0;
+let touchMode=false, touchMove=0, jumpReq=false, barFlash=0, hitstop=0;
 addEventListener("keydown",e=>{keys[e.code]=true; if(["Space","KeyF","KeyR"].includes(e.code))e.preventDefault();});
 addEventListener("keyup",e=>{keys[e.code]=false;});
 function mpos(e){const r=cv.getBoundingClientRect();mouse.x=(e.clientX-r.left)*(W/r.width);mouse.y=(e.clientY-r.top)*(H/r.height);}
@@ -72,7 +72,7 @@ function spawnWave(){
   }
 }
 function spawnEnemy(type,x){
-  const base={x,y:GROUND-40,w:30,h:40,vx:0,vy:0,onground:false,frozen:0,fire:1+Math.random(),type,flash:0,hop:0};
+  const base={x,y:GROUND-40,w:30,h:40,vx:0,vy:0,onground:false,frozen:0,fire:1+Math.random(),type,flash:0,hop:0,stun:0};
   if(type==="charger"){base.hp=30;base.color="#e0633f";base.w=32;base.h=38;}
   if(type==="shooter"){base.hp=22;base.color="#c9a23f";}
   if(type==="healer"){base.hp=20;base.color="#7ac28a";base.w=26;base.h=44;}
@@ -86,12 +86,14 @@ function attack(){ if(gameover){return;} if(player.atkcd>0)return; player.atk=0.
   const ax=player.x + player.facing*34, ay=player.y, aw=46, ah=46;
   let hitAny=false;
   for(const e of enemies){ if(Math.abs(e.x-ax)<(aw/2+e.w/2) && Math.abs(e.y-ay)<(ah/2+e.h/2)){
-    damage(e, 12); e.vx += player.facing*120; hitAny=true; spark(e.x,e.y,e.color);
+    damage(e, 12); hitAny=true; spark(e.x,e.y,e.color);
   }}
   // 也能打掉子弹
   for(const b of bullets){ if(!b.dead && Math.abs(b.x-ax)<(aw/2+b.r) && Math.abs(b.y-ay)<(ah/2+b.r)){ b.dead=true; spark(b.x,b.y,"#ffd24a"); }}
 }
 function damage(e,dmg){ e.hp-=dmg; e.flash=0.1; addEnergy(8);
+  e.stun=0.3; e.vx = player.facing*300;          // 硬直 + 被击退
+  hitstop=Math.max(hitstop,0.05);                 // 命中顿帧(打击感)
   if(e.hp<=0){ e.dead=true; killCount++; addEnergy(28); for(let i=0;i<8;i++)spark(e.x,e.y,e.color); floaty(e.x,e.y-20,"KILL"); }
 }
 function addEnergy(v){ energy=Math.min(ENERGY_MAX, energy+v); }
@@ -115,7 +117,9 @@ function update(dt){
   if(gameover)return;
   if(keys.KeyF){ fullFreeze(); keys.KeyF=false; }
   globalFreeze=Math.max(0,globalFreeze-dt);
+  hitstop=Math.max(0,hitstop-dt);
   const worldFrozen = globalFreeze>0;
+  const stopEnemies = worldFrozen || hitstop>0;   // 顿帧/定格时敌人&子弹暂停
 
   // --- 玩家(永远实时) ---
   let move=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
@@ -137,13 +141,16 @@ function update(dt){
   // --- 敌人 ---
   for(const e of enemies){
     e.flash=Math.max(0,e.flash-dt);
+    e.stun=Math.max(0,e.stun-dt);
     if(e.frozen>0){ e.frozen-=dt; continue; }      // 单体冻结
-    if(worldFrozen) continue;                       // 全场定格
-    // 重力
+    if(stopEnemies) continue;                       // 全场定格 / 顿帧
+    // 物理:重力 + 击退惯性(硬直时也在飞)
     e.vy += 1500*dt; e.y += e.vy*dt;
+    e.x += e.vx*dt; e.vx*=0.85;
     if(e.y+e.h/2>=GROUND){e.y=GROUND-e.h/2;e.vy=0;e.onground=true;}
+    if(e.stun>0){ e.x=Math.max(-160,Math.min(W+160,e.x)); continue; }  // 硬直:被击退但不行动/不伤人
     const dir=Math.sign(player.x-e.x)||1;
-    if(e.type==="charger"){ e.x += dir*150*dt; e.x+=e.vx*dt; e.vx*=0.9;
+    if(e.type==="charger"){ e.x += dir*150*dt;
       if(Math.abs(e.x-player.x)<28 && Math.abs(e.y-player.y)<40) hurtPlayer(12);
     }
     if(e.type==="shooter"){ // 保持距离 + 开火
@@ -163,7 +170,7 @@ function update(dt){
   // --- 子弹 ---
   for(const b of bullets){ if(b.dead)continue;
     if(b.frozen>0){ b.frozen-=dt; continue; }
-    if(worldFrozen) continue;
+    if(stopEnemies) continue;
     b.x+=b.vx*dt; b.y+=b.vy*dt; b.life-=dt;
     if(b.life<=0||b.x<-20||b.x>W+20||b.y<-20||b.y>H+20) b.dead=true;
     if(Math.abs(b.x-player.x)<16 && Math.abs(b.y-player.y)<22){ b.dead=true; hurtPlayer(8); }
@@ -206,9 +213,12 @@ function render(){
     if(fz){ctx.strokeStyle="#cfeeff";ctx.lineWidth=1.5;ctx.stroke();} }
   // 敌人
   for(const e of enemies){ const fz=e.frozen>0||worldFrozen;
+    ctx.save(); ctx.translate(e.x,e.y);
+    if(e.stun>0) ctx.rotate(Math.sign(e.vx||player.facing)*0.45*(e.stun/0.3));  // 被打:倾斜
     ctx.fillStyle = e.flash>0?"#ffffff":(fz?"#6aa9d6":e.color);
-    ctx.fillRect(e.x-e.w/2,e.y-e.h/2,e.w,e.h);
-    if(fz){ctx.strokeStyle="#cfeeff";ctx.lineWidth=2;ctx.strokeRect(e.x-e.w/2,e.y-e.h/2,e.w,e.h);}
+    ctx.fillRect(-e.w/2,-e.h/2,e.w,e.h);
+    if(fz){ctx.strokeStyle="#cfeeff";ctx.lineWidth=2;ctx.strokeRect(-e.w/2,-e.h/2,e.w,e.h);}
+    ctx.restore();
     // 血条
     const mh=e.type==="charger"?30:22; ctx.fillStyle="#000a";ctx.fillRect(e.x-15,e.y-e.h/2-9,30,4);
     ctx.fillStyle="#e06b6b";ctx.fillRect(e.x-15,e.y-e.h/2-9,30*Math.max(0,e.hp/mh),4);

@@ -77,6 +77,7 @@ func _ready() -> void:
 	player.game = self
 	player.position = Vector2(300.0, GROUND - 80.0)
 	world.add_child(player)
+	_load_hero_sprites()
 	_build_overlay()
 	_build_hud()
 	spawn_wave()
@@ -413,6 +414,19 @@ func spawn_enemy(t: String, x: float) -> void:
 	e.position = Vector2(x, GROUND - e.h * 0.5)
 	world.add_child(e)
 	enemies.append(e)
+
+## 加载主角精灵(双轨:游戏内用像素动画)。run 表 + idle(取 run 首帧,保比例一致)。
+## 缺帧(jump/attack/dash)自动回退到 idle/run,不崩;后续补齐动画即可。
+func _load_hero_sprites() -> void:
+	var run_tex: Texture2D = load("res://art/timestop/hero/run_sheet.png")
+	if run_tex == null:
+		return
+	var sf := SpriteSheet.build_from_strips({"run": {"tex": run_tex, "fps": 12.0, "loop": true}}, Vector2i(528, 335))
+	sf.add_animation("idle")
+	sf.set_animation_loop("idle", true)
+	sf.set_animation_speed("idle", 1.0)
+	sf.add_frame("idle", sf.get_frame_texture("run", 0))
+	player.set_sprite_frames(sf, 96.0, player.h * 0.5)
 
 ## 召唤悬龙 Boss(飞行残响)。其 _process 自动接时间系统(可被全场定格冻住)。
 ## 真龙立绘就位后:boss.set_texture(load("res://.../dragon.png"))。

@@ -40,13 +40,23 @@ func current_anim() -> String:
 	return "idle"
 
 ## 主角精灵帧就位后调它,自动从色块切到精灵(走/跳/攻/闪按 current_anim 播放)
-func set_sprite_frames(sf: SpriteFrames) -> void:
+## target_h=想要的屏上帧高(px),foot_y=脚底在玩家局部坐标的 y(对齐站位)
+func set_sprite_frames(sf: SpriteFrames, target_h := 0.0, foot_y := 0.0) -> void:
 	if _anim == null:
 		_anim = AnimatedSprite2D.new()
 		_anim.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		add_child(_anim)
 	_anim.sprite_frames = sf
 	_use_sprite = true
+	var first := sf.get_animation_names()[0] if sf.get_animation_names().size() > 0 else ""
+	if target_h > 0.0 and first != "":
+		var tex := sf.get_frame_texture(first, 0)
+		if tex:
+			var sc := target_h / float(tex.get_height())
+			_anim.scale = Vector2(sc, sc)
+			_anim.position.y = foot_y - target_h * 0.5   # 帧底=脚底 → 对齐站位
+	if first != "":
+		_anim.play(first)
 
 func try_dodge() -> void:
 	if dodging or dodge_cd > 0.0:

@@ -1,21 +1,36 @@
 # CLAUDE.md — 新会话先读这个
 
-> 这是 **AI Game Engine**（Godot 4.5，2D 横版动作游戏，对话驱动开发）。
-> 用户从手机/网页跟你聊天来推进。**当前正在做"怪物行动编排"这条线**，详见
-> 👉 **`docs/HANDOFF.md`（重要：新会话务必先读）**。其余背景见 `README.md`、`docs/`。
+> 这是 **AI Game Engine**（Godot 4.5，对话驱动开发）。用户从手机/网页跟你聊天来推进。
+> **当前唯一在做的游戏：「刹那 TimeStop」时间定格 2D 横版动作。**
+> 👉 接手前必读 **`docs/TIMESTOP.md`**（设计/架构/操作/踩坑/状态/下一步全在里面）。
 
 ## 现在在做什么（一句话）
-做了一个网页版**「怪物导演」画布工具**（`tools/enemy-designer/index.html`），用户在画布上**摆怪 + 画移动路线/弹道**，把"嘴说不清的怪物行动路线"画出来，点「复制给AI」把带坐标的行动路线发给你，你照着在 Godot 里实现怪。**分阶段做**：用户画一段 → 你实现 → 用户试玩用游戏内 `⚙调参` 面板（DevTools）微调 → 画下一段。
+**「刹那 TimeStop」**：实时快打 + 随手冻结单体 + 绝境全场定格翻盘的横版动作游戏。
+纯代码驱动，美术暂用色块占位（先验证机制好不好玩）。试玩部署在根地址
+https://cyberpunkpsychosis.github.io/ai-game-engine/
 
 ## 关键约定
-- **开发分支**：`claude/game-engine-claude-chat-mbKeN`（在这上面提交/推送，不要推别的分支）。
-- 这个工具**只补"行动路线"**，不负责定所有数值/机制；数值你来定，用户试玩再调。
-- 怪的实现要带 `tunables()`（见 `scripts/enemy.gd`），这样用户能在游戏里实时拖滑块调手感。
-- 工具是纯前端单文件 HTML，改完 `node --check` 验证脚本即可；CI 会部署到 GitHub Pages。
+- **开发分支**：`claude/game-engine-claude-chat-mbKeN`（只在这上面提交/推送）。
+- 改完 GDScript **务必本地 headless 自测再 push**（CI"绿"≠能跑，解析错误只在运行时炸→黑屏）：
+  ```bash
+  GODOT=/tmp/godot_bin/Godot_v4.5-stable_linux.x86_64   # 没有就下 4.5-stable linux.x86_64
+  "$GODOT" --headless --path . --quit-after 180 2>&1 | grep -iE "SCRIPT ERROR|Parse Error|Failed to load"
+  ```
+- 类型推断坑：`var x := 无类型实例.方法()` 返回 Variant 会解析失败 → 用显式类型 `var x: float = ...`。
+- 触屏：项目 `emulate_mouse_from_touch=false`，Button 默认收不到触摸 → 用全屏 Control 的 `gui_input` 接 `InputEventScreenTouch`（见 `game.gd`）。
+- 中文字体 `fonts/zpix.ttf`（像素中文）已入库；Web 导出若中文方块，确认字体嵌入或暂用英文。
 
-## 工具链速查
-- `tools/enemy-designer/` 怪物导演（画布摆位+路线+弹道）← 当前主线
-- `tools/sprite-forge/` **AI 出动作序列帧**：一张参考图→整表一次生成(GPT Image 2/Gemini)→抠绿切帧脚底对齐（密钥走环境变量 `SCENARIO_AUTH_B64`）
-- `tools/composer/` 关卡编辑器 · `tools/tilemap/` 瓦片地图 · `tools/sprite-rigger/` 绑骨
+## 仓库结构
+- `timestop/` ← **游戏本体**（game/player/enemy/bullet/fx + postprocess.gdshader，main.tscn）
+- `scripts/autoload/` 公用框架：GameManager(暂停)·SceneManager(切场景)·AudioManager·Juice(震屏)·FX(火花/序列帧)·DevTools(实时调参)
+- `scripts/sprite_sheet.gd` 精灵表→SpriteFrames 切片器（FX 用）
+- `shaders/flash.gdshader`·`art/fx/`·`assets/sfx/` FX 依赖资源（勿删）
+- `fonts/` 字体 · `tools/` 网页辅助工具（出素材/编辑器，非游戏）
+- `docs/TIMESTOP.md` 当前游戏文档 · `docs/AI_TOOLS.md`/`ASSET_SOURCING.md`/`CLOUD_WORKFLOW.md`/`LUDO_MCP.md` AI 出素材工作流
+
+> 历史上还做过另两个游戏（横版弹反、土豆兄弟 survivor），**已废弃删除**，在 git 历史里可找回。详见 `docs/RESTART.md`。
+
+## 工具链速查（`tools/`，纯前端，CI 部署到 GitHub Pages）
+- `tools/sprite-forge/` **AI 出动作序列帧**：参考图→整表生成→抠绿切帧（密钥走环境变量 `SCENARIO_AUTH_B64`）
+- `tools/enemy-designer/` 怪物路线画布 · `tools/composer/` 关卡 · `tools/tilemap/` 瓦片 · `tools/sprite-rigger/` 绑骨
 - `scripts/autoload/dev_tools.gd` 游戏内实时调参（F1 调参 / F3 透视；手机左上角按钮）
-- `scripts/enemy.gd` 敌人基类（多招组合 + AI 选招 + `tunables()`）

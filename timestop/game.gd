@@ -161,10 +161,10 @@ func _build_touch(cl: CanvasLayer) -> void:
 	btn_full = _mk_btn(cl, "STOP", Vector2(VW - 124, VH - 262))
 	var ba := _mk_btn(cl, "HIT", Vector2(VW - 254, VH - 132))
 	var bj := _mk_btn(cl, "JUMP", Vector2(VW - 124, VH - 132))
-	ba.pressed.connect(_on_atk)
-	bj.pressed.connect(_on_jump)
-	btn_freeze.pressed.connect(_on_frz)
-	btn_full.pressed.connect(_on_full)
+	ba.button_down.connect(_on_atk)
+	bj.button_down.connect(_on_jump)
+	btn_freeze.button_down.connect(_on_frz)
+	btn_full.button_down.connect(_on_full)
 
 func _reset_knob() -> void:
 	joy_knob.position = joy_area.position + Vector2(110, 110) - joy_knob.size * 0.5
@@ -374,13 +374,13 @@ func hurt_player(d: float) -> void:
 # ---------------------------------------------------------------- 导演 / 生成
 func spawn_wave() -> void:
 	wave += 1
-	var n := 2 + mini(4, wave)
+	var n := 2 + mini(3, wave)
 	for i in n:
 		var rr := randf()
 		var t := "charger"
-		if rr < 0.5:
+		if rr < 0.62:
 			t = "charger"
-		elif rr < 0.8:
+		elif rr < 0.85:
 			t = "shooter"
 		else:
 			t = "healer"
@@ -402,7 +402,7 @@ func spawn_bullet(from: Vector2, target: Vector2) -> void:
 	b.game = self
 	b.position = from
 	var ang := (target - from).angle()
-	b.vel = Vector2(cos(ang), sin(ang)) * 280.0
+	b.vel = Vector2(cos(ang), sin(ang)) * 240.0
 	world.add_child(b)
 	bullets.append(b)
 

@@ -26,7 +26,7 @@ func setup() -> void:
 		hp = 22.0; maxhp = 22.0; w = 30.0; h = 40.0; color = Color(0.79, 0.64, 0.25)
 	elif type == "healer":
 		hp = 20.0; maxhp = 20.0; w = 28.0; h = 44.0; color = Color(0.48, 0.76, 0.54)
-	fire_t = randf_range(0.8, 1.8)
+	fire_t = randf_range(1.8, 3.4)
 
 func _process(delta: float) -> void:
 	frozen_t = maxf(0.0, frozen_t - delta)
@@ -71,8 +71,8 @@ func _ai(sdt: float) -> void:
 		elif dist > 430.0:
 			position.x += dir * 60.0 * sdt
 		fire_t -= sdt
-		if fire_t <= 0.0:
-			fire_t = 1.6
+		if fire_t <= 0.0 and dist < 620.0:
+			fire_t = 2.8
 			game.spawn_bullet(position, p.position)
 	elif type == "healer":
 		position.x -= dir * 45.0 * sdt

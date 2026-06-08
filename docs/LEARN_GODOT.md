@@ -11,7 +11,7 @@
 - 一切尽量落到**用户自己的项目**（`scripts/player.gd`、`scripts/enemy.gd`、关卡）上，不做一次性 demo。
 
 ## 当前进度
-> 👉 **下一课：第 7 课（读真实代码 player.gd）**　[D6 实操待用户后补]
+> 👉 **下一课：第 8 课（CharacterBody2D + move_and_slide）**　[D6 实操待用户后补]
 
 ---
 
@@ -24,7 +24,7 @@
 - [x] **D4 信号 Signals**　📖 [Signals](https://docs.godotengine.org/en/stable/getting_started/step_by_step/signals.html)　🛠️ 用编辑器连一个按钮的 `pressed` 信号到脚本；再用代码连一次。
 - [x] **D5 场景实例化 Instancing**　📖 [Creating instances](https://docs.godotengine.org/en/stable/getting_started/step_by_step/instancing.html)　🛠️ 把"方块"存成场景，在另一个场景里复制出 3 个。
 - [ ] **D6 复盘 + 串起来**　🛠️ 做一个"方块能左右走"的小场景，自己从头搭一遍（不看上面的步骤）。
-- [ ] **D7 读真实代码**　跟 Claude 一起读 `scripts/player.gd` 开头，把这周学的概念对到项目里。
+- [x] **D7 读真实代码**　跟 Claude 一起读 `scripts/player.gd` 开头，把这周学的概念对到项目里。
 
 ## 第二周 · 2D 动作核心
 目标：能让一个角色走、跳、打（先用色块）。

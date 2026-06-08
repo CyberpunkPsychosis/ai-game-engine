@@ -18,7 +18,9 @@ var _joy                                 # 虚拟摇杆(可空)
 var _aim := Vector2.RIGHT
 var _radius := 12.0
 var _invuln := 0.0
-var _hurt_flash := 0.0
+var _bob := 0.0
+var _spr: Sprite2D
+const TEX := preload("res://assets/survivor/player.png")
 
 func _ready() -> void:
 	collision_layer = 1 << 1            # layer 2: player
@@ -30,6 +32,12 @@ func _ready() -> void:
 	sh.radius = _radius
 	cs.shape = sh
 	add_child(cs)
+	_spr = Sprite2D.new()
+	_spr.texture = TEX
+	_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(_spr)
+	var sc := 42.0 / float(maxi(TEX.get_width(), TEX.get_height()))
+	_spr.scale = Vector2(sc, sc)
 
 func set_joystick(j) -> void:
 	_joy = j
@@ -43,11 +51,14 @@ func _physics_process(delta: float) -> void:
 	if arena:
 		global_position = arena.clamp_pos(global_position)
 	_invuln = maxf(0.0, _invuln - delta)
-	if _hurt_flash > 0.0:
-		_hurt_flash = maxf(0.0, _hurt_flash - delta)
 	if stats.regen > 0.0 and hp < stats.max_hp:
 		hp = minf(stats.max_hp, hp + stats.regen * delta)
-	queue_redraw()
+	# 视觉:朝向翻面 + 轻微浮动
+	if _spr:
+		if absf(_aim.x) > 0.1:
+			_spr.flip_h = _aim.x < 0.0
+		_bob += delta * (10.0 if velocity.length() > 10.0 else 4.0)
+		_spr.position.y = sin(_bob) * 1.5
 
 # --- 战斗 ---
 func hurt(amount: float) -> void:
@@ -57,12 +68,11 @@ func hurt(amount: float) -> void:
 	var dmg := maxf(1.0, amount * (1.0 - reduce))
 	hp = maxf(0.0, hp - dmg)
 	_invuln = 0.5
-	_hurt_flash = 0.25
 	damaged.emit(dmg)
 	if Juice:
 		Juice.shake(7.0)
-	if FX:
-		FX.flash(self, 0.12, Color(1, 0.4, 0.4))
+	if FX and _spr:
+		FX.flash(_spr, 0.12, Color(1, 0.4, 0.4))
 	if hp <= 0.0:
 		died.emit()
 
@@ -94,22 +104,5 @@ func on_pickup(v: int) -> void:
 		arena.collect(v)
 
 func _draw() -> void:
-	var body := Color(0.78, 0.58, 0.35)    # 土豆棕(占位)
-	if _hurt_flash > 0.0:
-		body = body.lerp(Color(1, 0.3, 0.3), 0.6)
-	elif _invuln > 0.0:
-		body = body.lerp(Color.WHITE, 0.35)
-	# 椭圆土豆身体
-	var pts := PackedVector2Array()
-	for i in range(16):
-		var a := TAU * float(i) / 16.0
-		pts.append(Vector2(cos(a) * _radius * 0.92, sin(a) * _radius * 1.12))
-	draw_colored_polygon(pts, body)
-	draw_polyline(pts + PackedVector2Array([pts[0]]), Color(0.35, 0.22, 0.10, 0.9), 2.0)
-	# 枪管朝向最近开火方向
-	draw_line(Vector2.ZERO, _aim * (_radius + 9.0), Color(0.30, 0.25, 0.15), 4.0)
-	# 眼睛(看向开火方向)
-	var ex := 4.5
-	for sx in [-ex, ex]:
-		draw_circle(Vector2(sx, -2.0), 2.6, Color.WHITE)
-		draw_circle(Vector2(sx + _aim.x * 1.3, -2.0 + _aim.y * 1.3), 1.3, Color(0.1, 0.1, 0.12))
+	# 落地软阴影(在精灵之下)
+	draw_circle(Vector2(0, _radius * 0.8), _radius * 0.85, Color(0, 0, 0, 0.22))

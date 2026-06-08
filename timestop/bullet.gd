@@ -16,7 +16,7 @@ func _process(delta: float) -> void:
 	if s > 0.0:
 		position += vel * sdt
 		life -= sdt
-		if life <= 0.0 or position.x < -40.0 or position.x > 1320.0 or position.y < -40.0 or position.y > 760.0:
+		if life <= 0.0 or position.x < -40.0 or position.x > game.room_w + 40.0 or position.y < -40.0 or position.y > game.room_h + 40.0:
 			dead = true
 	queue_redraw()
 

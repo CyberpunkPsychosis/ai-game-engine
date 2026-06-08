@@ -54,16 +54,20 @@ func _process(delta: float) -> void:
 
 	var sdt := delta * s
 	stun_t = maxf(0.0, stun_t - sdt)
-	# 物理: 重力 + 击退惯性
+	# 物理: 重力 + 击退惯性, 对房间地形做碰撞
 	vy += 1700.0 * sdt
-	position.y += vy * sdt
-	position.x += vx * sdt
-	vx = lerpf(vx, 0.0, minf(1.0, sdt * 8.0))
-	if position.y + h * 0.5 >= game.GROUND:
-		position.y = game.GROUND - h * 0.5
+	var r: Dictionary = game.collide_move(position, Vector2(w * 0.5, h * 0.5), Vector2(vx, vy) * sdt)
+	position = r.pos
+	if r.floor and vy > 0.0:
 		vy = 0.0
+	vx = lerpf(vx, 0.0, minf(1.0, sdt * 8.0))
 	if stun_t <= 0.0:
 		_ai(sdt)                     # 硬直中: 被击退但不行动
+	# 掉出房间(被打飞/走进断坑)→ 移除
+	if position.y > game.room_h + 200.0:
+		game.enemies.erase(self)
+		queue_free()
+		return
 	queue_redraw()
 
 func _ai(sdt: float) -> void:

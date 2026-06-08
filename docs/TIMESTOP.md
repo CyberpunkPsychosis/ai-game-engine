@@ -7,6 +7,7 @@
 
 ## 一句话定位
 **"实时快打 + 随手冻结搞事 + 绝境全场定格翻盘"** 的横版动作游戏。
+**目标体量:空洞骑士级的可探索横版(metroidvania)**——分阶段做,先竖切片再铺量(路线图见文末)。
 
 ## 核心机制（已与用户敲定）
 - **统一的"冻结时间"，分大小两档，共用一条能量条**：
@@ -25,14 +26,21 @@
 - **CanvasModulate** 全场冷调；`world_scale` 平滑刹停/恢复（时间"渐渐凝固"而非硬切）。
 - **打击感**：命中顿帧(hitstop)、trauma 式震屏、击退、被打方块倾斜、火花。
 - **全屏触摸面板**统一接管触摸（见下"已知坑"）。
+- **房间 / 碰撞 / 摄像机**（阶段1,2026-06 加）：从单屏竞技场升级为**可滚动房间**。
+  - `game.gd: _build_room()` 代码内建测试房间(2880×1080):主地面+断坑、阶梯悬空平台、左右墙、出口区。
+  - `game.gd: collide_move(pos,half,motion)` —— AABB 对静态 `solids` 的**轴分离碰撞**,玩家/敌人共用(取代旧的单一 `GROUND` 判定)。
+  - `Camera2D` 跟随玩家(`position_smoothing` + `limit_*` 夹房间边),**震屏改走 `cam.offset`**(原来是 `world.position`)。
+  - 渲染:`_draw()` 在 world 坐标铺房间背景/网格/`solids` 色块/出口/悬停粒子,随相机滚动;HUD/后处理在 CanvasLayer 仍屏幕固定。
+  - 掉出房间:玩家→受伤回 `_spawn`;敌人/子弹→移除。
+  - ⏳ 阶段2:`_build_room` 换成解析 composer 导出的 `scenes/*.json`(world/markers + solids 约定)。
 
 ## 文件结构（`timestop/`，纯代码驱动）
 | 文件 | 作用 |
 |---|---|
 | `main.tscn` | 主场景：仅一个 Node2D + `game.gd`（`project.godot` 的 main_scene 指向它）|
-| `game.gd` | 主循环 / 时间系统 / 战斗结算 / 导演刷怪 / HUD / 触摸 / 后处理&震屏 |
-| `player.gd` (TSPlayer) | 玩家：移动/跳/攻击/闪避，恒实时 |
-| `enemy.gd` (TSEnemy) | 三型敌人 AI，用 sdt 受时间系统控制 |
+| `game.gd` | 主循环 / 时间系统 / **房间&碰撞&摄像机** / 战斗结算 / 导演刷怪 / HUD / 触摸 / 后处理&震屏 |
+| `player.gd` (TSPlayer) | 玩家：移动/跳/攻击/闪避，恒实时；走 `game.collide_move` 碰地形 + 踏被冻物 |
+| `enemy.gd` (TSEnemy) | 三型敌人 AI，用 sdt 受时间系统控制；走 `game.collide_move` 碰地形 |
 | `bullet.gd` (TSBullet) | 子弹，受时间系统控制 |
 | `fx.gd` (TSSpark) | 命中火花 |
 | `postprocess.gdshader` | 全屏定格后处理 |
@@ -71,12 +79,22 @@ GODOT=/tmp/Godot_v4.5-stable_linux.x86_64   # 没有就从 godot-builds releases
   全场定格时整个战场都能踩（`player.gd: _stand_on_frozen()`，只认 frozen_t>0 / freeze_t>0，顿帧不算）。
 - ✅ **残响表现**（敌人=死前一瞬的残响）：活动时卡帧式抽搐 + 1–2px 错位残影；冻住瞬间彻底钉死（`enemy.gd` `_jit`）。
 - ✅ **凝界悬停粒子**：半空挂着不落的冷白雨丝/尘，定格时更亮更蓝（`game.gd: _gen_motes()` / 背景 `_draw`）。
+- ✅ **阶段1 可探索地基**：单屏竞技场→可滚动房间(跟随相机 + AABB 平台碰撞 + 竖向地形 + 断坑 + 高台)。
 - 美术：AI 出图路线暂搁置（需人工修太多），后续走现成素材；当前仍色块占位。
 - 部署：Godot Web 导出到根地址（`build.yml` 走 project.godot 主场景）
 
-## 下一步候选
-- 用户确认手机触屏可用后，打磨手感数值
-- 踏板玩法做"教学时刻"：刷一波必须靠踩冻怪/冻弹才能上的高台/坑（让涌现玩法被用上）
-- 给 player/enemy 加 `tunables()` 接入游戏内 ⚙调参（实时拖滑块调手感）
-- Boss / 更多敌人花样；美术（色块→现成精灵素材）
-- 进程钩子：向「钟枢」推进的分层结构（每层一个被定格的大瞬间 = Boss）
+## 路线图（空洞骑士级 = 分阶段, 先竖切片再铺量）
+| 阶段 | 内容 | 状态 |
+|---|---|---|
+| 0 现状 | 单屏波次格斗 + 时停三件套 + 踏被冻物 | ✅ |
+| **1 地基** | 单屏→可滚动房间:跟随相机 + 实体平台碰撞 + 竖向地形;时停/踏被冻物在大地形里玩 | ✅ |
+| 2 房间互联 | 房间数据格式(对接 composer 的 `scenes/*.json` + solids 约定) + 门/切房 + 存档长椅 | ⏳ |
+| 3 能力 gating | 二段跳/冲刺位移/「冻物当跳台」做成解谜钥匙, 锁区→解锁(metroidvania 核心) | ⏳ |
+| 4 内容铺量 | 多房间地图 + 用 enemy-designer 出怪 + Boss(悬龙) + NPC/lore | ⏳ |
+| 5 美术 | 色块→现成素材(最后一步) | ⏳ |
+
+## 下一步（阶段2 入口）
+- 写 `scenes/*.json` 加载器:解析 composer 的 world/markers,加 `solids` 碰撞层约定;`_build_room` 改为读 JSON。
+- 房间出口 `exits` 接 `SceneManager`/换房逻辑(带淡入淡出,已有 `scene_manager.gd`)。
+- 存档长椅(checkpoint):坐下回血 + 设为重生点。
+- 给 player/enemy 加 `tunables()` 接游戏内 ⚙调参(F1)。

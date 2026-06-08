@@ -9,7 +9,7 @@ extends Node2D
 
 const VW := 1280.0
 const VH := 720.0
-const GROUND := 626.0
+var GROUND := 1000.0              # 主地面顶 y(由房间数据填;玩家/敌人/Boss 仍读 game.GROUND)
 
 const ENERGY_MAX := 100.0
 const SINGLE_COST := 18.0
@@ -24,6 +24,14 @@ var player: TSPlayer
 var enemies: Array = []
 var bullets: Array = []
 var boss = null                  # 悬龙 Boss(spawn_boss() 召唤;平时不召唤,不影响现有波次)
+
+# 房间 / 关卡(竖切片:代码内建;阶段2 改为读 composer 的 scenes/*.json)
+var room_w := 2880.0
+var room_h := 1080.0
+var solids: Array[Rect2] = []    # 实体地形(AABB, world 坐标);玩家/敌人按它碰撞
+var exits: Array = []            # 出口触发区 [{rect, to}](阶段2 接切房)
+var _spawn := Vector2(180, 940)  # 出生点(掉坑/重开回到这)
+var cam: Camera2D
 
 # 时间状态
 var world_scale := 1.0
@@ -72,20 +80,85 @@ func scale_for(entity_frozen_t: float) -> float:
 # ---------------------------------------------------------------- 初始化
 func _ready() -> void:
 	randomize()
-	_gen_motes()
 	world = Node2D.new()
 	add_child(world)
 	canvas_mod = CanvasModulate.new()
 	canvas_mod.color = Color.WHITE
 	add_child(canvas_mod)
+	_build_room()                       # 填 solids / room_w,h / GROUND / _spawn / exits
+	_gen_motes()                        # 粒子铺满房间(需 room 尺寸, 故在 _build_room 后)
 	player = TSPlayer.new()
 	player.game = self
-	player.position = Vector2(300.0, GROUND - 80.0)
+	player.position = _spawn
 	world.add_child(player)
 	_load_hero_sprites()
+	_build_camera()
 	_build_overlay()
 	_build_hud()
 	spawn_wave()
+
+## 测试房间(色块):宽幅滚动 + 竖向地形 + 中段断坑(靠冻物/平台过) + 高台。
+## 阶段2 改为解析 composer 的 scenes/*.json(world/markers + solids 约定)。
+func _build_room() -> void:
+	room_w = 2880.0
+	room_h = 1080.0
+	GROUND = 1000.0
+	var ft := 80.0                      # 地面厚
+	solids.clear()
+	# 主地面:中段 1120~1440 留断坑
+	solids.append(Rect2(0.0, GROUND, 1120.0, ft))
+	solids.append(Rect2(1440.0, GROUND, room_w - 1440.0, ft))
+	# 左右边墙
+	solids.append(Rect2(-40.0, -400.0, 40.0, room_h + 400.0))
+	solids.append(Rect2(room_w, -400.0, 40.0, room_h + 400.0))
+	# 悬空平台(色块)——阶梯式逐级可跳(单跳≈120px), 留最高一块作"冻物当踏板"设计点
+	solids.append(Rect2(360.0, 900.0, 240.0, 26.0))    # 离地 ~100
+	solids.append(Rect2(720.0, 812.0, 230.0, 26.0))    # 升 ~90
+	solids.append(Rect2(1050.0, 726.0, 210.0, 26.0))   # 升 ~90, 临断坑
+	solids.append(Rect2(1520.0, 860.0, 260.0, 26.0))   # 断坑对岸落点(从上一块跳过坑)
+	solids.append(Rect2(1860.0, 772.0, 220.0, 26.0))
+	solids.append(Rect2(2180.0, 700.0, 240.0, 26.0))
+	solids.append(Rect2(2360.0, 520.0, 240.0, 26.0))   # 高台:离下层 ~180, 单跳够不着→冻怪/冻弹垫脚上
+	_spawn = Vector2(180.0, GROUND - 40.0)
+	exits = [{"rect": Rect2(room_w - 60.0, GROUND - 170.0, 50.0, 170.0), "to": ""}]
+
+func _build_camera() -> void:
+	cam = Camera2D.new()
+	cam.position_smoothing_enabled = true
+	cam.position_smoothing_speed = 9.0
+	cam.limit_left = 0
+	cam.limit_top = 0
+	cam.limit_right = int(room_w)
+	cam.limit_bottom = int(room_h)
+	world.add_child(cam)
+	cam.make_current()
+
+## AABB 对静态 solids 的轴分离碰撞解算。pos=中心, half=半尺寸, motion=本帧位移。
+## 返回 {pos, floor, ceil, wall}。玩家/敌人共用,免各写一套地面判定。
+func collide_move(pos: Vector2, half: Vector2, motion: Vector2) -> Dictionary:
+	var on_floor := false
+	var on_ceil := false
+	var on_wall := false
+	pos.x += motion.x
+	for s in solids:
+		if absf(pos.x - (s.position.x + s.size.x * 0.5)) < half.x + s.size.x * 0.5 \
+		and absf(pos.y - (s.position.y + s.size.y * 0.5)) < half.y + s.size.y * 0.5:
+			if motion.x > 0.0:
+				pos.x = s.position.x - half.x
+			elif motion.x < 0.0:
+				pos.x = s.position.x + s.size.x + half.x
+			on_wall = true
+	pos.y += motion.y
+	for s in solids:
+		if absf(pos.x - (s.position.x + s.size.x * 0.5)) < half.x + s.size.x * 0.5 \
+		and absf(pos.y - (s.position.y + s.size.y * 0.5)) < half.y + s.size.y * 0.5:
+			if motion.y > 0.0:
+				pos.y = s.position.y - half.y
+				on_floor = true
+			elif motion.y < 0.0:
+				pos.y = s.position.y + s.size.y + half.y
+				on_ceil = true
+	return {"pos": pos, "floor": on_floor, "ceil": on_ceil, "wall": on_wall}
 
 func _build_overlay() -> void:
 	var cl := CanvasLayer.new()
@@ -256,7 +329,9 @@ func _process(delta: float) -> void:
 		player.tick(delta)
 		_combat()
 
-	world.position = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake
+	if cam:                              # 相机跟随玩家(房间内, limit 自动夹边), 震屏走 offset
+		cam.position = player.position
+		cam.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake
 	var cold := 1.0 - world_scale
 	canvas_mod.color = Color.WHITE.lerp(Color(0.55, 0.62, 0.88), cold)
 	overlay_mat.set_shader_parameter("freeze", cold)
@@ -408,8 +483,12 @@ func spawn_wave() -> void:
 			t = "shooter"
 		else:
 			t = "healer"
+		# 在房间内、玩家两侧一定距离的实地上刷(避开断坑 1120~1440)
 		var side := -1.0 if randf() < 0.5 else 1.0
-		var x := (-40.0 - randf() * 160.0) if side < 0.0 else (VW + 40.0 + randf() * 160.0)
+		var x := player.position.x + side * randf_range(360.0, 760.0)
+		x = clampf(x, 80.0, room_w - 80.0)
+		if x > 1080.0 and x < 1480.0:
+			x = 1560.0 if side > 0.0 else 1040.0
 		spawn_enemy(t, x)
 
 func spawn_enemy(t: String, x: float) -> void:
@@ -417,7 +496,7 @@ func spawn_enemy(t: String, x: float) -> void:
 	e.game = self
 	e.type = t
 	e.setup()
-	e.position = Vector2(x, GROUND - e.h * 0.5)
+	e.position = Vector2(x, GROUND - e.h * 0.5)   # 落在主地面上
 	world.add_child(e)
 	enemies.append(e)
 
@@ -484,20 +563,21 @@ func _update_hud() -> void:
 ## 半空悬停的雨丝/尘:位置固定(时间停了→不落), 只做微脉动闪烁。
 func _gen_motes() -> void:
 	_motes.clear()
-	for i in 72:
+	var n := int(room_w * room_h / 36000.0)        # 按房间面积铺密度
+	for i in n:
 		var streak := randf() < 0.4
 		_motes.append({
-			"p": Vector2(randf() * VW, randf() * (GROUND - 20.0)),
+			"p": Vector2(randf() * room_w, randf() * (room_h - 20.0)),
 			"ph": randf() * TAU,
 			"len": randf_range(5.0, 13.0) if streak else 0.0,
 			"s": randf_range(0.7, 1.7),
 		})
 
-# ---------------------------------------------------------------- 背景
+# ---------------------------------------------------------------- 房间渲染(world 坐标, 随相机滚动)
 func _draw() -> void:
-	draw_rect(Rect2(0, 0, VW, VH), Color(0.05, 0.066, 0.09))
-	for x in range(0, int(VW), 48):
-		draw_line(Vector2(x, 0), Vector2(x, VH), Color(0.082, 0.10, 0.13))
+	draw_rect(Rect2(0, 0, room_w, room_h), Color(0.05, 0.066, 0.09))
+	for x in range(0, int(room_w), 48):
+		draw_line(Vector2(x, 0), Vector2(x, room_h), Color(0.082, 0.10, 0.13))
 	# 凝界悬停粒子(冷白雨丝/尘, 定格时更亮更蓝, 强化"时间停了")
 	var cold := 1.0 - world_scale
 	for m in _motes:
@@ -509,5 +589,10 @@ func _draw() -> void:
 			draw_line(p, p + Vector2(0.0, m.len), base, m.s)
 		else:
 			draw_rect(Rect2(p.x, p.y, m.s, m.s), base)
-	draw_rect(Rect2(0, GROUND, VW, VH - GROUND), Color(0.10, 0.14, 0.17))
-	draw_line(Vector2(0, GROUND), Vector2(VW, GROUND), Color(0.17, 0.23, 0.27), 2.0)
+	# 实体地形(色块)+ 顶边冷高亮
+	for s in solids:
+		draw_rect(s, Color(0.10, 0.14, 0.17))
+		draw_line(s.position, s.position + Vector2(s.size.x, 0.0), Color(0.17, 0.23, 0.27), 2.0)
+	# 出口(通往下个房间, 阶段2 接切房)
+	for e in exits:
+		draw_rect(e.rect, Color(0.21, 0.78, 0.92, 0.16))

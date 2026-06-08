@@ -112,18 +112,24 @@ func tick(delta: float) -> void:
 		onground = false
 	want_jump = false
 	vy += 1700.0 * delta
-	position.x += vx * delta
-	position.y += vy * delta
 	iframe = maxf(0.0, iframe - delta)
 	atk_t = maxf(0.0, atk_t - delta)
 	atkcd = maxf(0.0, atkcd - delta)
-	onground = false
-	if position.y + h * 0.5 >= game.GROUND:
-		position.y = game.GROUND - h * 0.5
+	# 对房间实体地形做 AABB 碰撞(取代单一 GROUND 判定)
+	var r: Dictionary = game.collide_move(position, Vector2(w * 0.5, h * 0.5), Vector2(vx, vy) * delta)
+	position = r.pos
+	onground = r.floor
+	if r.floor and vy > 0.0:
 		vy = 0.0
-		onground = true
+	if r.ceil and vy < 0.0:
+		vy = 0.0
 	_stand_on_frozen()
-	position.x = clampf(position.x, 16.0, 1264.0)
+	# 掉出房间(断坑)→ 受伤并送回出生点
+	if position.y > game.room_h + 60.0:
+		position = game._spawn
+		vx = 0.0
+		vy = 0.0
+		game.hurt_player(10.0)
 	if _use_sprite and _anim and _anim.sprite_frames:
 		var a := current_anim()
 		if _anim.sprite_frames.has_animation(a) and _anim.animation != a:

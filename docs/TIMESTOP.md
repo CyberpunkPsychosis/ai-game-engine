@@ -16,7 +16,9 @@
 - **能量靠"进攻"攒**（用户选的"莽"路线）：命中 +8、击杀 +28。→ 逼玩家主动压上。
   - 自带张力：攒能量要打，救命的全场定格也要花能量 → 打得越猛越有底气。
 - **闪避 DASH**（DASH / 键 C）：0.22s 冲刺 + **全程无敌帧**（可穿怪穿弹）、0.75s 冷却、带拖影。
-- **敌人三型**：冲锋 charger / 远程弹幕 shooter / 治疗 healer（逼你别磨蹭）。波次导演自动刷新。
+- **敌人三型**：冲锋 charger / 远程弹幕 shooter / 治疗 healer。**charger 已改成可躲避的扑影**:
+  逼近(慢, 能甩开)→ **预警蓄力(闪红框)** → 直线扑杀(锁方向、冲过头, 只这下碰到才伤人)→ 露破绽硬直(可反击)。
+  shooter 保持中距开火不贴脸、healer 边奶边躲。(后续用 enemy-designer 给每种怪重做机制。)
 
 ## 技术架构（刻意展示技术力，非普通写法）
 - **统一时间系统**（`game.gd: scale_for()`）：每个实体每帧 `sdt = delta * scale_for(自身frozen_t)`。
@@ -45,7 +47,7 @@
 | `fx.gd` (TSSpark) | 命中火花 |
 | `room_loader.gd` (RoomLoader) | 读 `res://scenes/<id>.json` → Dictionary(房间数据)|
 | `postprocess.gdshader` | 全屏定格后处理 |
-| `../scenes/*.json` | 房间数据(room_a / room_b …);格式见下「房间数据格式」|
+| `../scenes/*.json` | 房间数据;现有 room_a(中枢)/ room_b(竖向)/ room_c(横向), 连成 `room_c⟵room_a⟶room_b` |
 
 ## 操作
 - **电脑**：A/D 移动 · 空格 跳 · J 砍 · K 冻单体(瞄鼠标) · L 全场定格 · C 闪避 · R 重开

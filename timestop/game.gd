@@ -568,8 +568,9 @@ func _combat() -> void:
 	var pp: Vector2 = player.position
 	for e in enemies:
 		var se := scale_for(e.frozen_t)
-		if se > 0.0 and e.stun_t <= 0.0 and e.type == "charger":
-			if absf(e.position.x - pp.x) < 26.0 and absf(e.position.y - pp.y) < 42.0:
+		# 扑影只在"扑杀(lunge)"那一下碰到才伤人 → 平时贴着也不掉血, 能躲能反击
+		if se > 0.0 and e.type == "charger" and e.attacking:
+			if absf(e.position.x - pp.x) < 24.0 + e.w * 0.5 and absf(e.position.y - pp.y) < 24.0 + e.h * 0.5:
 				hurt_player(12.0)
 	for b in bullets:
 		if b.dead:

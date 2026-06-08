@@ -20,6 +20,11 @@ var color := Color(0.88, 0.39, 0.25)
 var tilt := 0.0        # 被打倾斜
 var _jit := Vector2.ZERO   # 残响卡帧抽搐(活动时小幅抖, 冻住归零)
 var _jit_cd := 0.0
+# 行为状态机(charger 用:approach→windup→lunge→recover, 让玩家有预警和破绽可躲/可反击)
+var state := "approach"
+var state_t := 0.0
+var _lunge_dir := 1.0
+var attacking := false      # 仅 lunge 命中窗口为 true → 只有这下碰到才伤人
 
 func setup() -> void:
 	if type == "charger":
@@ -61,7 +66,9 @@ func _process(delta: float) -> void:
 	if r.floor and vy > 0.0:
 		vy = 0.0
 	vx = lerpf(vx, 0.0, minf(1.0, sdt * 8.0))
-	if stun_t <= 0.0:
+	if stun_t > 0.0:
+		attacking = false            # 被打断 → 取消扑击命中窗口
+	else:
 		_ai(sdt)                     # 硬直中: 被击退但不行动
 	# 掉出房间(被打飞/走进断坑)→ 移除
 	if position.y > game.room_h + 200.0:
@@ -72,27 +79,60 @@ func _process(delta: float) -> void:
 
 func _ai(sdt: float) -> void:
 	var p = game.player
-	var dir := signf(p.position.x - position.x)
+	var dx: float = p.position.x - position.x
+	var dir := signf(dx)
 	if dir == 0.0:
 		dir = 1.0
+	var dist := absf(dx)
 	if type == "charger":
-		position.x += dir * 150.0 * sdt
+		_charger_ai(sdt, dir, dist)
 	elif type == "shooter":
-		var dist := absf(p.position.x - position.x)
-		if dist < 300.0:
-			position.x -= dir * 80.0 * sdt
-		elif dist > 430.0:
-			position.x += dir * 60.0 * sdt
+		# 远程:保持中距, 太近后撤、太远逼近, 在射程内开火(不贴脸)
+		if dist < 320.0:
+			vx = -dir * 110.0
+		elif dist > 480.0:
+			vx = dir * 90.0
+		else:
+			vx = 0.0
 		fire_t -= sdt
-		if fire_t <= 0.0 and dist < 620.0:
-			fire_t = 2.8
+		if fire_t <= 0.0 and dist < 640.0:
+			fire_t = randf_range(2.4, 3.2)
 			game.spawn_bullet(position, p.position)
 	elif type == "healer":
-		position.x -= dir * 45.0 * sdt
+		# 治疗:边奶边躲, 永远跟你拉开
+		vx = -dir * 70.0
 		fire_t -= sdt
 		if fire_t <= 0.0:
 			fire_t = 1.4
 			game.heal_allies(self)
+
+## 扑影:逼近→预警蓄力→直线扑杀(冲过头)→露破绽。给玩家预警和反击窗口。
+func _charger_ai(sdt: float, dir: float, dist: float) -> void:
+	state_t -= sdt
+	attacking = false
+	match state:
+		"approach":
+			# 慢速逼近(玩家移速 320 > 这个 → 能甩开/绕后)
+			vx = dir * 130.0 if dist > 165.0 else 0.0
+			if dist <= 165.0:
+				state = "windup"
+				state_t = 0.42
+		"windup":
+			vx = -dir * 26.0            # 微后仰蓄力(配合 _draw 红框预警)
+			if state_t <= 0.0:
+				_lunge_dir = dir         # 锁定扑击方向(扑出后不再追踪 → 可侧身躲)
+				state = "lunge"
+				state_t = 0.32
+		"lunge":
+			vx = _lunge_dir * 560.0     # 直线扑杀(会冲过头)
+			attacking = true
+			if state_t <= 0.0:
+				state = "recover"
+				state_t = 0.55
+		"recover":
+			vx = 0.0                    # 露破绽:站定可被反击
+			if state_t <= 0.0:
+				state = "approach"
 
 func _draw() -> void:
 	var frozen: bool = game.scale_for(frozen_t) <= 0.0
@@ -110,6 +150,15 @@ func _draw() -> void:
 	if frozen:
 		draw_rect(Rect2(-w * 0.5, -h * 0.5, w, h), Color(0.82, 0.94, 1.0), false, 2.0)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# 扑影预警/扑击表现:蓄力闪红框(可躲信号), 扑出拖影(冲过头)
+	if type == "charger" and not frozen:
+		if state == "windup":
+			var pulse := 0.4 + 0.6 * absf(sin(state_t * 26.0))
+			draw_rect(Rect2(-w * 0.5 - 3.0, -h * 0.5 - 3.0, w + 6.0, h + 6.0), Color(1.0, 0.40, 0.34, pulse), false, 2.5)
+		elif state == "lunge":
+			for k in 3:
+				var a := 0.28 * (1.0 - float(k) / 3.0)
+				draw_rect(Rect2(-w * 0.5 - _lunge_dir * float(k + 1) * 12.0, -h * 0.5, w, h), Color(1.0, 0.6, 0.42, a))
 	# 血条
 	draw_rect(Rect2(-16, -h * 0.5 - 9, 32, 4), Color(0, 0, 0, 0.6))
 	draw_rect(Rect2(-16, -h * 0.5 - 9, 32.0 * clampf(hp / maxhp, 0.0, 1.0), 4), Color(0.88, 0.42, 0.42))

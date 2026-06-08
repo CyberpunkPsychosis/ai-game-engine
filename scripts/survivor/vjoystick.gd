@@ -65,9 +65,3 @@ func _draw() -> void:
 	draw_circle(base, _radius, Color(1, 1, 1, 0.05))
 	draw_arc(base, _radius, 0.0, TAU, 32, Color(1, 1, 1, a + 0.06), 2.0)
 	draw_circle(base + _vec * _radius, 30.0, Color(1, 1, 1, a))
-	# 调试信息(确认触摸有没有进来)
-	var f := get_theme_default_font()
-	if f:
-		var txt := "JOY touch=%d last=%s active=%s vec=(%.2f,%.2f)" % [_dbg_touches, _dbg_last, str(_active), _vec.x, _vec.y]
-		draw_string(f, Vector2(16.0, get_viewport_rect().size.y - 24.0), txt,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 0.3))

@@ -1,15 +1,18 @@
 extends Control
 class_name SurvivorJoystick
-## 全屏浮动虚拟摇杆(手机):按下处生成基座,拖动给出方向向量。
-## 用 _unhandled_input 直接读屏幕触摸(不靠 Control 的 GUI 拾取,网页/移动端更稳)。
-## mouse_filter=IGNORE:不拦 UI 按钮的点击,只负责画摇杆 + 读移动触摸。
-## 自动瞄准开火,所以整屏都可作为移动区。键盘有输入时玩家会忽略它。
+## 浮动虚拟摇杆(手机)。用 _input 直接读屏幕触摸,最大化可靠性。
+## - 常驻可见:空闲时在左下画一个"home"提示圈(确认新版已加载)。
+## - 触摸任意处:摇杆基座跳到触点,拖动给方向。
+## - 屏幕左下打调试信息(触摸次数/向量),便于远程排查触摸是否进来。
+## mouse_filter=IGNORE,只画+读移动触摸,不拦 UI 按钮。
 
 var _origin := Vector2.ZERO
 var _vec := Vector2.ZERO
 var _active := false
 var _idx := -1
 var _radius := 95.0
+var _dbg_touches := 0          # 收到过多少次按下(触摸或鼠标)
+var _dbg_last := "none"
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -18,19 +21,24 @@ func _ready() -> void:
 func get_vector() -> Vector2:
 	return _vec
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
+		_dbg_last = "touch"
 		if event.pressed:
 			if not _active:
+				_dbg_touches += 1
 				_active = true; _idx = event.index
 				_origin = event.position; _vec = Vector2.ZERO
 		elif event.index == _idx:
 			_end()
 		queue_redraw()
 	elif event is InputEventScreenDrag and _active and event.index == _idx:
+		_dbg_last = "drag"
 		_update(event.position)
-	elif event is InputEventMouseButton:        # 桌面鼠标兜底(未开 emulate 时)
+	elif event is InputEventMouseButton:
+		_dbg_last = "mouse"
 		if event.pressed and not _active:
+			_dbg_touches += 1
 			_active = true; _idx = -2
 			_origin = event.position; _vec = Vector2.ZERO
 		elif not event.pressed and _idx == -2:
@@ -47,9 +55,19 @@ func _end() -> void:
 	_active = false; _idx = -1; _vec = Vector2.ZERO
 	queue_redraw()
 
+func _home() -> Vector2:
+	var vp := get_viewport_rect().size
+	return Vector2(150.0, vp.y - 150.0)
+
 func _draw() -> void:
-	if not _active:
-		return
-	draw_circle(_origin, _radius, Color(1, 1, 1, 0.06))
-	draw_arc(_origin, _radius, 0, TAU, 32, Color(1, 1, 1, 0.15), 2.0)
-	draw_circle(_origin + _vec * _radius, 30.0, Color(1, 1, 1, 0.18))
+	var base := _origin if _active else _home()
+	var a := 0.22 if _active else 0.10
+	draw_circle(base, _radius, Color(1, 1, 1, 0.05))
+	draw_arc(base, _radius, 0.0, TAU, 32, Color(1, 1, 1, a + 0.06), 2.0)
+	draw_circle(base + _vec * _radius, 30.0, Color(1, 1, 1, a))
+	# 调试信息(确认触摸有没有进来)
+	var f := get_theme_default_font()
+	if f:
+		var txt := "JOY touch=%d last=%s active=%s vec=(%.2f,%.2f)" % [_dbg_touches, _dbg_last, str(_active), _vec.x, _vec.y]
+		draw_string(f, Vector2(16.0, get_viewport_rect().size.y - 24.0), txt,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 0.3))

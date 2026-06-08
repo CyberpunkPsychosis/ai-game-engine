@@ -15,6 +15,7 @@
 
 ## 工具链速查
 - `tools/enemy-designer/` 怪物导演（画布摆位+路线+弹道）← 当前主线
+- `tools/sprite-forge/` **AI 出动作序列帧**：一张参考图→整表一次生成(GPT Image 2/Gemini)→抠绿切帧脚底对齐（密钥走环境变量 `SCENARIO_AUTH_B64`）
 - `tools/composer/` 关卡编辑器 · `tools/tilemap/` 瓦片地图 · `tools/sprite-rigger/` 绑骨
 - `scripts/autoload/dev_tools.gd` 游戏内实时调参（F1 调参 / F3 透视；手机左上角按钮）
 - `scripts/enemy.gd` 敌人基类（多招组合 + AI 选招 + `tunables()`）

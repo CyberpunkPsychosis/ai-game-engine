@@ -11,17 +11,37 @@
   canvas{background:#0d1117;max-width:100%;max-height:100%;image-rendering:auto;touch-action:none;}
   #hint{position:fixed;left:10px;bottom:8px;font-size:12px;color:#7e8896;line-height:1.5;}
   #hint b{color:#bfe3d2;}
+  #touch{position:fixed;inset:0;pointer-events:none;display:none;z-index:5;}
+  #touch.on{display:block;}
+  #stick{position:fixed;left:18px;bottom:26px;width:120px;height:120px;border-radius:50%;
+    background:rgba(255,255,255,.05);border:1px solid #2c3a46;pointer-events:auto;touch-action:none;}
+  #knob{position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;
+    background:rgba(143,211,255,.35);border:1px solid #8fd3ff;}
+  #btns{position:fixed;right:12px;bottom:22px;width:172px;text-align:right;pointer-events:none;}
+  #btns button{pointer-events:auto;touch-action:none;width:76px;height:76px;margin:5px;border-radius:50%;
+    font-size:17px;font-weight:700;color:#eae6dd;background:rgba(40,52,64,.72);border:1px solid #4a5b68;}
+  #btns button:active{background:rgba(92,192,204,.55);}
+  #btns .full{background:rgba(92,143,204,.6);}
+  #btns .full:active{background:rgba(143,211,255,.6);}
 </style>
 </head>
 <body>
 <div id="wrap"><canvas id="c" width="960" height="540"></canvas></div>
-<div id="hint">移动 <b>A/D</b> · 跳 <b>空格</b> · 攻击 <b>鼠标左键</b>(朝鼠标方向) · 冻住单体 <b>鼠标右键</b>(冻光标处, 花能量) · 全场定格 <b>F</b>(攒满才能放) · 重开 <b>R</b></div>
+<div id="hint">电脑: 移动 <b>A/D</b> · 跳 <b>空格</b> · 攻击 <b>左键</b> · 冻单体 <b>右键</b> · 全场定格 <b>F</b> · 重开 <b>R</b>　|　手机用屏幕摇杆+按钮</div>
+<div id="touch">
+  <div id="stick"><div id="knob"></div></div>
+  <div id="btns">
+    <button data-a="full" class="full">定格</button><button data-a="jump">跳</button>
+    <button data-a="frz">冻</button><button data-a="atk">砍</button>
+  </div>
+</div>
 <script>
 const cv=document.getElementById("c"), ctx=cv.getContext("2d");
 const W=960,H=540, GROUND=H-70;
 // ---------- 输入 ----------
 const keys={};
 let mouse={x:W/2,y:H/2,down:false};
+let touchMode=false, touchMove=0, jumpReq=false;
 addEventListener("keydown",e=>{keys[e.code]=true; if(["Space","KeyF","KeyR"].includes(e.code))e.preventDefault();});
 addEventListener("keyup",e=>{keys[e.code]=false;});
 function mpos(e){const r=cv.getBoundingClientRect();mouse.x=(e.clientX-r.left)*(W/r.width);mouse.y=(e.clientY-r.top)*(H/r.height);}
@@ -60,7 +80,7 @@ function spawnEnemy(type,x){
 
 // ---------- 玩家动作 ----------
 function attack(){ if(gameover){return;} if(player.atkcd>0)return; player.atk=0.12; player.atkcd=0.32;
-  player.facing = (mouse.x>=player.x)?1:-1;
+  if(!touchMode) player.facing = (mouse.x>=player.x)?1:-1;
   // 命中判定：身前一个框
   const ax=player.x + player.facing*34, ay=player.y, aw=46, ah=46;
   let hitAny=false;
@@ -76,9 +96,10 @@ function damage(e,dmg){ e.hp-=dmg; e.flash=0.1; addEnergy(6);
 function addEnergy(v){ energy=Math.min(ENERGY_MAX, energy+v); }
 function freezeSingle(){ if(gameover){return;} if(energy<SINGLE_COST)return;
   // 冻住离光标最近的(敌人或子弹)
-  let best=null,bd=240,kind=null;
-  for(const e of enemies){const d=Math.hypot(e.x-mouse.x,e.y-mouse.y); if(d<bd){bd=d;best=e;kind="e";}}
-  for(const b of bullets){if(b.dead)continue;const d=Math.hypot(b.x-mouse.x,b.y-mouse.y); if(d<bd){bd=d;best=b;kind="b";}}
+  const rx=touchMode?player.x:mouse.x, ry=touchMode?player.y:mouse.y;
+  let best=null,bd=touchMode?340:240,kind=null;
+  for(const e of enemies){const d=Math.hypot(e.x-rx,e.y-ry); if(d<bd){bd=d;best=e;kind="e";}}
+  for(const b of bullets){if(b.dead)continue;const d=Math.hypot(b.x-rx,b.y-ry); if(d<bd){bd=d;best=b;kind="b";}}
   if(best){ energy-=SINGLE_COST; best.frozen=SINGLE_DUR; floaty(best.x,best.y-20,"冻"); }
 }
 function fullFreeze(){ if(gameover){return;} if(energy<ENERGY_MAX)return; energy=0; globalFreeze=FULL_DUR; shake=14; }
@@ -96,9 +117,12 @@ function update(dt){
   const worldFrozen = globalFreeze>0;
 
   // --- 玩家(永远实时) ---
-  const move=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
+  let move=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
+  if(touchMode && Math.abs(touchMove)>0.15) move=touchMove;
   player.vx = move*250;
-  if((keys.Space||keys.KeyW||keys.ArrowUp) && player.onground){ player.vy=-560; player.onground=false; }
+  if(Math.abs(move)>0.2) player.facing = move>0?1:-1;
+  if((keys.Space||keys.KeyW||keys.ArrowUp||jumpReq) && player.onground){ player.vy=-560; player.onground=false; }
+  jumpReq=false;
   player.vy += 1500*dt;
   player.x += player.vx*dt; player.y += player.vy*dt;
   player.atk=Math.max(0,player.atk-dt); player.atkcd=Math.max(0,player.atkcd-dt); player.iframe=Math.max(0,player.iframe-dt);
@@ -198,9 +222,9 @@ function render(){
   for(const s of sparks){ ctx.fillStyle=s.c;ctx.globalAlpha=Math.max(0,s.life*2.2);ctx.fillRect(s.x-2,s.y-2,4,4);ctx.globalAlpha=1; }
   // 飘字
   for(const f of floatTexts){ ctx.fillStyle="rgba(255,255,255,"+Math.min(1,f.life*1.6)+")";ctx.font="bold 14px sans-serif";ctx.textAlign="center";ctx.fillText(f.t,f.x,f.y); }
-  // 光标(冻结瞄准)
-  ctx.strokeStyle=energy>=SINGLE_COST?"#8fd3ff":"#445";ctx.lineWidth=1.5;
-  ctx.beginPath();ctx.arc(mouse.x,mouse.y,10,0,7);ctx.stroke();
+  // 光标(冻结瞄准, 仅电脑)
+  if(!touchMode){ ctx.strokeStyle=energy>=SINGLE_COST?"#8fd3ff":"#445";ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(mouse.x,mouse.y,10,0,7);ctx.stroke(); }
   ctx.restore();
 
   // 全场定格滤镜
@@ -225,6 +249,25 @@ function render(){
     ctx.fillStyle="#eae6dd";ctx.font="bold 34px sans-serif";ctx.textAlign="center";ctx.fillText("阵亡",W/2,H/2-10);
     ctx.font="16px sans-serif";ctx.fillText("击杀 "+killCount+" · 波次 "+wave+" —— 按 R 重来",W/2,H/2+24); }
 }
+
+// ---------- 触屏控制 ----------
+const touchEl=document.getElementById("touch");
+if(('ontouchstart' in window)||navigator.maxTouchPoints>0) touchEl.classList.add("on");
+const stick=document.getElementById("stick"), knob=document.getElementById("knob");
+let stickId=null;
+function moveStick(e){ const r=stick.getBoundingClientRect(); const R=45;
+  let dx=Math.max(-R,Math.min(R,e.clientX-(r.left+r.width/2)));
+  let dy=Math.max(-R,Math.min(R,e.clientY-(r.top+r.height/2)));
+  touchMove=dx/R; knob.style.left=(35+dx)+"px"; knob.style.top=(35+dy)+"px"; }
+stick.addEventListener("pointerdown",e=>{e.preventDefault();touchMode=true;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);moveStick(e);});
+stick.addEventListener("pointermove",e=>{if(e.pointerId===stickId)moveStick(e);});
+function stickEnd(e){if(e.pointerId===stickId){stickId=null;touchMove=0;knob.style.left="35px";knob.style.top="35px";}}
+stick.addEventListener("pointerup",stickEnd);
+stick.addEventListener("pointercancel",stickEnd);
+document.querySelectorAll("#btns button").forEach(b=>{
+  b.addEventListener("pointerdown",e=>{e.preventDefault();touchMode=true;const a=b.dataset.a;
+    if(a==="jump")jumpReq=true; else if(a==="atk")attack(); else if(a==="frz")freezeSingle(); else if(a==="full")fullFreeze();});
+});
 
 function loop(now){ const dt=Math.min(0.033,(now-last)/1000); last=now; update(dt); render(); requestAnimationFrame(loop); }
 reset(); requestAnimationFrame(loop);

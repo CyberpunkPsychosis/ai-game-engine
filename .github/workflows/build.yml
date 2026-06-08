@@ -103,6 +103,8 @@ jobs:
           cp -r tools/tilemap/* build/web/tools/tilemap/
           mkdir -p build/web/tools/enemy-designer
           cp -r tools/enemy-designer/* build/web/tools/enemy-designer/
+          mkdir -p build/web/tools/spin-demo
+          cp -r tools/spin-demo/* build/web/tools/spin-demo/
           mkdir -p build/web/assets
           cp -r assets/* build/web/assets/ 2>/dev/null || true
           mkdir -p build/web/scenes

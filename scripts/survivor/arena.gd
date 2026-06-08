@@ -174,13 +174,18 @@ func _layer() -> Node2D:
 	return n
 
 func _draw_ground() -> void:
-	var bg := ColorRect.new()
-	bg.position = Vector2.ZERO
-	bg.size = ARENA_SIZE
-	bg.color = Color(0.16, 0.17, 0.22)
-	bg.z_index = -100
-	add_child(bg)
-	# 网格线(看得出移动)
+	# 平铺草地贴图
+	var g := Sprite2D.new()
+	g.texture = preload("res://assets/survivor/ground.png")
+	g.centered = false
+	g.region_enabled = true
+	g.region_rect = Rect2(0, 0, ARENA_SIZE.x, ARENA_SIZE.y)
+	g.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	g.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	g.modulate = Color(0.78, 0.82, 0.74)        # 压暗一点让角色更跳
+	g.z_index = -100
+	add_child(g)
+	# 竞技场边界框
 	var grid := _GridLines.new()
 	grid.area = ARENA_SIZE
 	grid.z_index = -99
@@ -190,10 +195,6 @@ func _draw_ground() -> void:
 class _GridLines extends Node2D:
 	var area := Vector2(1700, 1000)
 	func _draw() -> void:
-		var col := Color(1, 1, 1, 0.04)
-		var step := 64
-		for x in range(0, int(area.x) + 1, step):
-			draw_line(Vector2(x, 0), Vector2(x, area.y), col, 1.0)
-		for y in range(0, int(area.y) + 1, step):
-			draw_line(Vector2(0, y), Vector2(area.x, y), col, 1.0)
-		draw_rect(Rect2(Vector2.ZERO, area), Color(0.4, 0.4, 0.5, 0.5), false, 2.0)
+		# 竞技场暗色边界(草地外围)
+		draw_rect(Rect2(Vector2.ZERO, area), Color(0.08, 0.10, 0.08, 0.9), false, 8.0)
+		draw_rect(Rect2(Vector2.ZERO, area), Color(0.30, 0.35, 0.28, 0.8), false, 2.0)

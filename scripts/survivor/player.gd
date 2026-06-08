@@ -18,9 +18,9 @@ var _joy                                 # 虚拟摇杆(可空)
 var _aim := Vector2.RIGHT
 var _radius := 12.0
 var _invuln := 0.0
-var _bob := 0.0
-var _spr: Sprite2D
-const TEX := preload("res://assets/survivor/player.png")
+var _spr: AnimatedSprite2D
+const WALK_SHEET := preload("res://assets/survivor/potato_walk_sheet.png")
+const FRAME := Vector2i(444, 522)            # 走路表每帧尺寸
 
 func _ready() -> void:
 	collision_layer = 1 << 1            # layer 2: player
@@ -32,12 +32,15 @@ func _ready() -> void:
 	sh.radius = _radius
 	cs.shape = sh
 	add_child(cs)
-	_spr = Sprite2D.new()
-	_spr.texture = TEX
+	_spr = AnimatedSprite2D.new()
+	_spr.sprite_frames = SpriteSheet.build_from_strips(
+		{"walk": {"tex": WALK_SHEET, "fps": 8.0, "loop": true}}, FRAME)
+	_spr.animation = "walk"
 	_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(_spr)
-	var sc := 42.0 / float(maxi(TEX.get_width(), TEX.get_height()))
+	var sc := 48.0 / float(FRAME.y)
 	_spr.scale = Vector2(sc, sc)
+	_spr.play("walk")
 
 func set_joystick(j) -> void:
 	_joy = j
@@ -53,12 +56,13 @@ func _physics_process(delta: float) -> void:
 	_invuln = maxf(0.0, _invuln - delta)
 	if stats.regen > 0.0 and hp < stats.max_hp:
 		hp = minf(stats.max_hp, hp + stats.regen * delta)
-	# 视觉:朝向翻面 + 轻微浮动
+	# 视觉:走动时全速摆腿,站立时慢速晃;朝移动/瞄准方向翻面
 	if _spr:
-		if absf(_aim.x) > 0.1:
-			_spr.flip_h = _aim.x < 0.0
-		_bob += delta * (10.0 if velocity.length() > 10.0 else 4.0)
-		_spr.position.y = sin(_bob) * 1.5
+		var moving := velocity.length() > 10.0
+		_spr.speed_scale = 1.0 if moving else 0.35
+		var fx := velocity.x if moving else _aim.x
+		if absf(fx) > 0.1:
+			_spr.flip_h = fx < 0.0
 
 # --- 战斗 ---
 func hurt(amount: float) -> void:

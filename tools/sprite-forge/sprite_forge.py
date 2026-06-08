@@ -167,14 +167,19 @@ def generate(scn, args, asset_id, cols, rows):
 
     print(f"[1/3] 提交生成 ({args.model}, {cols}x{rows} 网格)…")
     r = scn.call("run_model", {"model_id": model_id, "parameters": params, "wait": False})
-    job_id = r.get("job", {}).get("jobId") or r.get("jobId")
-    if not job_id:                      # 个别情况下直接同步返回了资产
-        ids = (r.get("metadata", {}) or {}).get("assetIds") or r.get("assetIds")
-        return _download_asset(scn, ids[0])
+    job_id = _find_job_id(r)
+    if not job_id:                      # 兜底:取最近一个本模型的任务
+        lst = scn.call("manage_jobs", {"action": "list", "pageSize": 3})
+        for j in lst.get("jobs", []):
+            if j.get("modelId") == model_id:
+                job_id = j.get("jobId")
+                break
+    if not job_id:
+        sys.exit(f"拿不到 job_id;run_model 返回: {json.dumps(r)[:300]}")
     print(f"      job={job_id},轮询中…")
-    for _ in range(120):                # 最多约 4 分钟
+    for _ in range(150):                # 最多约 5 分钟
         time.sleep(2)
-        j = scn.call("manage_jobs", {"action": "check", "job_id": job_id})["job"]
+        j = scn.call("manage_jobs", {"action": "check", "job_id": job_id}).get("job", {})
         st = j.get("status")
         if st == "success":
             asset = j["metadata"]["assetIds"][0]
@@ -183,6 +188,18 @@ def generate(scn, args, asset_id, cols, rows):
         if st in ("failed", "canceled"):
             sys.exit(f"任务失败: {st}")
     sys.exit("轮询超时,稍后用 manage_jobs 查 job 状态")
+
+
+def _find_job_id(r):
+    if not isinstance(r, dict):
+        return None
+    for k in ("jobId", "job_id"):
+        if r.get(k):
+            return r[k]
+    job = r.get("job")
+    if isinstance(job, dict):
+        return job.get("jobId") or job.get("job_id")
+    return None
 
 
 def _download_asset(scn, asset_id):

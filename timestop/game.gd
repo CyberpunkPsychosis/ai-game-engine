@@ -38,15 +38,14 @@ var wave := 0
 var gameover := false
 var bar_flash := 0.0
 
-# 触屏输入
+# 触屏输入(全屏面板统一接管, 手动命中判定)
 var touch_mode := false
-var touch_jump := false
-# 虚拟摇杆
-var joy_area: Control
+var touch_panel: Control
 var joy_knob: ColorRect
+var joy_center := Vector2.ZERO
 var joy_vec := Vector2.ZERO
-var joy_id := -1
-var mouse_joy := false
+var joy_id := -999
+var btn_defs: Array = []
 
 # HUD 引用
 var energy_bg: ColorRect
@@ -136,16 +135,20 @@ func _mk_btn(cl: CanvasLayer, txt: String, pos: Vector2) -> Button:
 	cl.add_child(b)
 	return b
 
+func _add_action_btn(cl: CanvasLayer, txt: String, pos: Vector2, act: String) -> Button:
+	# 按钮只作视觉(不吃输入), 触摸由 touch_panel 统一命中判定
+	var b := _mk_btn(cl, txt, pos)
+	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn_defs.append({"rect": Rect2(pos, Vector2(112, 112)), "act": act})
+	return b
+
 func _build_touch(cl: CanvasLayer) -> void:
-	# 虚拟摇杆(左下)
-	joy_area = Control.new()
-	joy_area.position = Vector2(40, VH - 270)
-	joy_area.size = Vector2(220, 220)
-	joy_area.mouse_filter = Control.MOUSE_FILTER_STOP
-	cl.add_child(joy_area)
+	btn_defs = []
+	# 摇杆视觉(左下)
+	joy_center = Vector2(150, VH - 160)
 	var base := ColorRect.new()
 	base.color = Color(1, 1, 1, 0.06)
-	base.position = joy_area.position + Vector2(35, 35)
+	base.position = joy_center - Vector2(75, 75)
 	base.size = Vector2(150, 150)
 	base.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cl.add_child(base)
@@ -155,73 +158,75 @@ func _build_touch(cl: CanvasLayer) -> void:
 	joy_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cl.add_child(joy_knob)
 	_reset_knob()
-	joy_area.gui_input.connect(_on_joy_input)
-	# 动作按钮(右下 2x2)
-	var ba := _mk_btn(cl, "HIT", Vector2(VW - 254, VH - 132))
-	var bj := _mk_btn(cl, "JUMP", Vector2(VW - 124, VH - 132))
-	btn_freeze = _mk_btn(cl, "FRZ", Vector2(VW - 254, VH - 262))
-	var bd := _mk_btn(cl, "DASH", Vector2(VW - 124, VH - 262))
-	btn_full = _mk_btn(cl, "STOP", Vector2(VW - 189, VH - 392))
-	ba.button_down.connect(_on_atk)
-	bj.button_down.connect(_on_jump)
-	btn_freeze.button_down.connect(_on_frz)
-	bd.button_down.connect(_on_dodge)
-	btn_full.button_down.connect(_on_full)
+	# 动作按钮视觉(右下)
+	_add_action_btn(cl, "HIT", Vector2(VW - 254, VH - 132), "atk")
+	_add_action_btn(cl, "JUMP", Vector2(VW - 124, VH - 132), "jump")
+	btn_freeze = _add_action_btn(cl, "FRZ", Vector2(VW - 254, VH - 262), "frz")
+	_add_action_btn(cl, "DASH", Vector2(VW - 124, VH - 262), "dash")
+	btn_full = _add_action_btn(cl, "STOP", Vector2(VW - 189, VH - 392), "full")
+	# 全屏触摸面板(最上层, 统一接管所有触摸/点击)
+	touch_panel = Control.new()
+	touch_panel.position = Vector2.ZERO
+	touch_panel.size = Vector2(VW, VH)
+	touch_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	cl.add_child(touch_panel)
+	touch_panel.gui_input.connect(_on_touch)
 
 func _reset_knob() -> void:
-	joy_knob.position = joy_area.position + Vector2(110, 110) - joy_knob.size * 0.5
+	joy_knob.position = joy_center - joy_knob.size * 0.5
 
-func _on_joy_input(event: InputEvent) -> void:
-	var pos := Vector2.ZERO
-	var active := false
+func _on_touch(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
-			joy_id = event.index
-			pos = event.position
-			active = true
-		elif event.index == joy_id:
-			joy_id = -1
-			joy_vec = Vector2.ZERO
-			_reset_knob()
-			return
-	elif event is InputEventScreenDrag and event.index == joy_id:
-		pos = event.position
-		active = true
+			_touch_press(event.index, event.position)
+		else:
+			_touch_release(event.index)
+	elif event is InputEventScreenDrag:
+		if event.index == joy_id:
+			_joy_update(event.position)
 	elif event is InputEventMouseButton:
 		if event.pressed:
-			mouse_joy = true
-			pos = event.position
-			active = true
+			_touch_press(-1, event.position)
 		else:
-			mouse_joy = false
-			joy_vec = Vector2.ZERO
-			_reset_knob()
-			return
-	elif event is InputEventMouseMotion and mouse_joy:
-		pos = event.position
-		active = true
-	if active:
-		touch_mode = true
-		var c := Vector2(110, 110)
-		var d: Vector2 = (pos - c).limit_length(85.0)
-		joy_vec = d / 85.0
-		joy_knob.position = joy_area.position + c + d - joy_knob.size * 0.5
+			_touch_release(-1)
+	elif event is InputEventMouseMotion:
+		if joy_id == -1:
+			_joy_update(event.position)
 
-func _on_jump() -> void:
-	touch_jump = true
+func _touch_press(idx: int, pos: Vector2) -> void:
 	touch_mode = true
-func _on_atk() -> void:
-	touch_mode = true
-	do_attack()
-func _on_frz() -> void:
-	touch_mode = true
-	freeze_single(player.position, 360.0)
-func _on_full() -> void:
-	touch_mode = true
-	do_full_freeze()
-func _on_dodge() -> void:
-	touch_mode = true
-	do_dodge()
+	if joy_id == -999 and pos.distance_to(joy_center) < 150.0:
+		joy_id = idx
+		_joy_update(pos)
+		return
+	for bd in btn_defs:
+		if (bd.rect as Rect2).has_point(pos):
+			_do_action(bd.act)
+			return
+
+func _touch_release(idx: int) -> void:
+	if idx == joy_id:
+		joy_id = -999
+		joy_vec = Vector2.ZERO
+		_reset_knob()
+
+func _joy_update(pos: Vector2) -> void:
+	var d: Vector2 = (pos - joy_center).limit_length(85.0)
+	joy_vec = d / 85.0
+	joy_knob.position = joy_center + d - joy_knob.size * 0.5
+
+func _do_action(act: String) -> void:
+	match act:
+		"jump":
+			player.want_jump = true
+		"atk":
+			do_attack()
+		"frz":
+			freeze_single(player.position, 360.0)
+		"dash":
+			do_dodge()
+		"full":
+			do_full_freeze()
 
 func do_dodge() -> void:
 	if gameover:
@@ -257,9 +262,8 @@ func _handle_keys() -> void:
 	if Input.is_action_pressed("move_right"): mv += 1.0
 	if absf(joy_vec.x) > 0.15: mv = joy_vec.x
 	player.move_dir = clampf(mv, -1.0, 1.0)
-	if Input.is_action_just_pressed("jump") or touch_jump:
+	if Input.is_action_just_pressed("jump"):
 		player.want_jump = true
-	touch_jump = false
 	if Input.is_action_just_pressed("attack"):
 		do_attack()
 	if Input.is_action_just_pressed("block"):                 # K = 冻单体(瞄准鼠标)

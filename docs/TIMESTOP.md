@@ -43,7 +43,9 @@
 | `enemy.gd` (TSEnemy) | 三型敌人 AI，用 sdt 受时间系统控制；走 `game.collide_move` 碰地形 |
 | `bullet.gd` (TSBullet) | 子弹，受时间系统控制 |
 | `fx.gd` (TSSpark) | 命中火花 |
+| `room_loader.gd` (RoomLoader) | 读 `res://scenes/<id>.json` → Dictionary(房间数据)|
 | `postprocess.gdshader` | 全屏定格后处理 |
+| `../scenes/*.json` | 房间数据(room_a / room_b …);格式见下「房间数据格式」|
 
 ## 操作
 - **电脑**：A/D 移动 · 空格 跳 · J 砍 · K 冻单体(瞄鼠标) · L 全场定格 · C 闪避 · R 重开
@@ -88,13 +90,27 @@ GODOT=/tmp/Godot_v4.5-stable_linux.x86_64   # 没有就从 godot-builds releases
 |---|---|---|
 | 0 现状 | 单屏波次格斗 + 时停三件套 + 踏被冻物 | ✅ |
 | **1 地基** | 单屏→可滚动房间:跟随相机 + 实体平台碰撞 + 竖向地形;时停/踏被冻物在大地形里玩 | ✅ |
-| 2 房间互联 | 房间数据格式(对接 composer 的 `scenes/*.json` + solids 约定) + 门/切房 + 存档长椅 | ⏳ |
+| **2 房间互联** | JSON 关卡(`scenes/*.json`)+ 出口换房(淡入淡出)+ 存档长椅 | ✅ |
 | 3 能力 gating | 二段跳/冲刺位移/「冻物当跳台」做成解谜钥匙, 锁区→解锁(metroidvania 核心) | ⏳ |
 | 4 内容铺量 | 多房间地图 + 用 enemy-designer 出怪 + Boss(悬龙) + NPC/lore | ⏳ |
 | 5 美术 | 色块→现成素材(最后一步) | ⏳ |
 
-## 下一步（阶段2 入口）
-- 写 `scenes/*.json` 加载器:解析 composer 的 world/markers,加 `solids` 碰撞层约定;`_build_room` 改为读 JSON。
-- 房间出口 `exits` 接 `SceneManager`/换房逻辑(带淡入淡出,已有 `scene_manager.gd`)。
-- 存档长椅(checkpoint):坐下回血 + 设为重生点。
+## 房间数据格式（`scenes/<id>.json`, 由 `room_loader.gd` 读, `game.gd` 应用）
+```json
+{ "world": {"width":2880,"height":1080}, "groundY":1000,
+  "solids": [[x,y,w,h], ...],          // 实体地形(碰撞)
+  "spawn": {"x":180,"y":956},
+  "doors": {"east":{"x":2720,"y":956}}, // 从相邻房间进来时的落点(按 exit.entry 命名)
+  "exits": [{"x":2810,"y":836,"w":60,"h":180,"to":"room_b","entry":"west"}],
+  "benches": [{"x":300,"y":1000}],      // 存档点:站上回血回能 + 设重生
+  "enemies": [{"kind":"charger","x":900,"y":950}] }
+```
+- `game.gd: load_room(id, entry)` → `_apply_room()`:清旧怪/弹、建 solids、落位玩家(门/spawn)、刷怪、更新相机边界、铺粒子。
+- 出口:玩家进出口区且非过场 → `_go_to_room()` 淡出→换房→淡入;`_exit_lock` 防进门瞬间反复触发。
+- 死亡/掉坑:`_restart()` 回最近长椅所在房间满血;`endless=false` → 房间清完不再刷波。
+- ⏳ **对接 composer**:它导出 world/markers, 只需补一层 `solids`(或把 tile 实例标 solid)、markers→spawn/enemy/exit 映射即可直接喂这个加载器。
+
+## 下一步（阶段3 入口）
+- 能力 gating:二段跳 / 冲刺位移(已有 DASH)/「冻物当跳台」做成解谜钥匙,锁区→解锁。
+- 用 composer 真画几个房间导出 `scenes/*.json`(补 solids 约定),铺成连通地图。
 - 给 player/enemy 加 `tunables()` 接游戏内 ⚙调参(F1)。

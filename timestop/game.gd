@@ -25,13 +25,22 @@ var enemies: Array = []
 var bullets: Array = []
 var boss = null                  # 悬龙 Boss(spawn_boss() 召唤;平时不召唤,不影响现有波次)
 
-# 房间 / 关卡(竖切片:代码内建;阶段2 改为读 composer 的 scenes/*.json)
+# 房间 / 关卡(阶段2:读 scenes/*.json)
 var room_w := 2880.0
 var room_h := 1080.0
 var solids: Array[Rect2] = []    # 实体地形(AABB, world 坐标);玩家/敌人按它碰撞
-var exits: Array = []            # 出口触发区 [{rect, to}](阶段2 接切房)
-var _spawn := Vector2(180, 940)  # 出生点(掉坑/重开回到这)
+var exits: Array = []            # 出口触发区 [{rect, to, entry}]
+var benches: Array = []          # 长椅休息区 [Rect2]
+var _spawn := Vector2(180, 940)  # 本房间出生点(掉坑回到这)
 var cam: Camera2D
+var current_room := "room_a"
+var respawn_room := "room_a"     # 存档点房间(长椅设定)
+var respawn_pos := Vector2(180, 940)
+var endless := false             # false=房间模式(刷完即清);true=旧竞技场无限波
+var _exit_lock := true           # 进房瞬间不触发出口, 直到玩家离开出口区一次
+var _transitioning := false
+var rested_t := 0.0              # 长椅"已休息"提示
+var _fade: ColorRect
 
 # 时间状态
 var world_scale := 1.0
@@ -85,42 +94,156 @@ func _ready() -> void:
 	canvas_mod = CanvasModulate.new()
 	canvas_mod.color = Color.WHITE
 	add_child(canvas_mod)
-	_build_room()                       # 填 solids / room_w,h / GROUND / _spawn / exits
-	_gen_motes()                        # 粒子铺满房间(需 room 尺寸, 故在 _build_room 后)
 	player = TSPlayer.new()
 	player.game = self
-	player.position = _spawn
 	world.add_child(player)
 	_load_hero_sprites()
 	_build_camera()
 	_build_overlay()
 	_build_hud()
-	spawn_wave()
+	_build_fade()
+	load_room(current_room, "")          # 填房间 + 落位玩家 + 刷怪 + 相机边界
+	respawn_room = current_room
+	respawn_pos = player.position
 
-## 测试房间(色块):宽幅滚动 + 竖向地形 + 中段断坑(靠冻物/平台过) + 高台。
-## 阶段2 改为解析 composer 的 scenes/*.json(world/markers + solids 约定)。
-func _build_room() -> void:
-	room_w = 2880.0
-	room_h = 1080.0
-	GROUND = 1000.0
-	var ft := 80.0                      # 地面厚
+## 读 scenes/<id>.json 并应用为当前房间。entry=进入用的门名("" 用 spawn)。
+func load_room(room_id: String, entry: String) -> void:
+	var data := RoomLoader.load_data(room_id)
+	if data.is_empty():
+		push_error("[game] 房间加载失败: " + room_id)
+		return
+	_apply_room(room_id, data, entry)
+
+func _apply_room(room_id: String, data: Dictionary, entry: String) -> void:
+	current_room = room_id
+	# 清旧房怪/弹
+	for e in enemies:
+		if is_instance_valid(e):
+			e.queue_free()
+	enemies.clear()
+	for b in bullets:
+		if is_instance_valid(b):
+			b.queue_free()
+	bullets.clear()
+	# 尺寸 / 地面
+	var wd: Dictionary = data.get("world", {})
+	room_w = float(wd.get("width", 2880))
+	room_h = float(wd.get("height", 1080))
+	GROUND = float(data.get("groundY", room_h - 80.0))
+	# 实体地形
 	solids.clear()
-	# 主地面:中段 1120~1440 留断坑
-	solids.append(Rect2(0.0, GROUND, 1120.0, ft))
-	solids.append(Rect2(1440.0, GROUND, room_w - 1440.0, ft))
-	# 左右边墙
-	solids.append(Rect2(-40.0, -400.0, 40.0, room_h + 400.0))
-	solids.append(Rect2(room_w, -400.0, 40.0, room_h + 400.0))
-	# 悬空平台(色块)——阶梯式逐级可跳(单跳≈120px), 留最高一块作"冻物当踏板"设计点
-	solids.append(Rect2(360.0, 900.0, 240.0, 26.0))    # 离地 ~100
-	solids.append(Rect2(720.0, 812.0, 230.0, 26.0))    # 升 ~90
-	solids.append(Rect2(1050.0, 726.0, 210.0, 26.0))   # 升 ~90, 临断坑
-	solids.append(Rect2(1520.0, 860.0, 260.0, 26.0))   # 断坑对岸落点(从上一块跳过坑)
-	solids.append(Rect2(1860.0, 772.0, 220.0, 26.0))
-	solids.append(Rect2(2180.0, 700.0, 240.0, 26.0))
-	solids.append(Rect2(2360.0, 520.0, 240.0, 26.0))   # 高台:离下层 ~180, 单跳够不着→冻怪/冻弹垫脚上
-	_spawn = Vector2(180.0, GROUND - 40.0)
-	exits = [{"rect": Rect2(room_w - 60.0, GROUND - 170.0, 50.0, 170.0), "to": ""}]
+	for s in data.get("solids", []):
+		solids.append(Rect2(float(s[0]), float(s[1]), float(s[2]), float(s[3])))
+	# 出口
+	exits = []
+	for ex in data.get("exits", []):
+		exits.append({
+			"rect": Rect2(float(ex["x"]), float(ex["y"]), float(ex.get("w", 60)), float(ex.get("h", 180))),
+			"to": String(ex.get("to", "")),
+			"entry": String(ex.get("entry", "")),
+		})
+	# 长椅(以坐标为中心的休息区)
+	benches = []
+	for bc in data.get("benches", []):
+		benches.append(Rect2(float(bc["x"]) - 36.0, GROUND - 90.0, 72.0, 96.0))
+	# 出生点(掉坑回这)
+	_spawn = _door_pos(data, "")
+	# 玩家落位:指定门 → 否则 spawn
+	player.position = _door_pos(data, entry)
+	player.vx = 0.0
+	player.vy = 0.0
+	player.dodging = false
+	# 相机:更新边界并立即吸附(避免跨房平移)
+	if cam:
+		cam.limit_right = int(room_w)
+		cam.limit_bottom = int(room_h)
+		cam.position = player.position
+		cam.reset_smoothing()
+	_gen_motes()
+	# 刷本房怪
+	for en in data.get("enemies", []):
+		spawn_enemy_at(String(en.get("kind", "charger")), float(en["x"]), float(en["y"]))
+	_exit_lock = true
+
+## 取门坐标:entry 命中 doors 里的门则用之, 否则用 spawn。
+func _door_pos(data: Dictionary, entry: String) -> Vector2:
+	var doors: Dictionary = data.get("doors", {})
+	if entry != "" and doors.has(entry):
+		var d: Dictionary = doors[entry]
+		return Vector2(float(d.get("x", 180)), float(d.get("y", 940)))
+	var sp: Dictionary = data.get("spawn", {})
+	return Vector2(float(sp.get("x", 180)), float(sp.get("y", GROUND - 44.0)))
+
+func spawn_enemy_at(kind: String, x: float, y: float) -> void:
+	var e := TSEnemy.new()
+	e.game = self
+	e.type = kind
+	e.setup()
+	e.position = Vector2(x, y)
+	world.add_child(e)
+	enemies.append(e)
+
+## 出口/长椅检测(每帧, 非过场/非死亡时)
+func _check_transitions(delta: float) -> void:
+	var pp: Vector2 = player.position
+	var in_exit := false
+	for ex in exits:
+		if (ex.rect as Rect2).has_point(pp):
+			in_exit = true
+			if not _exit_lock and String(ex.to) != "":
+				_go_to_room(String(ex.to), String(ex.entry))
+				return
+	if not in_exit:
+		_exit_lock = false
+	# 长椅:站上去回血回能 + 设为存档点
+	var on_bench := false
+	for bz in benches:
+		if (bz as Rect2).has_point(pp):
+			on_bench = true
+	if on_bench:
+		respawn_room = current_room
+		respawn_pos = pp
+		player.hp = minf(player.maxhp, player.hp + 36.0 * delta)
+		energy = minf(ENERGY_MAX, energy + 18.0 * delta)
+		rested_t = 0.6
+	else:
+		rested_t = maxf(0.0, rested_t - delta)
+
+func _go_to_room(room_id: String, entry: String) -> void:
+	_transitioning = true
+	var t := create_tween()
+	t.tween_property(_fade, "color:a", 1.0, 0.20)
+	await t.finished
+	load_room(room_id, entry)
+	var t2 := create_tween()
+	t2.tween_property(_fade, "color:a", 0.0, 0.20)
+	await t2.finished
+	_transitioning = false
+
+## 死亡/重开:回最近存档点(长椅)所在房间, 满血。
+func _restart() -> void:
+	gameover = false
+	kills = 0
+	energy = 50.0
+	load_room(respawn_room, "")
+	player.hp = player.maxhp
+	player.position = respawn_pos
+	player.vx = 0.0
+	player.vy = 0.0
+	if cam:
+		cam.position = player.position
+		cam.reset_smoothing()
+
+func _build_fade() -> void:
+	var cl := CanvasLayer.new()
+	cl.layer = 70
+	add_child(cl)
+	_fade = ColorRect.new()
+	_fade.color = Color(0.02, 0.03, 0.05, 0.0)
+	_fade.anchor_right = 1.0
+	_fade.anchor_bottom = 1.0
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.add_child(_fade)
 
 func _build_camera() -> void:
 	cam = Camera2D.new()
@@ -325,9 +448,10 @@ func _process(delta: float) -> void:
 	var target := 0.0 if freeze_t > 0.0 else 1.0
 	world_scale = lerpf(world_scale, target, 1.0 - pow(0.0009, delta))   # 平滑刹停/恢复
 
-	if not gameover:
+	if not gameover and not _transitioning:
 		player.tick(delta)
 		_combat()
+		_check_transitions(delta)
 
 	if cam:                              # 相机跟随玩家(房间内, limit 自动夹边), 震屏走 offset
 		cam.position = player.position
@@ -360,7 +484,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_C:
 		do_dodge()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
-		get_tree().reload_current_scene()
+		_restart()
 
 func _mouse_world() -> Vector2:
 	return world.to_local(get_global_mouse_position())
@@ -368,7 +492,7 @@ func _mouse_world() -> Vector2:
 # ---------------------------------------------------------------- 战斗
 func do_attack() -> void:
 	if gameover:
-		get_tree().reload_current_scene()
+		_restart()
 		return
 	if player.atkcd > 0.0:
 		return
@@ -458,7 +582,7 @@ func _combat() -> void:
 		if b.dead:
 			b.queue_free()
 	bullets = bullets.filter(func(x): return not x.dead)
-	if enemies.is_empty():
+	if enemies.is_empty() and endless:
 		spawn_wave()
 	if player.hp <= 0.0:
 		gameover = true
@@ -545,13 +669,15 @@ func _update_hud() -> void:
 	energy_fill.color = Color(0.56, 0.82, 1.0) if energy >= ENERGY_MAX else Color(0.36, 0.56, 0.8)
 	energy_bg.color = Color(0.7, 0.25, 0.25, 0.7) if bar_flash > 0.0 else Color(0, 0, 0, 0.5)
 	hp_fill.size.x = 260.0 * clampf(player.hp / player.maxhp, 0.0, 1.0)
-	info_label.text = "KILL %d   WAVE %d" % [kills, wave]
+	info_label.text = "KILL %d   %s" % [kills, current_room]
 	if btn_freeze:
 		btn_freeze.modulate.a = 1.0 if energy >= SINGLE_COST else 0.4
 	if btn_full:
 		btn_full.modulate.a = 1.0 if energy >= ENERGY_MAX else 0.4
 	if gameover:
 		center_label.text = "DEAD - tap HIT / press R"
+	elif rested_t > 0.0:
+		center_label.text = "RESTED"
 	elif freeze_t > 0.0:
 		center_label.text = "TIME STOP %.1f" % freeze_t
 	elif energy >= ENERGY_MAX:
@@ -593,6 +719,15 @@ func _draw() -> void:
 	for s in solids:
 		draw_rect(s, Color(0.10, 0.14, 0.17))
 		draw_line(s.position, s.position + Vector2(s.size.x, 0.0), Color(0.17, 0.23, 0.27), 2.0)
-	# 出口(通往下个房间, 阶段2 接切房)
+	# 长椅(存档点:暖色, 站上去回血回能)
+	for bz in benches:
+		var r: Rect2 = bz
+		draw_rect(Rect2(r.position.x, r.position.y + r.size.y - 16.0, r.size.x, 12.0), Color(0.86, 0.55, 0.22))
+		draw_rect(Rect2(r.position.x + 6.0, r.position.y + r.size.y - 40.0, 8.0, 26.0), Color(0.62, 0.40, 0.18))
+		draw_rect(Rect2(r.position.x + r.size.x - 14.0, r.position.y + r.size.y - 40.0, 8.0, 26.0), Color(0.62, 0.40, 0.18))
+	# 出口(通往相邻房间, 亮蓝门光)
 	for e in exits:
 		draw_rect(e.rect, Color(0.21, 0.78, 0.92, 0.16))
+		var er: Rect2 = e.rect
+		draw_rect(Rect2(er.position.x, er.position.y, 3.0, er.size.y), Color(0.36, 0.88, 1.0, 0.5))
+		draw_rect(Rect2(er.position.x + er.size.x - 3.0, er.position.y, 3.0, er.size.y), Color(0.36, 0.88, 1.0, 0.5))

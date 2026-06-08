@@ -421,19 +421,12 @@ func spawn_enemy(t: String, x: float) -> void:
 	world.add_child(e)
 	enemies.append(e)
 
-## 加载主角精灵(双轨:游戏内用像素动画)。run 表 + idle(取 run 首帧,保比例一致)。
-## 缺帧(jump/attack/dash)自动回退到 idle/run,不崩;后续补齐动画即可。
+## 主角精灵:AI 出图路线已搁置(产出需大量人工修),暂回退到色块占位
+## ——player.gd 的 _draw() 自带方块+朝向标+闪避拖影,先验证机制。
+## 未来拿到现成素材时:在此用 SpriteSheet 切出 SpriteFrames,再
+##   player.set_sprite_frames(sf, 想要的帧高, player.h * 0.5)  即可切到精灵。
 func _load_hero_sprites() -> void:
-	# 赤红女武者:外部生成 5×5 表里筛右向、挑 8 帧奔跑循环,经 Pixel Snapper 像素化(26×31/帧,朝右)
-	var tex: Texture2D = load("res://art/timestop/hero/run_sheet.png")
-	if tex == null:
-		return
-	var sf := SpriteSheet.build_from_strips({"run": {"tex": tex, "fps": 12.0, "loop": true}}, Vector2i(26, 31))
-	sf.add_animation("idle")
-	sf.set_animation_loop("idle", true)
-	sf.set_animation_speed("idle", 2.0)
-	sf.add_frame("idle", sf.get_frame_texture("run", 0))
-	player.set_sprite_frames(sf, 72.0, player.h * 0.5)
+	return
 
 ## 召唤悬龙 Boss(飞行残响)。其 _process 自动接时间系统(可被全场定格冻住)。
 ## 真龙立绘就位后:boss.set_texture(load("res://.../dragon.png"))。

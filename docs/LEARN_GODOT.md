@@ -11,15 +11,15 @@
 - 一切尽量落到**用户自己的项目**（`scripts/player.gd`、`scripts/enemy.gd`、关卡）上，不做一次性 demo。
 
 ## 当前进度
-> 👉 **下一课：第 2 课（第一个脚本 · _ready/_process）**
+> 👉 **下一课：第 3 课（输入 Input · 用键盘控制）**
 
 ---
 
 ## 第一周 · 地基（节点 / 场景 / 脚本 / 信号）
 目标：理解 Godot 的"世界观"——一切都是节点，场景是节点的组合。
 
-- [x] **D1 节点与场景树**　📖 [Nodes and scenes](https://docs.godotengine.org/en/stable/getting_started/step_by_step/nodes_and_scenes.html)　🛠️ 新建场景，放一个 `Sprite2D`，随便拖张图，运行看到它。
-- [ ] **D2 第一个脚本 · _ready/_process**　📖 [Creating your first script](https://docs.godotengine.org/en/stable/getting_started/step_by_step/scripting_first_script.html)　🛠️ 给节点挂脚本，让它每帧旋转/移动一点。
+- [x] **D1 节点与场景树**
+- [x] **D2 第一个脚本 · _ready/_process**　📖 [Creating your first script](https://docs.godotengine.org/en/stable/getting_started/step_by_step/scripting_first_script.html)　🛠️ 给节点挂脚本，让它每帧旋转/移动一点。
 - [ ] **D3 输入 Input**　📖 [Input examples](https://docs.godotengine.org/en/stable/tutorials/inputs/input_examples.html)　🛠️ 按方向键让方块左右移动。
 - [ ] **D4 信号 Signals**　📖 [Signals](https://docs.godotengine.org/en/stable/getting_started/step_by_step/signals.html)　🛠️ 用编辑器连一个按钮的 `pressed` 信号到脚本；再用代码连一次。
 - [ ] **D5 场景实例化 Instancing**　📖 [Creating instances](https://docs.godotengine.org/en/stable/getting_started/step_by_step/instancing.html)　🛠️ 把"方块"存成场景，在另一个场景里复制出 3 个。

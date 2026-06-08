@@ -94,12 +94,22 @@ func on_pickup(v: int) -> void:
 		arena.collect(v)
 
 func _draw() -> void:
-	var body := Color(0.85, 0.78, 0.45)   # 土豆黄(占位)
+	var body := Color(0.78, 0.58, 0.35)    # 土豆棕(占位)
 	if _hurt_flash > 0.0:
 		body = body.lerp(Color(1, 0.3, 0.3), 0.6)
 	elif _invuln > 0.0:
-		body = body.lerp(Color.WHITE, 0.4)
-	draw_circle(Vector2.ZERO, _radius, body)
-	draw_arc(Vector2.ZERO, _radius, 0, TAU, 20, Color(0.2, 0.15, 0.05, 0.8), 2.0)
+		body = body.lerp(Color.WHITE, 0.35)
+	# 椭圆土豆身体
+	var pts := PackedVector2Array()
+	for i in range(16):
+		var a := TAU * float(i) / 16.0
+		pts.append(Vector2(cos(a) * _radius * 0.92, sin(a) * _radius * 1.12))
+	draw_colored_polygon(pts, body)
+	draw_polyline(pts + PackedVector2Array([pts[0]]), Color(0.35, 0.22, 0.10, 0.9), 2.0)
 	# 枪管朝向最近开火方向
-	draw_line(Vector2.ZERO, _aim * (_radius + 8.0), Color(0.25, 0.2, 0.1), 4.0)
+	draw_line(Vector2.ZERO, _aim * (_radius + 9.0), Color(0.30, 0.25, 0.15), 4.0)
+	# 眼睛(看向开火方向)
+	var ex := 4.5
+	for sx in [-ex, ex]:
+		draw_circle(Vector2(sx, -2.0), 2.6, Color.WHITE)
+		draw_circle(Vector2(sx + _aim.x * 1.3, -2.0 + _aim.y * 1.3), 1.3, Color(0.1, 0.1, 0.12))

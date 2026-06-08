@@ -33,7 +33,7 @@ window/stretch/aspect="keep"
 
 [gui]
 
-theme/custom_font="res://fonts/ui.ttf"
+theme/custom_font="res://fonts/zpix.ttf"
 
 [input]
 

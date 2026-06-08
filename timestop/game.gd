@@ -40,9 +40,13 @@ var bar_flash := 0.0
 
 # 触屏输入
 var touch_mode := false
-var touch_left := false
-var touch_right := false
 var touch_jump := false
+# 虚拟摇杆
+var joy_area: Control
+var joy_knob: ColorRect
+var joy_vec := Vector2.ZERO
+var joy_id := -1
+var mouse_joy := false
 
 # HUD 引用
 var energy_bg: ColorRect
@@ -125,39 +129,82 @@ func _mk_btn(cl: CanvasLayer, txt: String, pos: Vector2) -> Button:
 	var b := Button.new()
 	b.text = txt
 	b.position = pos
-	b.size = Vector2(96, 96)
-	b.custom_minimum_size = Vector2(96, 96)
+	b.size = Vector2(112, 112)
+	b.custom_minimum_size = Vector2(112, 112)
 	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 28)
+	b.add_theme_font_size_override("font_size", 22)
 	cl.add_child(b)
 	return b
 
 func _build_touch(cl: CanvasLayer) -> void:
-	var bl := _mk_btn(cl, "◀", Vector2(24, VH - 116))
-	var br := _mk_btn(cl, "▶", Vector2(128, VH - 116))
-	var bj := _mk_btn(cl, "跳", Vector2(VW - 116, VH - 220))
-	var ba := _mk_btn(cl, "砍", Vector2(VW - 220, VH - 116))
-	btn_freeze = _mk_btn(cl, "冻", Vector2(VW - 116, VH - 116))
-	btn_full = _mk_btn(cl, "定格", Vector2(VW - 220, VH - 220))
-	bl.button_down.connect(_on_left_down)
-	bl.button_up.connect(_on_left_up)
-	br.button_down.connect(_on_right_down)
-	br.button_up.connect(_on_right_up)
-	bj.pressed.connect(_on_jump)
+	# 虚拟摇杆(左下)
+	joy_area = Control.new()
+	joy_area.position = Vector2(40, VH - 270)
+	joy_area.size = Vector2(220, 220)
+	joy_area.mouse_filter = Control.MOUSE_FILTER_STOP
+	cl.add_child(joy_area)
+	var base := ColorRect.new()
+	base.color = Color(1, 1, 1, 0.06)
+	base.position = joy_area.position + Vector2(35, 35)
+	base.size = Vector2(150, 150)
+	base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.add_child(base)
+	joy_knob = ColorRect.new()
+	joy_knob.color = Color(0.45, 0.78, 1.0, 0.45)
+	joy_knob.size = Vector2(72, 72)
+	joy_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.add_child(joy_knob)
+	_reset_knob()
+	joy_area.gui_input.connect(_on_joy_input)
+	# 动作按钮(右下 2x2)
+	btn_freeze = _mk_btn(cl, "FRZ", Vector2(VW - 254, VH - 262))
+	btn_full = _mk_btn(cl, "STOP", Vector2(VW - 124, VH - 262))
+	var ba := _mk_btn(cl, "HIT", Vector2(VW - 254, VH - 132))
+	var bj := _mk_btn(cl, "JUMP", Vector2(VW - 124, VH - 132))
 	ba.pressed.connect(_on_atk)
+	bj.pressed.connect(_on_jump)
 	btn_freeze.pressed.connect(_on_frz)
 	btn_full.pressed.connect(_on_full)
 
-func _on_left_down() -> void:
-	touch_left = true
-	touch_mode = true
-func _on_left_up() -> void:
-	touch_left = false
-func _on_right_down() -> void:
-	touch_right = true
-	touch_mode = true
-func _on_right_up() -> void:
-	touch_right = false
+func _reset_knob() -> void:
+	joy_knob.position = joy_area.position + Vector2(110, 110) - joy_knob.size * 0.5
+
+func _on_joy_input(event: InputEvent) -> void:
+	var pos := Vector2.ZERO
+	var active := false
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			joy_id = event.index
+			pos = event.position
+			active = true
+		elif event.index == joy_id:
+			joy_id = -1
+			joy_vec = Vector2.ZERO
+			_reset_knob()
+			return
+	elif event is InputEventScreenDrag and event.index == joy_id:
+		pos = event.position
+		active = true
+	elif event is InputEventMouseButton:
+		if event.pressed:
+			mouse_joy = true
+			pos = event.position
+			active = true
+		else:
+			mouse_joy = false
+			joy_vec = Vector2.ZERO
+			_reset_knob()
+			return
+	elif event is InputEventMouseMotion and mouse_joy:
+		pos = event.position
+		active = true
+	if active:
+		touch_mode = true
+		var c := Vector2(110, 110)
+		var d: Vector2 = (pos - c).limit_length(85.0)
+		joy_vec = d / 85.0
+		joy_knob.position = joy_area.position + c + d - joy_knob.size * 0.5
+
 func _on_jump() -> void:
 	touch_jump = true
 	touch_mode = true
@@ -198,8 +245,7 @@ func _handle_keys() -> void:
 	var mv := 0.0
 	if Input.is_action_pressed("move_left"): mv -= 1.0
 	if Input.is_action_pressed("move_right"): mv += 1.0
-	if touch_left: mv -= 1.0
-	if touch_right: mv += 1.0
+	if absf(joy_vec.x) > 0.15: mv = joy_vec.x
 	player.move_dir = clampf(mv, -1.0, 1.0)
 	if Input.is_action_just_pressed("jump") or touch_jump:
 		player.want_jump = true
@@ -380,17 +426,17 @@ func _update_hud() -> void:
 	energy_fill.color = Color(0.56, 0.82, 1.0) if energy >= ENERGY_MAX else Color(0.36, 0.56, 0.8)
 	energy_bg.color = Color(0.7, 0.25, 0.25, 0.7) if bar_flash > 0.0 else Color(0, 0, 0, 0.5)
 	hp_fill.size.x = 260.0 * clampf(player.hp / player.maxhp, 0.0, 1.0)
-	info_label.text = "击杀 %d   波次 %d" % [kills, wave]
+	info_label.text = "KILL %d   WAVE %d" % [kills, wave]
 	if btn_freeze:
 		btn_freeze.modulate.a = 1.0 if energy >= SINGLE_COST else 0.4
 	if btn_full:
 		btn_full.modulate.a = 1.0 if energy >= ENERGY_MAX else 0.4
 	if gameover:
-		center_label.text = "阵亡 — 按 R / 砍 重开"
+		center_label.text = "DEAD - tap HIT / press R"
 	elif freeze_t > 0.0:
-		center_label.text = "⏸ 时间静止 %.1f" % freeze_t
+		center_label.text = "TIME STOP %.1f" % freeze_t
 	elif energy >= ENERGY_MAX:
-		center_label.text = "能量满! 按 F / 定格"
+		center_label.text = "FULL! tap STOP / press F"
 	else:
 		center_label.text = ""
 

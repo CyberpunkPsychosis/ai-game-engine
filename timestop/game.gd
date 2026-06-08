@@ -23,6 +23,7 @@ var overlay_mat: ShaderMaterial
 var player: TSPlayer
 var enemies: Array = []
 var bullets: Array = []
+var boss = null                  # 悬龙 Boss(spawn_boss() 召唤;平时不召唤,不影响现有波次)
 
 # 时间状态
 var world_scale := 1.0
@@ -412,6 +413,15 @@ func spawn_enemy(t: String, x: float) -> void:
 	e.position = Vector2(x, GROUND - e.h * 0.5)
 	world.add_child(e)
 	enemies.append(e)
+
+## 召唤悬龙 Boss(飞行残响)。其 _process 自动接时间系统(可被全场定格冻住)。
+## 真龙立绘就位后:boss.set_texture(load("res://.../dragon.png"))。
+func spawn_boss() -> void:
+	if boss != null and is_instance_valid(boss):
+		return
+	boss = TSBoss.new()
+	boss.game = self
+	world.add_child(boss)
 
 func spawn_bullet(from: Vector2, target: Vector2) -> void:
 	var b := TSBullet.new()

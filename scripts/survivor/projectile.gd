@@ -14,7 +14,6 @@ var _hit := {}
 func _ready() -> void:
 	collision_layer = 1 << 3        # layer 4: player_hitbox
 	collision_mask = 1 << 2         # layer 3: enemy
-	monitoring = true
 	var cs := CollisionShape2D.new()
 	var sh := CircleShape2D.new()
 	sh.radius = _radius

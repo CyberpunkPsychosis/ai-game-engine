@@ -112,8 +112,8 @@ func _on_enemy_died(e: SurvivorEnemy) -> void:
 	kills += 1
 	var p := SurvivorPickup.new()
 	p.setup(player, e.material_value)
-	p.global_position = e.global_position
-	_pickups.add_child(p)
+	p.position = e.global_position          # _pickups 在原点,局部=世界
+	_pickups.add_child.call_deferred(p)     # 延迟挂载:避开物理 flush 期改 Area2D 状态
 
 func collect(v: int) -> void:
 	materials += v

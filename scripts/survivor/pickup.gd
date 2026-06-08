@@ -18,7 +18,6 @@ func setup(target: Node2D, v: int) -> void:
 func _ready() -> void:
 	collision_layer = 1 << 7        # layer 8: pickups
 	collision_mask = 1 << 1         # layer 2: player
-	monitoring = true
 	var cs := CollisionShape2D.new()
 	var sh := CircleShape2D.new()
 	sh.radius = _r

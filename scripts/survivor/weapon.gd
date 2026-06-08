@@ -10,7 +10,7 @@ class_name SurvivorWeapon
 @export var pierce := 0
 @export var range_bonus := 0.0      ## 该武器额外射程(叠加在玩家射程上)
 
-var player                          # SurvivorPlayer
+var player: SurvivorPlayer
 var _cd := 0.0
 
 func _process(delta: float) -> void:
@@ -25,7 +25,7 @@ func _process(delta: float) -> void:
 
 func _fire(target: Node2D, _rng: float) -> void:
 	var dir := (target.global_position - player.global_position).normalized()
-	var crit := randf() < player.stats.crit
+	var crit: bool = randf() < player.stats.crit
 	var dmg: float = base_damage * player.stats.damage * (2.0 if crit else 1.0)
 	player.arena.spawn_projectile(player.global_position, dir, bullet_speed, dmg, pierce, crit)
 	player.notify_fire(dir)

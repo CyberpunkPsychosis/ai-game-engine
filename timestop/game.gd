@@ -157,13 +157,15 @@ func _build_touch(cl: CanvasLayer) -> void:
 	_reset_knob()
 	joy_area.gui_input.connect(_on_joy_input)
 	# 动作按钮(右下 2x2)
-	btn_freeze = _mk_btn(cl, "FRZ", Vector2(VW - 254, VH - 262))
-	btn_full = _mk_btn(cl, "STOP", Vector2(VW - 124, VH - 262))
 	var ba := _mk_btn(cl, "HIT", Vector2(VW - 254, VH - 132))
 	var bj := _mk_btn(cl, "JUMP", Vector2(VW - 124, VH - 132))
+	btn_freeze = _mk_btn(cl, "FRZ", Vector2(VW - 254, VH - 262))
+	var bd := _mk_btn(cl, "DASH", Vector2(VW - 124, VH - 262))
+	btn_full = _mk_btn(cl, "STOP", Vector2(VW - 189, VH - 392))
 	ba.button_down.connect(_on_atk)
 	bj.button_down.connect(_on_jump)
 	btn_freeze.button_down.connect(_on_frz)
+	bd.button_down.connect(_on_dodge)
 	btn_full.button_down.connect(_on_full)
 
 func _reset_knob() -> void:
@@ -217,6 +219,14 @@ func _on_frz() -> void:
 func _on_full() -> void:
 	touch_mode = true
 	do_full_freeze()
+func _on_dodge() -> void:
+	touch_mode = true
+	do_dodge()
+
+func do_dodge() -> void:
+	if gameover:
+		return
+	player.try_dodge()
 
 # ---------------------------------------------------------------- 主循环
 func _process(delta: float) -> void:
@@ -260,6 +270,8 @@ func _handle_keys() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		freeze_single(_mouse_world(), 260.0)
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_C:
+		do_dodge()
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
 		get_tree().reload_current_scene()
 

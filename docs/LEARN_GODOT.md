@@ -11,7 +11,7 @@
 - 一切尽量落到**用户自己的项目**（`scripts/player.gd`、`scripts/enemy.gd`、关卡）上，不做一次性 demo。
 
 ## 当前进度
-> 👉 **下一课：第 3 课（输入 Input · 用键盘控制）**
+> 👉 **下一课：第 4 课（信号 Signals）**
 
 ---
 
@@ -20,7 +20,7 @@
 
 - [x] **D1 节点与场景树**
 - [x] **D2 第一个脚本 · _ready/_process**　📖 [Creating your first script](https://docs.godotengine.org/en/stable/getting_started/step_by_step/scripting_first_script.html)　🛠️ 给节点挂脚本，让它每帧旋转/移动一点。
-- [ ] **D3 输入 Input**　📖 [Input examples](https://docs.godotengine.org/en/stable/tutorials/inputs/input_examples.html)　🛠️ 按方向键让方块左右移动。
+- [x] **D3 输入 Input**　📖 [Input examples](https://docs.godotengine.org/en/stable/tutorials/inputs/input_examples.html)　🛠️ 按方向键让方块左右移动。（含向量/lerp 平滑跟随）
 - [ ] **D4 信号 Signals**　📖 [Signals](https://docs.godotengine.org/en/stable/getting_started/step_by_step/signals.html)　🛠️ 用编辑器连一个按钮的 `pressed` 信号到脚本；再用代码连一次。
 - [ ] **D5 场景实例化 Instancing**　📖 [Creating instances](https://docs.godotengine.org/en/stable/getting_started/step_by_step/instancing.html)　🛠️ 把"方块"存成场景，在另一个场景里复制出 3 个。
 - [ ] **D6 复盘 + 串起来**　🛠️ 做一个"方块能左右走"的小场景，自己从头搭一遍（不看上面的步骤）。

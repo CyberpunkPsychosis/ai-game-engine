@@ -418,11 +418,11 @@ func spawn_enemy(t: String, x: float) -> void:
 ## 加载主角精灵(双轨:游戏内用像素动画)。run 表 + idle(取 run 首帧,保比例一致)。
 ## 缺帧(jump/attack/dash)自动回退到 idle/run,不崩;后续补齐动画即可。
 func _load_hero_sprites() -> void:
-	# 赤红女武者:RD Animation 的 Q 版侧走(48px,4帧,朝右)
-	var tex: Texture2D = load("res://art/timestop/hero/walk_sheet.png")
+	# 赤红女武者:外部生成 5×5 表里筛右向、挑 8 帧奔跑循环,经 Pixel Snapper 像素化(26×31/帧,朝右)
+	var tex: Texture2D = load("res://art/timestop/hero/run_sheet.png")
 	if tex == null:
 		return
-	var sf := SpriteSheet.build_from_strips({"run": {"tex": tex, "fps": 8.0, "loop": true}}, Vector2i(48, 48))
+	var sf := SpriteSheet.build_from_strips({"run": {"tex": tex, "fps": 12.0, "loop": true}}, Vector2i(26, 31))
 	sf.add_animation("idle")
 	sf.set_animation_loop("idle", true)
 	sf.set_animation_speed("idle", 2.0)

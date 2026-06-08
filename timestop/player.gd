@@ -58,6 +58,32 @@ func set_sprite_frames(sf: SpriteFrames, target_h := 0.0, foot_y := 0.0) -> void
 	if first != "":
 		_anim.play(first)
 
+## 踏被冻物:凝固之物即立足之地。冻住的敌人/子弹变实体平台,可落脚+再起跳。
+## 只认真正被冻的(单体冻结 frozen_t>0 或 全场定格 freeze_t>0),命中顿帧不算。
+func _stand_on_frozen() -> void:
+	if vy < 0.0 or dodging:
+		return                              # 上升中 / 闪避中不落脚
+	var feet := position.y + h * 0.5
+	var full: bool = game.freeze_t > 0.0
+	for e in game.enemies:
+		if not (full or e.frozen_t > 0.0):
+			continue
+		var top: float = e.position.y - e.h * 0.5
+		if absf(position.x - e.position.x) < (w + e.w) * 0.5 and feet >= top - 4.0 and feet <= top + 22.0:
+			position.y = top - h * 0.5
+			vy = 0.0
+			onground = true
+			return
+	for b in game.bullets:
+		if b.dead or not (full or b.frozen_t > 0.0):
+			continue
+		var bt: float = b.position.y - b.r
+		if absf(position.x - b.position.x) < (w * 0.5 + b.r) and feet >= bt - 4.0 and feet <= bt + 16.0:
+			position.y = bt - h * 0.5
+			vy = 0.0
+			onground = true
+			return
+
 func try_dodge() -> void:
 	if dodging or dodge_cd > 0.0:
 		return
@@ -96,6 +122,7 @@ func tick(delta: float) -> void:
 		position.y = game.GROUND - h * 0.5
 		vy = 0.0
 		onground = true
+	_stand_on_frozen()
 	position.x = clampf(position.x, 16.0, 1264.0)
 	if _use_sprite and _anim and _anim.sprite_frames:
 		var a := current_anim()

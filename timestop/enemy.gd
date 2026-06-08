@@ -18,6 +18,8 @@ var flash_t := 0.0     # 受击白闪
 var fire_t := 1.2
 var color := Color(0.88, 0.39, 0.25)
 var tilt := 0.0        # 被打倾斜
+var _jit := Vector2.ZERO   # 残响卡帧抽搐(活动时小幅抖, 冻住归零)
+var _jit_cd := 0.0
 
 func setup() -> void:
 	if type == "charger":
@@ -40,8 +42,15 @@ func _process(delta: float) -> void:
 
 	var s: float = game.scale_for(frozen_t)
 	if s <= 0.0:
+		_jit = Vector2.ZERO          # 冻住 = 残响被钉死, 抽搐停
 		queue_redraw()
 		return                       # 冻结 / 定格 / 顿帧 → 完全静止
+
+	# 残响:永远重演死前一瞬 → 卡帧式抽搐(离散跳, 不平滑)
+	_jit_cd -= delta
+	if _jit_cd <= 0.0:
+		_jit_cd = randf_range(0.06, 0.13)
+		_jit = Vector2(randf_range(-1.6, 1.6), randf_range(-1.1, 1.1))
 
 	var sdt := delta * s
 	stun_t = maxf(0.0, stun_t - sdt)
@@ -88,7 +97,11 @@ func _draw() -> void:
 		col = Color.WHITE
 	elif frozen:
 		col = Color(0.42, 0.66, 0.84)
-	draw_set_transform(Vector2.ZERO, tilt, Vector2.ONE)
+	# 残响错位残影:活动时拖一层低透明偏移残像(卡帧错位感);冻住/受击时不画
+	if not frozen and flash_t <= 0.0:
+		var g := Color(color.r, color.g, color.b, 0.22)
+		draw_rect(Rect2(-w * 0.5 - _jit.x * 1.7, -h * 0.5 - _jit.y * 1.7, w, h), g)
+	draw_set_transform(_jit, tilt, Vector2.ONE)
 	draw_rect(Rect2(-w * 0.5, -h * 0.5, w, h), col)
 	if frozen:
 		draw_rect(Rect2(-w * 0.5, -h * 0.5, w, h), Color(0.82, 0.94, 1.0), false, 2.0)

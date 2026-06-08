@@ -39,6 +39,10 @@ var wave := 0
 var gameover := false
 var bar_flash := 0.0
 
+# 凝界氛围:半空悬停、永不下落的雨丝/尘(时间停了)。纯表现, 不参与玩法。
+var _motes: Array = []
+var _amb_t := 0.0
+
 # 触屏输入(全屏面板统一接管, 手动命中判定)
 var touch_mode := false
 var touch_panel: Control
@@ -68,6 +72,7 @@ func scale_for(entity_frozen_t: float) -> float:
 # ---------------------------------------------------------------- 初始化
 func _ready() -> void:
 	randomize()
+	_gen_motes()
 	world = Node2D.new()
 	add_child(world)
 	canvas_mod = CanvasModulate.new()
@@ -243,6 +248,7 @@ func _process(delta: float) -> void:
 	flash = maxf(0.0, flash - delta * 3.0)
 	shake = maxf(0.0, shake - delta * 40.0)
 	bar_flash = maxf(0.0, bar_flash - delta)
+	_amb_t += delta
 	var target := 0.0 if freeze_t > 0.0 else 1.0
 	world_scale = lerpf(world_scale, target, 1.0 - pow(0.0009, delta))   # 平滑刹停/恢复
 
@@ -481,10 +487,34 @@ func _update_hud() -> void:
 	else:
 		center_label.text = ""
 
+# ---------------------------------------------------------------- 凝界氛围
+## 半空悬停的雨丝/尘:位置固定(时间停了→不落), 只做微脉动闪烁。
+func _gen_motes() -> void:
+	_motes.clear()
+	for i in 72:
+		var streak := randf() < 0.4
+		_motes.append({
+			"p": Vector2(randf() * VW, randf() * (GROUND - 20.0)),
+			"ph": randf() * TAU,
+			"len": randf_range(5.0, 13.0) if streak else 0.0,
+			"s": randf_range(0.7, 1.7),
+		})
+
 # ---------------------------------------------------------------- 背景
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, VW, VH), Color(0.05, 0.066, 0.09))
 	for x in range(0, int(VW), 48):
 		draw_line(Vector2(x, 0), Vector2(x, VH), Color(0.082, 0.10, 0.13))
+	# 凝界悬停粒子(冷白雨丝/尘, 定格时更亮更蓝, 强化"时间停了")
+	var cold := 1.0 - world_scale
+	for m in _motes:
+		var tw: float = 0.5 + 0.5 * sin(_amb_t * 1.3 + m.ph)
+		var base: Color = Color(0.62, 0.78, 0.92).lerp(Color(0.21, 0.88, 1.0), cold)
+		base.a = clampf((0.10 + 0.15 * tw) * (1.0 + cold * 1.6), 0.0, 0.62)
+		var p: Vector2 = m.p
+		if m.len > 0.0:
+			draw_line(p, p + Vector2(0.0, m.len), base, m.s)
+		else:
+			draw_rect(Rect2(p.x, p.y, m.s, m.s), base)
 	draw_rect(Rect2(0, GROUND, VW, VH - GROUND), Color(0.10, 0.14, 0.17))
 	draw_line(Vector2(0, GROUND), Vector2(VW, GROUND), Color(0.17, 0.23, 0.27), 2.0)

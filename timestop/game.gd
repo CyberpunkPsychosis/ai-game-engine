@@ -268,14 +268,14 @@ func freeze_single(point: Vector2, range_px: float) -> void:
 	var best = null
 	var bd := range_px
 	for e in enemies:
-		var de := e.position.distance_to(point)
+		var de: float = e.position.distance_to(point)
 		if de < bd:
 			bd = de
 			best = e
 	for b in bullets:
 		if b.dead:
 			continue
-		var db := b.position.distance_to(point)
+		var db: float = b.position.distance_to(point)
 		if db < bd:
 			bd = db
 			best = b

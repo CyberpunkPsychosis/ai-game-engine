@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b8le8ddubob87"
-path="res://.godot/imported/run_sheet.png-e00429f11745686b775d6b65060557b4.ctex"
+uid="uid://bdhrjdewqrcge"
+path="res://.godot/imported/hero_samurai.png-21b819743998275e1a711c34f7a68278.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/timestop/hero/run_sheet.png"
-dest_files=["res://.godot/imported/run_sheet.png-e00429f11745686b775d6b65060557b4.ctex"]
+source_file="res://art/timestop/concept/hero_samurai.png"
+dest_files=["res://.godot/imported/hero_samurai.png-21b819743998275e1a711c34f7a68278.ctex"]
 
 [params]
 

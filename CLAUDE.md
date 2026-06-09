@@ -35,7 +35,7 @@ https://cyberpunkpsychosis.github.io/ai-game-engine/
 - `scripts/sprite_sheet.gd` 精灵表→SpriteFrames 切片器（FX 用）
 - `shaders/flash.gdshader`·`art/fx/`·`assets/sfx/` FX 依赖资源（勿删）
 - `fonts/` 字体 · `tools/` 网页辅助工具（出素材/编辑器，非游戏）
-- `docs/TIMESTOP.md` 当前游戏文档 · `docs/AI_TOOLS.md`/`ASSET_SOURCING.md`/`CLOUD_WORKFLOW.md`/`LUDO_MCP.md` AI 出素材工作流
+- `docs/TIMESTOP.md` 当前游戏文档 · `docs/SPRITE_PIPELINE.md` **精灵帧制作→交付流程（挑关键帧/抠图/对齐，用户做 sheet 我切帧接入）** · `docs/AI_TOOLS.md`/`ASSET_SOURCING.md`/`CLOUD_WORKFLOW.md`/`LUDO_MCP.md` AI 出素材工作流
 
 > 历史上还做过另两个游戏（横版弹反、土豆兄弟 survivor），**已废弃删除**，在 git 历史里可找回。详见 `docs/RESTART.md`。
 

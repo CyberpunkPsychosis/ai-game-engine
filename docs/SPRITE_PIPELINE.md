@@ -1,9 +1,11 @@
 # 精灵帧制作 → 交付流程（你做 sheet，我切帧接入）
 
-> 分工（2026-06 定）：**你**负责「生成视频 → 挑关键帧 → 抠图 → 对齐 → 导出成品 sheet」（因为你要微调）；
-> **我（引擎侧 Claude）**只负责「切帧成 `SpriteFrames` + 接进游戏」。
-> 已跑通的实例：主角 8 帧跑步 = `art/timestop/hero/run_strip.png`（见 `game.gd` 的 `_load_hero_sprites()`）。
-> 配套：成品规格见 `CLOUD_WORKFLOW.md` 第 1 节；学画像素见 `LEARN_GODOT.md` 旁的学习链接。
+> **当前流程（2026-06 定）**：
+> 1. **Scenario 出图 + 出视频动作**（生成角色 + 跑/待机/攻击等动作视频；生成时背景用**亮品红纯底**最好抠）。
+> 2. **你**：用 `tools/sprite-keyer`（手机网页版）**选关键帧 + 后期处理**（抠图 / 对齐 / 导透明横条）。
+> 3. **我（引擎侧 Claude）**：横条 → 切帧成 `SpriteFrames` → 接进游戏（`set_sprite_frames`）。
+> 已跑通实例：主角 8 帧跑步 = `art/timestop/hero/run_strip.png`（见 `game.gd` 的 `_load_hero_sprites()`）。
+> 美术是长期事：先**色块占位把玩法做爽**，素材就绪再逐个换（先 idle/run）。学画像素见 `LEARN_GODOT.md`。
 
 ---
 

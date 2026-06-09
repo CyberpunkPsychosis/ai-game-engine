@@ -24,9 +24,9 @@
 3. 让本地 Claude 调 Ludo 生成素材（按 `docs/CHARACTER_POSES.md` 的姿势规格/提示词）。
 4. 把产出的 PNG 放进 `incoming/`，`git push`（或用上传页）。
 
-## 然后(云端会话，我来)
-- `python3 tools/char_intake/intake.py incoming/<姿势folder> viir` 入库对齐
-- 绑骨 / 补间 → 接战斗状态机 + 大月牙斩 → 出预览调手感
+## 然后
+- 你用 `tools/sprite-keyer` 选帧/抠图/对齐 → 导透明横条（见 `SPRITE_PIPELINE.md`）。
+- 发我横条 → 我切帧 `set_sprite_frames` 接进游戏。
 
 ## 提示
 - **关键角色姿势的一致性**：Ludo 出图也要锁住"同一角色"。能训练/参考锁定就锁定，

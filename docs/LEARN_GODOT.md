@@ -54,4 +54,4 @@
 - 网页版编辑器：[editor.godotengine.org](https://editor.godotengine.org/)（用户已能打开）。
 - 装正式版：[godotengine.org/download](https://godotengine.org/download)。
 - 免费素材：[Kenney](https://kenney.nl/)（CC0，做 tileset/动画练习直接用）。
-- AI 出动作帧的新工具：`tools/sprite-forge/`（参考图→整表生成→切帧），动画素材以后从这来。
+- 出素材：Scenario 出图+视频动作 → `tools/sprite-keyer`（手机网页，选帧/抠图/对齐/导横条）→ 发我接入（见 `SPRITE_PIPELINE.md`）。

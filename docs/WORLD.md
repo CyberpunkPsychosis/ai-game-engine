@@ -81,7 +81,7 @@
 2. **提示词模板**(配 `inputPalette=palette.png`):
    > `"<主体>, side view, chunky 16-bit pixel art, cold stilled world, teal and frost blue palette with warm amber accents, crisp black outline, Hyper Light Drifter atmosphere, oriental, clean readable silhouette, transparent background"`
 3. **优先清单**:主角(idle/run/jump/attack/dash 关键帧) → 三型残响 → 钟楼/神社 tileset(`RD Tile`) → 冻结/定格 VFX → UI 皮。
-4. 动画走 `RD Animation` 或 `tools/sprite-forge`(整表生成→切帧)。
+4. 动画:Scenario 出视频动作 → `tools/sprite-keyer` 选帧/抠图/对齐/导横条(见 `SPRITE_PIPELINE.md`);瓦片走 `RD Tile`。
 
 ## 四、备选风格皮（想换味再说）
 - **B. 钟表废土**:破碎钟轮/黄铜蒸汽朋克，时间是齿轮。暖棕铜 + 冷青。

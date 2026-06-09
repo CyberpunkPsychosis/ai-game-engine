@@ -109,8 +109,9 @@ func _ready() -> void:
 	randomize()
 	_dmg_font = load("res://fonts/zpix.ttf")             # 伤害数字字体(缺失则跳字不画)
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED   # draw_texture_rect 平铺需要
-	_tile_ground = load("res://art/timestop/tiles/shrine_ground.png")
-	_tile_top = load("res://art/timestop/tiles/shrine_top.png")
+	# 暂回退纯方块平台:不加载瓦片贴图(留 null → _draw 走色块兜底)。素材仍在 art/timestop/tiles/。
+	# _tile_ground = load("res://art/timestop/tiles/shrine_ground.png")
+	# _tile_top = load("res://art/timestop/tiles/shrine_top.png")
 	world = Node2D.new()
 	add_child(world)
 	canvas_mod = CanvasModulate.new()
@@ -120,7 +121,8 @@ func _ready() -> void:
 	player.game = self
 	player.z_index = 5               # 在背景装饰(z 1~2)之上, 又不挡前景
 	world.add_child(player)
-	_load_hero_sprites()
+	# 暂回退色块主角(用户先自学美术, 做好成品 sheet 再接回; 见 docs/SPRITE_PIPELINE.md)
+	# _load_hero_sprites()
 	_build_camera()
 	_build_overlay()
 	_build_hud()
@@ -972,8 +974,8 @@ func _draw() -> void:
 			if _tile_top:
 				draw_texture_rect(_tile_top, Rect2(s.position.x, s.position.y, s.size.x, 12.0), true)
 		else:
-			draw_rect(s, Color(0.10, 0.14, 0.17))
-		draw_line(s.position, s.position + Vector2(s.size.x, 0.0), Color(0.36, 0.7, 0.85, 0.6), 2.0)
+			draw_rect(s, Color(0.18, 0.24, 0.31))      # 纯方块平台(可读的板岩色)
+		draw_line(s.position, s.position + Vector2(s.size.x, 0.0), Color(0.40, 0.74, 0.90, 0.7), 2.0)
 	# 长椅(存档点:暖色, 站上去回血回能)
 	for bz in benches:
 		var r: Rect2 = bz

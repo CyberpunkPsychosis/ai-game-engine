@@ -1,8 +1,13 @@
 extends Node2D
 class_name TSEnemy
-## 敌人三型: charger(冲锋) / shooter(远程弹幕) / healer(治疗,逼你莽)
-## 关键: 所有移动用 sdt = delta * game.scale_for(frozen_t)
-##   → 单体冻结 / 全场定格 / 命中顿帧 自动让它静止, 不用各写一套。
+## 敌人三型: charger(近战扑影) / shooter(远程悬铳) / healer(治疗缚生)
+## 标准 2D 平台怪 AI(参考死亡细胞/通用 FSM):
+##   patrol(巡逻:撞墙或到崖边自动掉头, 固定来回线路, 不主动追)
+##   → alert(进入察觉范围短暂一顿, 转向你)
+##   → chase(追, 但崖边会停住不跳崖)
+##   → windup(预警蓄力, 闪红框) → lunge(锁向直线扑杀, 冲过头) → recover(露破绽)
+##   被打 → stagger(击退 + 取消当前动作/攻击, 短暂硬直)→ 重新评估
+## 移动统一用 sdt = delta * game.scale_for(frozen_t),被冻/定格/顿帧自动静止。
 
 var game
 var type := "charger"
@@ -13,18 +18,30 @@ var vy := 0.0
 var hp := 30.0
 var maxhp := 30.0
 var frozen_t := 0.0    # 单体冻结剩余(真实时间)
-var stun_t := 0.0      # 被打硬直
+var stun_t := 0.0      # 被打硬直(hitstun:期间不行动、不攻击)
 var flash_t := 0.0     # 受击白闪
 var fire_t := 1.2
 var color := Color(0.88, 0.39, 0.25)
 var tilt := 0.0        # 被打倾斜
 var _jit := Vector2.ZERO   # 残响卡帧抽搐(活动时小幅抖, 冻住归零)
 var _jit_cd := 0.0
-# 行为状态机(charger 用:approach→windup→lunge→recover, 让玩家有预警和破绽可躲/可反击)
-var state := "approach"
+# 行为状态机
+var state := "patrol"
 var state_t := 0.0
+var patrol_dir := 1.0      # 巡逻方向(撞墙/崖边/到边界翻转)
+var home_x := 0.0          # 出生点 x(巡逻以它为中心来回)
+var _home_set := false
+var lost_t := 0.0          # 脱离视野计时(超时回巡逻)
 var _lunge_dir := 1.0
-var attacking := false      # 仅 lunge 命中窗口为 true → 只有这下碰到才伤人
+var attacking := false     # 仅 lunge 命中窗口为 true → 只有这下碰到才伤人
+
+const PATROL_SPD := 64.0
+const CHASE_SPD := 150.0
+const AGGRO_X := 360.0      # 横向察觉范围
+const AGGRO_Y := 130.0      # 纵向察觉范围(差不多同层才追)
+const DEAGGRO := 1.6        # 脱离视野多久回巡逻
+const ATK_RANGE := 72.0
+const PATROL_RANGE := 220.0 # 巡逻以出生点为中心来回的半幅(固定短线路)
 
 func setup() -> void:
 	if type == "charger":
@@ -34,14 +51,24 @@ func setup() -> void:
 	elif type == "healer":
 		hp = 20.0; maxhp = 20.0; w = 28.0; h = 44.0; color = Color(0.48, 0.76, 0.54)
 	fire_t = randf_range(1.8, 3.4)
+	patrol_dir = 1.0 if randf() < 0.5 else -1.0
+	state = "patrol"
+
+## 被玩家命中:击退 + 取消当前动作/攻击 + 短硬直(hitstun)。game._hit_enemy 调它。
+func stagger(from_dir: float) -> void:
+	flash_t = 0.10
+	stun_t = 0.26
+	vx = from_dir * 320.0
+	attacking = false
+	state = "recover"          # 打断扑击/攻击 → 进短暂破绽
+	state_t = 0.34
 
 func _process(delta: float) -> void:
 	frozen_t = maxf(0.0, frozen_t - delta)
 	flash_t = maxf(0.0, flash_t - delta)
-	# 倾斜(真实时间回正, 纯表现)
 	if stun_t > 0.0:
-		var dir := 1.0 if vx >= 0.0 else -1.0
-		tilt = dir * 0.45 * (stun_t / 0.3)
+		var d := 1.0 if vx >= 0.0 else -1.0
+		tilt = d * 0.45 * clampf(stun_t / 0.26, 0.0, 1.0)
 	else:
 		tilt = lerpf(tilt, 0.0, minf(1.0, delta * 12.0))
 
@@ -67,9 +94,9 @@ func _process(delta: float) -> void:
 		vy = 0.0
 	vx = lerpf(vx, 0.0, minf(1.0, sdt * 8.0))
 	if stun_t > 0.0:
-		attacking = false            # 被打断 → 取消扑击命中窗口
+		attacking = false            # hitstun 期间:不行动、不攻击
 	else:
-		_ai(sdt)                     # 硬直中: 被击退但不行动
+		_ai(sdt)
 	# 掉出房间(被打飞/走进断坑)→ 移除
 	if position.y > game.room_h + 200.0:
 		game.enemies.erase(self)
@@ -77,63 +104,125 @@ func _process(delta: float) -> void:
 		return
 	queue_redraw()
 
+# ---------------------------------------------------------------- 地形感知(巡逻/追击用)
+func _solid_at(x: float, y: float) -> bool:
+	for sd in game.solids:
+		if (sd as Rect2).has_point(Vector2(x, y)):
+			return true
+	return false
+
+## 前方下面有没有地(没地=崖边)
+func _floor_ahead(dir: float) -> bool:
+	return _solid_at(position.x + dir * (w * 0.5 + 4.0), position.y + h * 0.5 + 10.0)
+
+## 正前方有没有墙
+func _wall_ahead(dir: float) -> bool:
+	return _solid_at(position.x + dir * (w * 0.5 + 5.0), position.y)
+
+## 巡逻:撞墙/到崖边/越出出生点 ±PATROL_RANGE 自动掉头 → 固定短线路, 不掉崖
+func _patrol_move() -> void:
+	if not _home_set:
+		home_x = position.x
+		_home_set = true
+	var out_bound := (patrol_dir > 0.0 and position.x > home_x + PATROL_RANGE) \
+		or (patrol_dir < 0.0 and position.x < home_x - PATROL_RANGE)
+	if _wall_ahead(patrol_dir) or not _floor_ahead(patrol_dir) or out_bound:
+		patrol_dir = -patrol_dir
+	vx = patrol_dir * PATROL_SPD
+
+# ---------------------------------------------------------------- AI 分发
 func _ai(sdt: float) -> void:
 	var p = game.player
 	var dx: float = p.position.x - position.x
-	var dir := signf(dx)
-	if dir == 0.0:
-		dir = 1.0
-	var dist := absf(dx)
+	var dy: float = p.position.y - position.y
+	var pdir := 1.0 if dx >= 0.0 else -1.0
+	var adist := absf(dx)
+	var sees := adist < AGGRO_X and absf(dy) < AGGRO_Y
 	if type == "charger":
-		_charger_ai(sdt, dir, dist)
+		_charger(sdt, pdir, adist, sees)
 	elif type == "shooter":
-		# 远程:保持中距, 太近后撤、太远逼近, 在射程内开火(不贴脸)
-		if dist < 320.0:
-			vx = -dir * 110.0
-		elif dist > 480.0:
-			vx = dir * 90.0
-		else:
-			vx = 0.0
-		fire_t -= sdt
-		if fire_t <= 0.0 and dist < 640.0:
-			fire_t = randf_range(2.4, 3.2)
-			game.spawn_bullet(position, p.position)
+		_shooter(sdt, p, pdir, adist, sees)
 	elif type == "healer":
-		# 治疗:边奶边躲, 永远跟你拉开
-		vx = -dir * 70.0
-		fire_t -= sdt
-		if fire_t <= 0.0:
-			fire_t = 1.4
-			game.heal_allies(self)
+		_healer(sdt, pdir, sees)
 
-## 扑影:逼近→预警蓄力→直线扑杀(冲过头)→露破绽。给玩家预警和反击窗口。
-func _charger_ai(sdt: float, dir: float, dist: float) -> void:
+## 扑影:巡逻→察觉→追(崖边停)→预警→扑杀→破绽
+func _charger(sdt: float, pdir: float, adist: float, sees: bool) -> void:
 	state_t -= sdt
 	attacking = false
 	match state:
-		"approach":
-			# 慢速逼近(玩家移速 320 > 这个 → 能甩开/绕后)
-			vx = dir * 130.0 if dist > 165.0 else 0.0
-			if dist <= 165.0:
-				state = "windup"
-				state_t = 0.42
-		"windup":
-			vx = -dir * 26.0            # 微后仰蓄力(配合 _draw 红框预警)
+		"patrol":
+			_patrol_move()
+			if sees:
+				state = "alert"
+				state_t = 0.22
+		"alert":
+			vx = 0.0
+			patrol_dir = pdir                 # 转向玩家
 			if state_t <= 0.0:
-				_lunge_dir = dir         # 锁定扑击方向(扑出后不再追踪 → 可侧身躲)
+				state = "chase"
+				lost_t = 0.0
+		"chase":
+			if sees:
+				lost_t = 0.0
+			else:
+				lost_t += sdt
+				if lost_t > DEAGGRO:
+					state = "patrol"
+					return
+			patrol_dir = pdir
+			if adist <= ATK_RANGE:
+				vx = 0.0
+				state = "windup"
+				state_t = 0.40
+			elif _floor_ahead(pdir):          # 崖边停住, 不跳崖自杀
+				vx = pdir * CHASE_SPD
+			else:
+				vx = 0.0
+		"windup":
+			vx = -pdir * 24.0                 # 微后仰蓄力(配合红框预警)
+			if state_t <= 0.0:
+				_lunge_dir = pdir              # 锁定方向(扑出后不再追踪 → 可侧身躲)
 				state = "lunge"
-				state_t = 0.32
+				state_t = 0.30
 		"lunge":
-			vx = _lunge_dir * 560.0     # 直线扑杀(会冲过头)
+			vx = _lunge_dir * 540.0           # 直线扑杀(冲过头)
 			attacking = true
 			if state_t <= 0.0:
 				state = "recover"
-				state_t = 0.55
+				state_t = 0.48
 		"recover":
-			vx = 0.0                    # 露破绽:站定可被反击
+			vx = 0.0                          # 露破绽:可被反击
 			if state_t <= 0.0:
-				state = "approach"
+				state = "chase" if sees else "patrol"
 
+## 悬铳:不在战斗范围就巡逻;进范围保持中距、不贴脸、开火
+func _shooter(sdt: float, p, pdir: float, adist: float, sees: bool) -> void:
+	if not sees and adist > AGGRO_X * 1.15:
+		_patrol_move()
+		return
+	if adist < 300.0:
+		vx = -pdir * 110.0 if _floor_ahead(-pdir) else 0.0   # 后撤(别掉崖)
+	elif adist > 480.0:
+		vx = pdir * 90.0 if _floor_ahead(pdir) else 0.0
+	else:
+		vx = 0.0
+	fire_t -= sdt
+	if fire_t <= 0.0 and adist < 640.0:
+		fire_t = randf_range(2.4, 3.2)
+		game.spawn_bullet(position, p.position)
+
+## 缚生:见你就逃(别掉崖), 否则巡逻;定时奶活同伴
+func _healer(sdt: float, pdir: float, sees: bool) -> void:
+	if sees:
+		vx = -pdir * 92.0 if _floor_ahead(-pdir) else 0.0
+	else:
+		_patrol_move()
+	fire_t -= sdt
+	if fire_t <= 0.0:
+		fire_t = 1.4
+		game.heal_allies(self)
+
+# ---------------------------------------------------------------- 渲染
 func _draw() -> void:
 	var frozen: bool = game.scale_for(frozen_t) <= 0.0
 	var col := color

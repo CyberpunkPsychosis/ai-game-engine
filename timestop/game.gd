@@ -331,12 +331,13 @@ func _build_hud() -> void:
 func _build_touch(cl: CanvasLayer) -> void:
 	joy_center = Vector2(180.0, VH - 155.0)         # 摇杆底盘中心(左下)
 	# act / 屏幕中心 / 半径 / 文字 / 颜色(冷暖按设定:砍=暖, 冻/定=亮蓝, 闪=青)
+	# 错落弧形排布;每对圆心间距 > 半径和 + 余量, 互不重叠
 	btn_defs = [
-		{"act": "atk",  "center": Vector2(VW - 116.0, VH - 128.0), "radius": 72.0, "label": "砍",  "col": Color(0.91, 0.47, 0.33), "enabled": true},
-		{"act": "jump", "center": Vector2(VW - 268.0, VH - 92.0),  "radius": 62.0, "label": "跳",  "col": Color(0.58, 0.66, 0.78), "enabled": true},
-		{"act": "dash", "center": Vector2(VW - 188.0, VH - 286.0), "radius": 60.0, "label": "闪",  "col": Color(0.55, 0.86, 1.00), "enabled": true},
-		{"act": "frz",  "center": Vector2(VW - 350.0, VH - 232.0), "radius": 60.0, "label": "冻",  "col": Color(0.36, 0.72, 0.96), "enabled": true},
-		{"act": "full", "center": Vector2(VW - 104.0, VH - 360.0), "radius": 56.0, "label": "定",  "col": Color(0.28, 0.86, 1.00), "enabled": true},
+		{"act": "atk",  "center": Vector2(VW - 112.0, VH - 124.0), "radius": 72.0, "label": "砍",  "col": Color(0.91, 0.47, 0.33), "enabled": true},
+		{"act": "jump", "center": Vector2(VW - 268.0, VH - 108.0), "radius": 60.0, "label": "跳",  "col": Color(0.58, 0.66, 0.78), "enabled": true},
+		{"act": "dash", "center": Vector2(VW - 222.0, VH - 290.0), "radius": 58.0, "label": "闪",  "col": Color(0.55, 0.86, 1.00), "enabled": true},
+		{"act": "frz",  "center": Vector2(VW - 392.0, VH - 250.0), "radius": 58.0, "label": "冻",  "col": Color(0.36, 0.72, 0.96), "enabled": true},
+		{"act": "full", "center": Vector2(VW - 68.0,  VH - 310.0), "radius": 54.0, "label": "定",  "col": Color(0.28, 0.86, 1.00), "enabled": true},
 	]
 	# 触摸视觉层(圆形键 + 摇杆), 放在触摸面板之下, 只画不吃输入
 	touch_ui = TSTouchUI.new()
@@ -488,9 +489,7 @@ func do_attack() -> void:
 func _hit_enemy(e, dmg: float) -> void:
 	var pos: Vector2 = e.position
 	e.hp -= dmg
-	e.flash_t = 0.1
-	e.stun_t = 0.3
-	e.vx = player.facing * 300.0
+	e.stagger(player.facing)          # 击退 + 打断它当前动作/扑击(hitstun)
 	hitstop_t = maxf(hitstop_t, 0.05)
 	add_energy(8.0)
 	spark(pos, e.color)

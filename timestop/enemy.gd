@@ -38,6 +38,10 @@ var cc_mult := 1.0         # 控制时长倍率(精英抗控, <1)
 # 持盾兵朝向(换边有延迟 → 绕背可破)
 var shield_face := 1.0
 var _face_t := 0.0
+# 飞行怪(bat)悬停/俯冲
+var _bob := 0.0
+var _home_y := 0.0
+var _dive := Vector2.ZERO
 # 行为状态机
 var state := "patrol"
 var state_t := 0.0
@@ -70,6 +74,8 @@ func setup() -> void:
 			hp = 46.0; maxhp = 46.0; w = 36.0; h = 44.0; color = Color(0.55, 0.62, 0.72)
 		"protector":
 			hp = 16.0; maxhp = 16.0; w = 28.0; h = 46.0; color = Color(0.64, 0.42, 0.80)
+		"bat":
+			hp = 14.0; maxhp = 14.0; w = 30.0; h = 22.0; color = Color(0.66, 0.46, 0.82)
 		"shooter":
 			hp = 22.0; maxhp = 22.0; w = 30.0; h = 40.0; color = Color(0.79, 0.64, 0.25)
 		"healer":
@@ -122,8 +128,9 @@ func _process(delta: float) -> void:
 
 	var sdt := delta * s
 	stun_t = maxf(0.0, stun_t - sdt)
-	# 物理: 重力 + 击退惯性, 对房间地形做碰撞
-	vy += 1700.0 * sdt
+	# 物理: 重力 + 击退惯性, 对房间地形做碰撞(飞行怪自主控 vy, 不受重力)
+	if type != "bat":
+		vy += 1700.0 * sdt
 	var r: Dictionary = game.collide_move(position, Vector2(w * 0.5, h * 0.5), Vector2(vx, vy) * sdt)
 	position = r.pos
 	if r.floor and vy > 0.0:
@@ -195,6 +202,38 @@ func _ai(sdt: float) -> void:
 			_healer(sdt, pdir, sees)
 		"protector":
 			_protector(sdt, pdir, sees)
+		"bat":
+			_bat(sdt, p, pdir, adist, sees)
+
+## 飞行怪:空中悬停划弧(可被冻成踏脚石!) → 预警 → 俯冲 → 飞回。无重力。
+func _bat(sdt: float, p, pdir: float, adist: float, sees: bool) -> void:
+	state_t -= sdt
+	attacking = false
+	if not _home_set:
+		home_x = position.x; _home_y = position.y; _home_set = true
+	_bob += sdt
+	match state:
+		"patrol":
+			vx = patrol_dir * 72.0
+			if absf(position.x - home_x) > 190.0 or _wall_ahead(patrol_dir):
+				patrol_dir = -patrol_dir
+			vy = (_home_y - position.y) * 1.5 + sin(_bob * 3.2) * 36.0
+			if sees and adist < 300.0 and state_t <= 0.0:
+				state = "windup"; state_t = 0.40
+		"windup":
+			vx = 0.0; vy = sin(_bob * 9.0) * 22.0   # 抖动预警(头顶 !)
+			if state_t <= 0.0:
+				_dive = (p.position - position).normalized()
+				state = "dive"; state_t = 0.5
+		"dive":
+			vx = _dive.x * 380.0; vy = _dive.y * 380.0; attacking = true
+			if state_t <= 0.0:
+				state = "recover"; state_t = 0.45
+		"recover":
+			vx = lerpf(vx, 0.0, minf(1.0, sdt * 6.0))
+			vy = clampf((_home_y - position.y) * 2.0, -220.0, 220.0)
+			if state_t <= 0.0:
+				state = "patrol"
 
 ## 扑影:巡逻→察觉→追(崖边停)→预警→扑杀→破绽
 func _charger(sdt: float, pdir: float, adist: float, sees: bool) -> void:

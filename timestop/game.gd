@@ -69,6 +69,9 @@ var _look := Vector2.ZERO    # 相机前瞻(朝移动方向多看一截)
 const COMBO_WINDOW := 0.46
 var _booms: Array = []       # 延迟 AoE 危害(投弹/亡爆)[{p,t,r,dmg,fired,linger}]
 const PROTECT_R := 150.0     # 守护者无敌光环半径(enemy 读 game.PROTECT_R)
+# 核心动词:单体冻结改为"免费 + 短 CD"(随手冻成地形/掩体/碎裂目标), 能量只留给全场定格
+var freeze_cd := 0.0
+const FREEZE_CD := 0.7
 
 # 凝界氛围:半空悬停、永不下落的雨丝/尘(时间停了)。纯表现, 不参与玩法。
 var _motes: Array = []
@@ -483,6 +486,7 @@ func _process(delta: float) -> void:
 	_handle_keys()
 	freeze_t = maxf(0.0, freeze_t - delta)
 	hitstop_t = maxf(0.0, hitstop_t - delta)
+	freeze_cd = maxf(0.0, freeze_cd - delta)
 	flash = maxf(0.0, flash - delta * 3.0)
 	shake = maxf(0.0, shake - delta * 40.0)
 	bar_flash = maxf(0.0, bar_flash - delta)
@@ -654,6 +658,13 @@ func _hit_enemy(e, dmg: float, knock := 300.0, hs := 0.05, shk := 3.5, crit := f
 			player.knock_vx = pside * 240.0
 			player.knock_t = 0.10
 			return
+	# 冻者易碎(核心):打冻住的敌人 → 暴击 + 死亡时冰爆碎裂波及周围(冻一群、碎一个、连锁)
+	var was_frozen: bool = e.frozen_t > 0.0 or freeze_t > 0.0
+	if was_frozen:
+		dmg *= 2.5
+		hs = maxf(hs, 0.09)
+		shk = maxf(shk, 7.0)
+		crit = true
 	e.hp -= dmg
 	e.stagger(player.facing, knock)   # 击退(按力度) + 打断它当前动作/扑击(hitstun, 无内置冷却→可压制)
 	hitstop_t = maxf(hitstop_t, hs)   # 命中顿帧(轻/重不同 → 打击感)
@@ -667,6 +678,8 @@ func _hit_enemy(e, dmg: float, knock := 300.0, hs := 0.05, shk := 3.5, crit := f
 		shake = maxf(shake, 12.0)
 		hitstop_t = maxf(hitstop_t, 0.12)
 		player.haste_t = 4.0          # 连杀加速(奖励进攻)
+		if was_frozen:
+			_shatter(pos, e)          # 冰爆碎裂:波及周围(被波及的不再二次碎裂, 防清屏过强)
 		for i in 8:
 			spark(pos, e.color)
 		if e.explode:                 # 亡爆:死亡播撒延迟炸弹(区域封锁 → 注意补刀站位)
@@ -682,9 +695,9 @@ func _pop_dmg(p: Vector2, v: int, crit: bool) -> void:
 func add_energy(v: float) -> void:
 	energy = minf(ENERGY_MAX, energy + v)
 
+## 核心动词:免费、短 CD、随手冻最近的敌人或子弹(→ 地形/掩体/碎裂目标)。能量不再消耗。
 func freeze_single(point: Vector2, range_px: float) -> void:
-	if energy < SINGLE_COST:
-		bar_flash = 0.35
+	if freeze_cd > 0.0:
 		return
 	var best = null
 	var bd := range_px
@@ -701,9 +714,34 @@ func freeze_single(point: Vector2, range_px: float) -> void:
 			bd = db
 			best = b
 	if best != null:
-		energy -= SINGLE_COST
+		freeze_cd = FREEZE_CD
 		best.frozen_t = SINGLE_DUR
 		spark(best.position, Color(0.6, 0.85, 1.0))
+
+## 冰爆碎裂:冻住的敌人被打死 → 冰刃波及周围(伤害+击退+解冻), 但不递归(防清屏过强)
+func _shatter(center: Vector2, src) -> void:
+	shake = maxf(shake, 10.0)
+	for i in 12:
+		spark(center, Color(0.74, 0.92, 1.0))
+	var dead: Array = []
+	for o in enemies:
+		if o == src:
+			continue
+		if o.position.distance_to(center) < 104.0:
+			o.hp -= 14.0
+			o.stagger(signf(o.position.x - center.x), 360.0)
+			o.frozen_t = 0.0
+			spark(o.position, Color(0.82, 0.95, 1.0))
+			if o.hp <= 0.0:
+				dead.append(o)
+	for o in dead:
+		kills += 1
+		add_energy(18.0)
+		if o.explode:
+			for i in 4:
+				spawn_boom(o.position + Vector2(randf_range(-54.0, 54.0), randf_range(-24.0, 16.0)), 0.45 + i * 0.12, 48.0, 10.0)
+		enemies.erase(o)
+		o.queue_free()
 
 func do_full_freeze() -> void:
 	if gameover:
@@ -726,6 +764,16 @@ func _combat() -> void:
 				hurt_player(12.0 * e.dmg_mult, e.position.x)
 	for b in bullets:
 		if b.dead:
+			continue
+		# 被冻物当掩体(核心):子弹撞上冻住的敌人 → 挡下(冻一个挡在你和弓手之间)
+		var blocked := false
+		for e in enemies:
+			if scale_for(e.frozen_t) <= 0.0 and absf(b.position.x - e.position.x) < e.w * 0.5 + b.r and absf(b.position.y - e.position.y) < e.h * 0.5 + b.r:
+				blocked = true
+				break
+		if blocked:
+			b.dead = true
+			spark(b.position, Color(0.72, 0.9, 1.0))
 			continue
 		var sb := scale_for(b.frozen_t)
 		if sb > 0.0 and absf(b.position.x - pp.x) < 16.0 and absf(b.position.y - pp.y) < 24.0:

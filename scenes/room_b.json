@@ -25,6 +25,7 @@
   "benches": [],
   "enemies": [
     { "kind": "charger", "x": 820, "y": 1250 },
+    { "kind": "bat", "x": 1000, "y": 1000 },
     { "kind": "charger", "x": 660, "y": 820, "elite": true },
     { "kind": "archer", "x": 800, "y": 580 },
     { "kind": "bomber", "x": 480, "y": 460 }

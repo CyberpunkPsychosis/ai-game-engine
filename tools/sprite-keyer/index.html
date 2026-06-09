@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>精灵抠图 · 选帧/抠图/对齐/导表</title>
+<style>
+  :root{--ink:#eae6dd;--muted:#9a958a;--panel:#1d2226;--panel2:#262c31;--line:#333b41;--clay:#cc785c;--accent:#5cc0cc;--ok:#7bd88f;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;min-height:100%;background:#11151a;color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}
+  .topbar{position:sticky;top:0;display:flex;align-items:center;gap:6px;padding:8px;background:rgba(20,25,29,.97);
+    border-bottom:1px solid var(--line);z-index:10;}
+  .title{font-size:14px;font-weight:700;margin-right:auto;}
+  .steps{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line);background:#171c21;position:sticky;top:47px;z-index:9;}
+  .step{flex:1;text-align:center;border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:8px;
+    padding:7px 4px;font-size:12.5px;font-weight:700;cursor:pointer;}
+  .step.on{background:var(--accent);border-color:var(--accent);color:#05222a;}
+  .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:8px;
+    padding:8px 10px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .btn:active{background:#30373d;} .btn.p{background:var(--clay);border-color:var(--clay);}
+  .btn.on{background:var(--accent);border-color:var(--accent);color:#05222a;}
+  .btn.sm{padding:6px 8px;font-size:12px;}
+  .wrap{padding:10px;max-width:760px;margin:0 auto;}
+  .pane{display:none;} .pane.on{display:block;}
+  canvas{background:
+      repeating-conic-gradient(#2a3036 0% 25%, #20262b 0% 50%) 50%/18px 18px;
+    border:1px solid var(--line);border-radius:10px;display:block;width:100%;height:auto;touch-action:none;image-rendering:pixelated;}
+  .cap{font-size:12.5px;min-height:18px;margin:7px 0;color:#bfe3d2;font-weight:600;line-height:1.5;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px;margin:10px 0;}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px;flex-wrap:wrap;}
+  .row label{color:var(--muted);min-width:42px;}
+  input[type=number]{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px;font-size:13px;width:64px;}
+  input[type=range]{flex:1;min-width:120px;}
+  .hint{font-size:12px;color:var(--muted);line-height:1.6;}
+  .tray{display:flex;gap:6px;overflow-x:auto;padding:6px 0;}
+  .thumb{position:relative;flex:0 0 auto;width:58px;height:58px;border:2px solid var(--line);border-radius:8px;background:#0d1115;
+    background-image:repeating-conic-gradient(#2a3036 0% 25%,#20262b 0% 50%);background-size:12px 12px;}
+  .thumb canvas{width:100%;height:100%;border:0;border-radius:6px;}
+  .thumb .x{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:var(--clay);color:#fff;
+    font-size:13px;line-height:20px;text-align:center;border:0;}
+  .thumb.sel{border-color:var(--accent);}
+  .swatch{width:20px;height:20px;border-radius:5px;display:inline-block;border:1px solid var(--line);vertical-align:middle;}
+  .seg{display:flex;gap:4px;} .seg .btn{flex:1;}
+  textarea{width:100%;height:74px;background:#0d1115;color:var(--ink);border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:12px;padding:8px;}
+  a.dl{display:inline-block;text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="title">🎬 精灵抠图工具</div>
+  <span class="hint" id="status">未导入</span></div>
+<div class="steps">
+  <div class="step on" data-p="import">① 导入·选帧</div>
+  <div class="step" data-p="key">② 抠图</div>
+  <div class="step" data-p="out">③ 对齐·导出</div>
+</div>
+
+<!-- ① 导入 -->
+<div class="wrap pane on" id="pane-import">
+  <div class="card">
+    <div class="row"><button class="btn p" id="pick">📂 选视频 / GIF</button>
+      <input type="file" id="file" accept="video/*,image/gif" style="display:none">
+    </div>
+    <div class="hint">建议生成时用<b>亮品红纯底</b>(#FF00FF)，抠图最干净。视频/GIF 都行；视频可逐帧拖。</div>
+  </div>
+  <div id="vidbox" style="display:none">
+    <canvas id="vcanvas"></canvas>
+    <div class="cap" id="vcap"></div>
+    <div class="row">
+      <input type="range" id="scrub" min="0" max="1000" value="0">
+    </div>
+    <div class="row">
+      <button class="btn" id="prev">◀ 帧</button>
+      <button class="btn" id="next">帧 ▶</button>
+      <button class="btn p" id="grab">＋ 抓本帧</button>
+      <label>fps</label><input type="number" id="vfps" value="12" min="1" max="30">
+    </div>
+    <div class="row">
+      <label>自动抽</label><input type="number" id="autoN" value="8" min="2" max="24"> 帧
+      <button class="btn" id="autoBtn">均匀抽取</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>已选帧 (<span id="fcount">0</span>)</b>
+      <button class="btn sm" id="clearF">清空</button></div>
+    <div class="tray" id="tray"></div>
+    <div class="hint">按时间顺序抓"关键姿势"(跑:腿张最开/腿交错…)。点 ✕ 删，多余的去掉。</div>
+  </div>
+</div>
+
+<!-- ② 抠图 -->
+<div class="wrap pane" id="pane-key">
+  <div class="card">
+    <canvas id="kcanvas"></canvas>
+    <div class="cap" id="kcap">点画面里的背景，取背景色</div>
+    <div class="row"><button class="btn" id="kprev">◀</button>
+      <span id="kidx" style="flex:1;text-align:center;font-weight:700">帧 1</span>
+      <button class="btn" id="knext">▶</button></div>
+    <div class="row"><label>背景色</label><span class="swatch" id="kc"></span>
+      <button class="btn sm on" id="eyedrop">👆 取色中</button></div>
+    <div class="row"><label>容差</label><input type="range" id="tol" min="0" max="160" value="60">
+      <span id="tolv" class="hint">60</span></div>
+    <div class="row"><label>方式</label>
+      <div class="seg"><button class="btn sm on" id="mEdge">仅连边缘(保内部白)</button>
+        <button class="btn sm" id="mGlobal">全局同色</button></div></div>
+    <div class="row"><label>收边</label><input type="range" id="shrink" min="0" max="3" value="1">
+      <span id="shrinkv" class="hint">1 px（去残留光晕）</span></div>
+    <div class="row"><label>补刀</label>
+      <button class="btn sm" id="erase">🩹 橡皮(擦多余)</button>
+      <button class="btn sm" id="restore">↩ 恢复笔</button>
+      <label>粗</label><input type="number" id="brush" value="6" min="1" max="40">
+      <button class="btn sm" id="resetFrame">重置本帧</button></div>
+    <div class="hint">取色+拉容差先粗抠；用"仅连边缘"保住袜子/眼睛的内部白；橡皮擦掉漏网的。设置对<b>所有帧</b>统一生效，橡皮只改当前帧。</div>
+  </div>
+</div>
+
+<!-- ③ 导出 -->
+<div class="wrap pane" id="pane-out">
+  <div class="card">
+    <div class="row"><button class="btn on" id="onion">🧅 洋葱皮</button>
+      <button class="btn p" id="rebuild">↻ 重新对齐</button></div>
+    <canvas id="ocanvas"></canvas>
+    <div class="cap" id="ocap"></div>
+    <div class="row"><label>fps</label><input type="number" id="ofps" value="12" min="1" max="30">
+      <a class="dl" id="dl"><button class="btn p">⬇ 下载横条 PNG</button></a></div>
+    <div class="card" style="margin:8px 0 0">
+      <div class="hint" style="margin-bottom:4px">发给 Claude 这段，让他接进游戏：</div>
+      <textarea id="handoff" readonly></textarea>
+      <button class="btn sm" id="copyT" style="margin-top:6px">复制</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/dist/gifuct-js.min.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const MAXDIM = 256;          // 抓帧缩到的最大边(控性能/对齐游戏小图)
+let frames = [];             // {src:ImageData, w,h, ovr:Int8Array(0/1=keep/-1=remove)}
+let key = { color:null, tol:60, mode:'edge', shrink:1 };
+let kIdx = 0, eyeMode = true, brushMode = null; // brushMode: 'erase'|'restore'|null
+
+/* ---------- 步骤切换 ---------- */
+document.querySelectorAll('.step').forEach(s=>s.onclick=()=>{
+  document.querySelectorAll('.step').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.pane').forEach(x=>x.classList.remove('on'));
+  s.classList.add('on'); $('#pane-'+s.dataset.p).classList.add('on');
+  if(s.dataset.p==='key'){ kIdx=Math.min(kIdx,frames.length-1); drawKey(); }
+  if(s.dataset.p==='out'){ buildStrip(); }
+});
+function setStatus(t){ $('#status').textContent=t; }
+
+/* ---------- 工具：把任意图源缩到 MAXDIM 并取 ImageData ---------- */
+function grabFrom(source, sw, sh){
+  const s = Math.min(1, MAXDIM/Math.max(sw,sh));
+  const w = Math.max(1,Math.round(sw*s)), h = Math.max(1,Math.round(sh*s));
+  const c = document.createElement('canvas'); c.width=w; c.height=h;
+  const x = c.getContext('2d'); x.imageSmoothingEnabled=true;
+  x.drawImage(source,0,0,w,h);
+  const id = x.getImageData(0,0,w,h);
+  frames.push({ src:id, w, h, ovr:new Int8Array(w*h) });
+  refreshTray();
+}
+
+/* ---------- ① 导入 ---------- */
+$('#pick').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{ const f=e.target.files[0]; if(!f) return;
+  if(f.type==='image/gif') loadGif(f); else loadVideo(f);
+};
+
+let vid=null, vfps=12;
+function loadVideo(f){
+  $('#vidbox').style.display='block';
+  vid=document.createElement('video'); vid.muted=true; vid.playsInline=true;
+  vid.src=URL.createObjectURL(f);
+  vid.onloadedmetadata=()=>{ seekVid(0); setStatus('视频 '+vid.videoWidth+'×'+vid.videoHeight+' / '+vid.duration.toFixed(1)+'s'); };
+}
+function drawVid(){
+  if(!vid) return;
+  const c=$('#vcanvas'); c.width=vid.videoWidth; c.height=vid.videoHeight;
+  c.getContext('2d').drawImage(vid,0,0);
+  $('#scrub').value=Math.round((vid.currentTime/vid.duration)*1000)||0;
+  $('#vcap').textContent='时间 '+vid.currentTime.toFixed(2)+'s';
+}
+function seekVid(t){ return new Promise(res=>{ if(!vid) return res();
+  vid.currentTime=Math.max(0,Math.min(vid.duration||0,t));
+  vid.onseeked=()=>{ drawVid(); res(); };
+});}
+$('#scrub').oninput=e=>{ if(vid) seekVid((e.target.value/1000)*vid.duration); };
+$('#prev').onclick=()=>{ vfps=+$('#vfps').value||12; if(vid) seekVid(vid.currentTime-1/vfps); };
+$('#next').onclick=()=>{ vfps=+$('#vfps').value||12; if(vid) seekVid(vid.currentTime+1/vfps); };
+$('#grab').onclick=()=>{ if(vid) grabFrom(vid,vid.videoWidth,vid.videoHeight); };
+$('#autoBtn').onclick=async()=>{ if(!vid) return; const n=+$('#autoN').value||8;
+  for(let i=0;i<n;i++){ await seekVid((i/(n))*vid.duration); grabFrom(vid,vid.videoWidth,vid.videoHeight); }
+};
+
+async function loadGif(f){
+  const G = window.gifuct;
+  if(!G||!G.parseGIF){ alert('GIF 解码库没加载(可能没网)。先用 MP4 视频试试。'); return; }
+  const buf = await f.arrayBuffer();
+  const gif = G.parseGIF(buf); const gfs = G.decompressFrames(gif, true);
+  const W=gif.lsd.width, H=gif.lsd.height;
+  const full=document.createElement('canvas'); full.width=W; full.height=H;
+  const fx=full.getContext('2d');
+  gfs.forEach(fr=>{
+    const patch=new ImageData(new Uint8ClampedArray(fr.patch), fr.dims.width, fr.dims.height);
+    const tmp=document.createElement('canvas'); tmp.width=fr.dims.width; tmp.height=fr.dims.height;
+    tmp.getContext('2d').putImageData(patch,0,0);
+    fx.drawImage(tmp, fr.dims.left, fr.dims.top);
+    grabFrom(full, W, H);
+  });
+  setStatus('GIF '+W+'×'+H+' / '+gfs.length+'帧');
+}
+
+function refreshTray(){
+  $('#fcount').textContent=frames.length;
+  const tray=$('#tray'); tray.innerHTML='';
+  frames.forEach((fr,i)=>{
+    const d=document.createElement('div'); d.className='thumb';
+    const c=document.createElement('canvas'); c.width=fr.w; c.height=fr.h;
+    c.getContext('2d').putImageData(fr.src,0,0); d.appendChild(c);
+    const x=document.createElement('button'); x.className='x'; x.textContent='✕';
+    x.onclick=ev=>{ ev.stopPropagation(); frames.splice(i,1); refreshTray(); };
+    d.appendChild(x); tray.appendChild(d);
+  });
+}
+$('#clearF').onclick=()=>{ frames=[]; refreshTray(); };
+
+/* ---------- ② 抠图 ---------- */
+function dist2(r,g,b,c){ const dr=r-c.r,dg=g-c.g,db=b-c.b; return dr*dr+dg*dg+db*db; }
+
+// 计算某帧抠图后的 ImageData(应用 key 设置 + 该帧橡皮 ovr)
+function keyed(fr){
+  const {src,w,h,ovr}=fr; const n=w*h;
+  const out=new ImageData(new Uint8ClampedArray(src.data), w, h);
+  const d=out.data;
+  const remove=new Uint8Array(n);
+  if(key.color){
+    const tol2=key.tol*key.tol*3;
+    if(key.mode==='global'){
+      for(let p=0;p<n;p++){ const o=p*4;
+        if(dist2(d[o],d[o+1],d[o+2],key.color)<=tol2) remove[p]=1; }
+    }else{ // 仅与边缘连通的同色 → 保住内部白
+      const st=[]; const seen=new Uint8Array(n);
+      const push=p=>{ if(!seen[p]){ const o=p*4;
+        if(dist2(d[o],d[o+1],d[o+2],key.color)<=tol2){ seen[p]=1; remove[p]=1; st.push(p); } } };
+      for(let x=0;x<w;x++){ push(x); push((h-1)*w+x); }
+      for(let y=0;y<h;y++){ push(y*w); push(y*w+w-1); }
+      while(st.length){ const p=st.pop(); const x=p%w, y=(p/w)|0;
+        if(x>0)push(p-1); if(x<w-1)push(p+1); if(y>0)push(p-w); if(y<h-1)push(p+w); }
+    }
+  }
+  // 收边:把"保留但贴着被删"的像素也删掉, 去光晕
+  for(let s=0;s<key.shrink;s++){
+    const cp=remove.slice();
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){ const p=y*w+x; if(cp[p]) continue;
+      if((x>0&&cp[p-1])||(x<w-1&&cp[p+1])||(y>0&&cp[p-w])||(y<h-1&&cp[p+w])) remove[p]=1; }
+  }
+  // 每帧橡皮覆盖: ovr=1 强制保留, ovr=-1 强制删除
+  for(let p=0;p<n;p++){ if(ovr[p]===1) remove[p]=0; else if(ovr[p]===-1) remove[p]=1;
+    if(remove[p]) d[p*4+3]=0; }
+  return out;
+}
+
+function drawKey(){
+  if(!frames.length){ $('#kcap').textContent='还没有帧，先去①导入'; return; }
+  const fr=frames[kIdx]; const c=$('#kcanvas'); c.width=fr.w; c.height=fr.h;
+  c.getContext('2d').putImageData(keyed(fr),0,0);
+  $('#kidx').textContent='帧 '+(kIdx+1)+' / '+frames.length;
+  $('#kc').style.background = key.color? `rgb(${key.color.r},${key.color.g},${key.color.b})`:'#000';
+}
+$('#kprev').onclick=()=>{ kIdx=(kIdx-1+frames.length)%frames.length; drawKey(); };
+$('#knext').onclick=()=>{ kIdx=(kIdx+1)%frames.length; drawKey(); };
+$('#tol').oninput=e=>{ key.tol=+e.target.value; $('#tolv').textContent=key.tol; drawKey(); };
+$('#shrink').oninput=e=>{ key.shrink=+e.target.value; $('#shrinkv').textContent=key.shrink+' px（去残留光晕）'; drawKey(); };
+$('#mEdge').onclick=()=>{ key.mode='edge'; $('#mEdge').classList.add('on'); $('#mGlobal').classList.remove('on'); drawKey(); };
+$('#mGlobal').onclick=()=>{ key.mode='global'; $('#mGlobal').classList.add('on'); $('#mEdge').classList.remove('on'); drawKey(); };
+$('#eyedrop').onclick=()=>{ eyeMode=true; brushMode=null; uiTool(); };
+$('#erase').onclick=()=>{ brushMode='erase'; eyeMode=false; uiTool(); };
+$('#restore').onclick=()=>{ brushMode='restore'; eyeMode=false; uiTool(); };
+$('#resetFrame').onclick=()=>{ frames[kIdx].ovr.fill(0); drawKey(); };
+function uiTool(){ $('#eyedrop').classList.toggle('on',eyeMode);
+  $('#erase').classList.toggle('on',brushMode==='erase'); $('#restore').classList.toggle('on',brushMode==='restore');
+  $('#kcap').textContent = eyeMode?'点画面里的背景，取背景色':(brushMode==='erase'?'涂抹要擦掉的地方':'涂抹要恢复的地方'); }
+
+// 画布坐标 → 像素坐标
+function pxAt(c,ev){ const r=c.getBoundingClientRect();
+  const t=ev.touches?ev.touches[0]:ev; const x=((t.clientX-r.left)/r.width)*c.width, y=((t.clientY-r.top)/r.height)*c.height;
+  return {x:Math.floor(x), y:Math.floor(y)}; }
+function kHandle(ev){ ev.preventDefault(); if(!frames.length) return; const c=$('#kcanvas'); const fr=frames[kIdx];
+  const {x,y}=pxAt(c,ev); if(x<0||y<0||x>=fr.w||y>=fr.h) return;
+  if(eyeMode){ const o=(y*fr.w+x)*4; const d=fr.src.data; key.color={r:d[o],g:d[o+1],b:d[o+2]}; drawKey(); return; }
+  if(brushMode){ const rad=+$('#brush').value||6; const v=brushMode==='erase'?-1:1;
+    for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){ if(dx*dx+dy*dy>rad*rad)continue;
+      const nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=fr.w||ny>=fr.h)continue; fr.ovr[ny*fr.w+nx]=v; }
+    drawKey(); }
+}
+['pointerdown','pointermove'].forEach(t=>$('#kcanvas').addEventListener(t,e=>{ if(e.buttons||e.type==='pointerdown') kHandle(e); }));
+$('#kcanvas').addEventListener('touchstart',kHandle,{passive:false});
+$('#kcanvas').addEventListener('touchmove',kHandle,{passive:false});
+
+/* ---------- ③ 对齐 + 导出 ---------- */
+let cell={w:0,h:0};
+function bbox(id){ const {data,width:w,height:h}=id; let x0=w,y0=h,x1=-1,y1=-1;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){ if(data[(y*w+x)*4+3]>8){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } }
+  if(x1<0) return null; return {x0,y0,x1,y1,w:x1-x0+1,h:y1-y0+1}; }
+
+let built=[]; // {canvas, bb}
+function buildStrip(){
+  built=[]; if(!frames.length){ $('#ocap').textContent='没有帧'; return; }
+  let cw=0,ch=0; const tmp=[];
+  frames.forEach(fr=>{ const id=keyed(fr); const bb=bbox(id); if(!bb){ tmp.push(null); return; }
+    const cv=document.createElement('canvas'); cv.width=fr.w; cv.height=fr.h; cv.getContext('2d').putImageData(id,0,0);
+    tmp.push({cv,bb}); cw=Math.max(cw,bb.w); ch=Math.max(ch,bb.h); });
+  const pad=4; cell={w:cw+pad*2, h:ch+pad*2};
+  // 各帧:水平居中 + 底部对齐 放进 cell
+  built=tmp.map(t=>{ const cv=document.createElement('canvas'); cv.width=cell.w; cv.height=cell.h;
+    if(!t) return cv; const cx=cv.getContext('2d');
+    const dx=Math.round((cell.w-t.bb.w)/2 - t.bb.x0);
+    const dy=Math.round(cell.h-pad-t.bb.h - t.bb.y0);
+    cx.drawImage(t.cv,dx,dy); return cv; });
+  drawOut();
+  // 交付说明
+  $('#handoff').value =
+`新主角动作表(横条): 帧 ${cell.w}×${cell.h}, 共 ${built.length} 帧, fps ${$('#ofps').value}。`+
+`\n动作名= run (或我会告诉你)。请抠好的横条已透明、面朝右、底部对齐，直接 build_from_strips 切片 + set_sprite_frames 接入。`;
+}
+$('#rebuild').onclick=buildStrip;
+$('#onion').onclick=()=>{ $('#onion').classList.toggle('on'); drawOut(); };
+$('#ofps').oninput=buildStrip;
+
+function drawOut(){
+  if(!built.length) return; const onion=$('#onion').classList.contains('on');
+  const c=$('#ocanvas'); c.width=cell.w*built.length; c.height=cell.h; const x=c.getContext('2d');
+  x.clearRect(0,0,c.width,c.height);
+  built.forEach((cv,i)=>{ if(onion&&i>0){ x.globalAlpha=.25; x.drawImage(built[i-1],i*cell.w,0); x.globalAlpha=1; }
+    x.drawImage(cv,i*cell.w,0); });
+  $('#ocap').textContent=`横条 ${c.width}×${c.height} · 每帧 ${cell.w}×${cell.h} · ${built.length} 帧`;
+  c.toBlob(b=>{ const u=URL.createObjectURL(b); $('#dl').href=u; $('#dl').download='run_strip.png'; });
+}
+$('#copyT').onclick=()=>{ $('#handoff').select(); document.execCommand('copy'); $('#copyT').textContent='已复制✓'; setTimeout(()=>$('#copyT').textContent='复制',1200); };
+
+uiTool();
+</script>
+</body>
+</html>

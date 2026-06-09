@@ -381,11 +381,11 @@ func _build_touch(cl: CanvasLayer) -> void:
 	# 错落弧形排布;每对圆心间距 > 半径和 + 余量, 互不重叠
 	# (砍↔跳、再 定↔砍 换位后 → 砍在中上、跳在右下、定在中)
 	btn_defs = [
-		{"act": "atk",  "center": Vector2(VW - 265.0, VH - 120.0), "radius": 84.0, "label": "砍",  "col": Color(0.91, 0.47, 0.33), "enabled": true},
-		{"act": "jump", "center": Vector2(VW - 95.0,  VH - 132.0), "radius": 72.0, "label": "跳",  "col": Color(0.58, 0.66, 0.78), "enabled": true},
-		{"act": "dash", "center": Vector2(VW - 80.0,  VH - 320.0), "radius": 70.0, "label": "闪",  "col": Color(0.55, 0.86, 1.00), "enabled": true},
-		{"act": "frz",  "center": Vector2(VW - 405.0, VH - 258.0), "radius": 70.0, "label": "冻",  "col": Color(0.36, 0.72, 0.96), "enabled": true},
-		{"act": "full", "center": Vector2(VW - 240.0, VH - 302.0), "radius": 64.0, "label": "定",  "col": Color(0.28, 0.86, 1.00), "enabled": true},
+		{"act": "atk",  "center": Vector2(VW - 270.0, VH - 120.0), "radius": 84.0, "label": "砍",  "col": Color(0.91, 0.47, 0.33), "enabled": true},
+		{"act": "jump", "center": Vector2(VW - 90.0,  VH - 140.0), "radius": 84.0, "label": "跳",  "col": Color(0.58, 0.66, 0.78), "enabled": true},
+		{"act": "dash", "center": Vector2(VW - 90.0,  VH - 320.0), "radius": 84.0, "label": "闪",  "col": Color(0.55, 0.86, 1.00), "enabled": true},
+		{"act": "frz",  "center": Vector2(VW - 460.0, VH - 240.0), "radius": 84.0, "label": "冻",  "col": Color(0.36, 0.72, 0.96), "enabled": true},
+		{"act": "full", "center": Vector2(VW - 270.0, VH - 310.0), "radius": 84.0, "label": "定",  "col": Color(0.28, 0.86, 1.00), "enabled": true},
 	]
 	# 触摸视觉层(圆形键 + 摇杆), 放在触摸面板之下, 只画不吃输入
 	touch_ui = TSTouchUI.new()

@@ -836,8 +836,35 @@ func spawn_enemy(t: String, x: float) -> void:
 ## (player.gd 的 _draw() 自带方块+朝向标+闪避拖影)。后续改用现成素材时,在此
 ## 用 SpriteSheet 切出 SpriteFrames, 再 player.set_sprite_frames(sf, 帧高, player.h*0.5)。
 ## 备注:AI 流程(去影子→Seedance首=尾循环→洪水填充抠图→统一画框)在 git 历史里可找回。
+## 主角精灵:用户在 Ludo 做的 8 帧跑步表(已抠底/底部对齐重排成横条 art/timestop/hero/run_strip.png)。
+## run=8 帧循环; idle/jump/fall/attack/dash 暂用单帧占位(那些表还没做)→ 免动画卡住。
+## 等用户补了别的动作表, 在此再加对应 strip 即可。
 func _load_hero_sprites() -> void:
-	return
+	var tex: Texture2D = load("res://art/timestop/hero/run_strip.png")
+	if tex == null:
+		return
+	var cell := Vector2i(139, 180)
+	var sf := SpriteSheet.build_from_strips({ "run": { "tex": tex, "fps": 14.0, "loop": true } }, cell)
+	var n := int(tex.get_width() / cell.x)
+	# 缺的状态先用单帧占位(站=第0帧, 跳/落/攻/闪各取一帧), 后续换成真表
+	_hero_single(sf, tex, cell, "idle", 0)
+	_hero_single(sf, tex, cell, "jump", mini(1, n - 1))
+	_hero_single(sf, tex, cell, "fall", mini(5, n - 1))
+	_hero_single(sf, tex, cell, "attack", 0)
+	_hero_single(sf, tex, cell, "dash", mini(3, n - 1))
+	player.set_sprite_frames(sf, 64.0, player.h * 0.5)
+
+## 给 SpriteFrames 加一个"单帧"动画(占位用)
+func _hero_single(sf: SpriteFrames, tex: Texture2D, cell: Vector2i, name: String, idx: int) -> void:
+	if sf.has_animation(name):
+		sf.remove_animation(name)
+	sf.add_animation(name)
+	sf.set_animation_speed(name, 1.0)
+	sf.set_animation_loop(name, true)
+	var at := AtlasTexture.new()
+	at.atlas = tex
+	at.region = Rect2(idx * cell.x, 0, cell.x, cell.y)
+	sf.add_frame(name, at)
 
 ## 召唤悬龙 Boss(飞行残响)。其 _process 自动接时间系统(可被全场定格冻住)。
 ## 真龙立绘就位后:boss.set_texture(load("res://.../dragon.png"))。

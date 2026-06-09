@@ -60,14 +60,16 @@ var bar_flash := 0.0
 var _motes: Array = []
 var _amb_t := 0.0
 
-# 触屏输入(全屏面板统一接管, 手动命中判定)
+# 触屏输入(全屏面板统一接管, 手动命中判定;视觉由 TSTouchUI 圆形键绘制)
 var touch_mode := false
 var touch_panel: Control
-var joy_knob: ColorRect
+var touch_ui: TSTouchUI
 var joy_center := Vector2.ZERO
+var joy_radius := 96.0           # 摇杆底盘半径(手指落在这范围内即抓摇杆)
 var joy_vec := Vector2.ZERO
 var joy_id := -999
-var btn_defs: Array = []
+var btn_defs: Array = []         # 圆形动作键 [{act, center, radius, label, col, enabled}]
+var _btn_flash: Dictionary = {}  # act → 剩余高亮时间(点按反馈)
 
 # HUD 引用
 var energy_bg: ColorRect
@@ -75,8 +77,6 @@ var energy_fill: ColorRect
 var hp_fill: ColorRect
 var info_label: Label
 var center_label: Label
-var btn_freeze: Button
-var btn_full: Button
 
 # ---------------------------------------------------------------- 时间系统
 func scale_for(entity_frozen_t: float) -> float:
@@ -327,56 +327,29 @@ func _build_hud() -> void:
 	cl.add_child(center_label)
 	_build_touch(cl)
 
-func _mk_btn(cl: CanvasLayer, txt: String, pos: Vector2) -> Button:
-	var b := Button.new()
-	b.text = txt
-	b.position = pos
-	b.size = Vector2(112, 112)
-	b.custom_minimum_size = Vector2(112, 112)
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 22)
-	cl.add_child(b)
-	return b
-
-func _add_action_btn(cl: CanvasLayer, txt: String, pos: Vector2, act: String) -> Button:
-	# 按钮只作视觉(不吃输入), 触摸由 touch_panel 统一命中判定
-	var b := _mk_btn(cl, txt, pos)
-	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	btn_defs.append({"rect": Rect2(pos, Vector2(112, 112)), "act": act})
-	return b
-
+## 圆形动作键(错落弧形排布, 贴合右手拇指, 大号)+ 圆形摇杆。视觉全由 TSTouchUI 画。
 func _build_touch(cl: CanvasLayer) -> void:
-	btn_defs = []
-	# 摇杆视觉(左下)
-	joy_center = Vector2(150, VH - 160)
-	var base := ColorRect.new()
-	base.color = Color(1, 1, 1, 0.06)
-	base.position = joy_center - Vector2(75, 75)
-	base.size = Vector2(150, 150)
-	base.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cl.add_child(base)
-	joy_knob = ColorRect.new()
-	joy_knob.color = Color(0.45, 0.78, 1.0, 0.45)
-	joy_knob.size = Vector2(72, 72)
-	joy_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cl.add_child(joy_knob)
-	_reset_knob()
-	# 动作按钮视觉(右下)
-	_add_action_btn(cl, "HIT", Vector2(VW - 254, VH - 132), "atk")
-	_add_action_btn(cl, "JUMP", Vector2(VW - 124, VH - 132), "jump")
-	btn_freeze = _add_action_btn(cl, "FRZ", Vector2(VW - 254, VH - 262), "frz")
-	_add_action_btn(cl, "DASH", Vector2(VW - 124, VH - 262), "dash")
-	btn_full = _add_action_btn(cl, "STOP", Vector2(VW - 189, VH - 392), "full")
-	# 全屏触摸面板(最上层, 统一接管所有触摸/点击)
+	joy_center = Vector2(180.0, VH - 155.0)         # 摇杆底盘中心(左下)
+	# act / 屏幕中心 / 半径 / 文字 / 颜色(冷暖按设定:砍=暖, 冻/定=亮蓝, 闪=青)
+	btn_defs = [
+		{"act": "atk",  "center": Vector2(VW - 116.0, VH - 128.0), "radius": 72.0, "label": "砍",  "col": Color(0.91, 0.47, 0.33), "enabled": true},
+		{"act": "jump", "center": Vector2(VW - 268.0, VH - 92.0),  "radius": 62.0, "label": "跳",  "col": Color(0.58, 0.66, 0.78), "enabled": true},
+		{"act": "dash", "center": Vector2(VW - 188.0, VH - 286.0), "radius": 60.0, "label": "闪",  "col": Color(0.55, 0.86, 1.00), "enabled": true},
+		{"act": "frz",  "center": Vector2(VW - 350.0, VH - 232.0), "radius": 60.0, "label": "冻",  "col": Color(0.36, 0.72, 0.96), "enabled": true},
+		{"act": "full", "center": Vector2(VW - 104.0, VH - 360.0), "radius": 56.0, "label": "定",  "col": Color(0.28, 0.86, 1.00), "enabled": true},
+	]
+	# 触摸视觉层(圆形键 + 摇杆), 放在触摸面板之下, 只画不吃输入
+	touch_ui = TSTouchUI.new()
+	touch_ui.game = self
+	touch_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.add_child(touch_ui)
+	# 全屏触摸面板(最上层, 统一接管所有触摸/点击 → 手动命中判定)
 	touch_panel = Control.new()
 	touch_panel.position = Vector2.ZERO
 	touch_panel.size = Vector2(VW, VH)
 	touch_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	cl.add_child(touch_panel)
 	touch_panel.gui_input.connect(_on_touch)
-
-func _reset_knob() -> void:
-	joy_knob.position = joy_center - joy_knob.size * 0.5
 
 func _on_touch(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
@@ -398,27 +371,27 @@ func _on_touch(event: InputEvent) -> void:
 
 func _touch_press(idx: int, pos: Vector2) -> void:
 	touch_mode = true
-	if joy_id == -999 and pos.distance_to(joy_center) < 150.0:
+	# 先判动作键(圆形, 按距离)
+	for bd in btn_defs:
+		if bool(bd.get("enabled", true)) and pos.distance_to(bd.center) <= float(bd.radius) + 6.0:
+			_do_action(String(bd.act))
+			return
+	# 否则:落在摇杆区域 → 抓摇杆(左半屏更宽容)
+	if joy_id == -999 and (pos.distance_to(joy_center) < joy_radius or pos.x < VW * 0.42):
 		joy_id = idx
 		_joy_update(pos)
-		return
-	for bd in btn_defs:
-		if (bd.rect as Rect2).has_point(pos):
-			_do_action(bd.act)
-			return
 
 func _touch_release(idx: int) -> void:
 	if idx == joy_id:
 		joy_id = -999
 		joy_vec = Vector2.ZERO
-		_reset_knob()
 
 func _joy_update(pos: Vector2) -> void:
-	var d: Vector2 = (pos - joy_center).limit_length(85.0)
-	joy_vec = d / 85.0
-	joy_knob.position = joy_center + d - joy_knob.size * 0.5
+	var d: Vector2 = (pos - joy_center).limit_length(82.0)
+	joy_vec = d / 82.0
 
 func _do_action(act: String) -> void:
+	_btn_flash[act] = 0.16                          # 点按高亮反馈
 	match act:
 		"jump":
 			player.want_jump = true
@@ -445,6 +418,8 @@ func _process(delta: float) -> void:
 	shake = maxf(0.0, shake - delta * 40.0)
 	bar_flash = maxf(0.0, bar_flash - delta)
 	_amb_t += delta
+	for k in _btn_flash.keys():                      # 触摸键点按高亮衰减
+		_btn_flash[k] = maxf(0.0, float(_btn_flash[k]) - delta)
 	var target := 0.0 if freeze_t > 0.0 else 1.0
 	world_scale = lerpf(world_scale, target, 1.0 - pow(0.0009, delta))   # 平滑刹停/恢复
 
@@ -671,10 +646,11 @@ func _update_hud() -> void:
 	energy_bg.color = Color(0.7, 0.25, 0.25, 0.7) if bar_flash > 0.0 else Color(0, 0, 0, 0.5)
 	hp_fill.size.x = 260.0 * clampf(player.hp / player.maxhp, 0.0, 1.0)
 	info_label.text = "KILL %d   %s" % [kills, current_room]
-	if btn_freeze:
-		btn_freeze.modulate.a = 1.0 if energy >= SINGLE_COST else 0.4
-	if btn_full:
-		btn_full.modulate.a = 1.0 if energy >= ENERGY_MAX else 0.4
+	for bd in btn_defs:                              # 能量不足时圆键变暗
+		if bd.act == "frz":
+			bd.enabled = energy >= SINGLE_COST
+		elif bd.act == "full":
+			bd.enabled = energy >= ENERGY_MAX
 	if gameover:
 		center_label.text = "DEAD - tap HIT / press R"
 	elif rested_t > 0.0:

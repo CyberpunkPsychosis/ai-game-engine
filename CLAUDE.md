@@ -11,6 +11,9 @@ https://cyberpunkpsychosis.github.io/ai-game-engine/
 
 ## 关键约定
 - **开发分支**：`claude/game-engine-claude-chat-mbKeN`（只在这上面提交/推送）。
+- **美术方案（2026-06 定）**：**目前用现成素材去做**。AI 生成"角色精灵/动画"已完整验证→是**瓶颈**(出图能用但帧间一致性/抠图/影子都得人工修，性价比低)，**暂搁置**；用户在自学美术，做游戏是长期过程，以后 AI 成熟了再说。当前主角仍**色块占位**。
+  - AI 角色动画流程(踩坑后跑通、留作将来参考)：RD Plus 抽卡定角色 → Flux Kontext 去影子+改姿势 → Seedance **首帧=尾帧(`lastFrameImage`)** 直接生成无缝循环(`aspectRatio:adaptive` 别用 1:1 否则丢配件) → **洪水填充抠白底**(保留内部白，别用阈值/rembg) → 统一画框+去漂移抽帧 → `build_from_strips` 切帧。播放速度是 fps 参数、随时可调。
+  - **瓦片/tileset 反而适合 AI**(规整、可平铺)：可试 `model_retrodiffusion-tile` 等专用瓦片模型。
 - 改完 GDScript **务必本地 headless 自测再 push**（CI"绿"≠能跑，解析错误只在运行时炸→黑屏）：
   ```bash
   GODOT=/tmp/godot_bin/Godot_v4.5-stable_linux.x86_64   # 没有就下 4.5-stable linux.x86_64

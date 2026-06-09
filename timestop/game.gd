@@ -67,6 +67,8 @@ var _dmgnums: Array = []     # 跳伤害数字 [{p,v,t,crit}]
 var _dmg_font: Font          # 伤害数字字体(zpix 像素中文)
 var _look := Vector2.ZERO    # 相机前瞻(朝移动方向多看一截)
 const COMBO_WINDOW := 0.46
+var _booms: Array = []       # 延迟 AoE 危害(投弹/亡爆)[{p,t,r,dmg,fired,linger}]
+const PROTECT_R := 150.0     # 守护者无敌光环半径(enemy 读 game.PROTECT_R)
 
 # 凝界氛围:半空悬停、永不下落的雨丝/尘(时间停了)。纯表现, 不参与玩法。
 var _motes: Array = []
@@ -147,6 +149,7 @@ func _apply_room(room_id: String, data: Dictionary, entry: String) -> void:
 		if is_instance_valid(nd):
 			nd.queue_free()
 	decor_nodes.clear()
+	_booms.clear()             # 清掉上一房遗留的延迟危害
 	# 尺寸 / 地面
 	var wd: Dictionary = data.get("world", {})
 	room_w = float(wd.get("width", 2880))
@@ -182,9 +185,9 @@ func _apply_room(room_id: String, data: Dictionary, entry: String) -> void:
 		cam.position = player.position
 		cam.reset_smoothing()
 	_gen_motes()
-	# 刷本房怪
+	# 刷本房怪(en 整个作 opts 传, 支持 elite/explode 标记)
 	for en in data.get("enemies", []):
-		spawn_enemy_at(String(en.get("kind", "charger")), float(en["x"]), float(en["y"]))
+		spawn_enemy_at(String(en.get("kind", "charger")), float(en["x"]), float(en["y"]), en)
 	# 摆本房装饰(鸟居/灯笼/草...)
 	for dc in data.get("decor", []):
 		_spawn_decor(dc)
@@ -231,14 +234,17 @@ func _door_pos(data: Dictionary, entry: String) -> Vector2:
 	var sp: Dictionary = data.get("spawn", {})
 	return Vector2(float(sp.get("x", 180)), float(sp.get("y", GROUND - 44.0)))
 
-func spawn_enemy_at(kind: String, x: float, y: float) -> void:
+func spawn_enemy_at(kind: String, x: float, y: float, opts := {}) -> TSEnemy:
 	var e := TSEnemy.new()
 	e.game = self
 	e.type = kind
+	e.elite = bool(opts.get("elite", false))   # setup() 里据此套精英修饰
 	e.setup()
+	e.explode = bool(opts.get("explode", false))
 	e.position = Vector2(x, y)
 	world.add_child(e)
 	enemies.append(e)
+	return e
 
 ## 出口/长椅检测(每帧, 非过场/非死亡时)
 func _check_transitions(delta: float) -> void:
@@ -499,6 +505,22 @@ func _process(delta: float) -> void:
 		dn.p.y -= 36.0 * delta
 	if _dmgnums.size() > 0:
 		_dmgnums = _dmgnums.filter(func(x): return x.t > 0.0)
+	# 延迟 AoE 危害(投弹/亡爆): 预警 → 引爆(在范围内则伤玩家) → 短残留。受时停冻结。
+	var bscale := 0.0 if (freeze_t > 0.0 or hitstop_t > 0.0) else world_scale
+	for bm in _booms:
+		if not bm.fired:
+			bm.t -= delta * bscale
+			if bm.t <= 0.0:
+				bm.fired = true
+				bm.linger = 0.14
+				shake = maxf(shake, 6.0)
+				spark(bm.p, Color(1.0, 0.6, 0.3))
+				if not gameover and player.position.distance_to(bm.p) < bm.r:
+					hurt_player(bm.dmg, bm.p.x)
+		else:
+			bm.linger -= delta
+	if _booms.size() > 0:
+		_booms = _booms.filter(func(x): return (not x.fired) or x.linger > 0.0)
 
 	if not gameover and not _transitioning:
 		player.tick(delta)
@@ -607,8 +629,31 @@ func _auto_face() -> void:
 	if best != null and absf(best.position.x - player.position.x) > 6.0:
 		player.facing = 1 if best.position.x > player.position.x else -1
 
+## 守护者光环:被罩住的怪免伤(先去拆脆皮守护者)
+func _is_protected(e) -> bool:
+	if e.type == "protector":
+		return false
+	for o in enemies:
+		if o != e and o.type == "protector" and o.hp > 0.0 and o.frozen_t <= 0.0:
+			if o.position.distance_to(e.position) < PROTECT_R:
+				return true
+	return false
+
 func _hit_enemy(e, dmg: float, knock := 300.0, hs := 0.05, shk := 3.5, crit := false) -> void:
 	var pos: Vector2 = e.position
+	# 守护者光环挡伤 → 提示玩家"先拆守护者"
+	if _is_protected(e):
+		spark(pos, Color(0.66, 0.82, 1.0))
+		shake = maxf(shake, 1.0)
+		return
+	# 持盾兵正面免疫(未被定身/冻结时): 需绕到背后或先定住。命中正面 → 弹开玩家。
+	if e.type == "shield" and e.stun_t <= 0.0 and e.frozen_t <= 0.0:
+		var pside := signf(player.position.x - e.position.x)
+		if pside == e.shield_face:
+			spark(pos, Color(0.82, 0.9, 1.0))
+			player.knock_vx = pside * 240.0
+			player.knock_t = 0.10
+			return
 	e.hp -= dmg
 	e.stagger(player.facing, knock)   # 击退(按力度) + 打断它当前动作/扑击(hitstun, 无内置冷却→可压制)
 	hitstop_t = maxf(hitstop_t, hs)   # 命中顿帧(轻/重不同 → 打击感)
@@ -621,8 +666,12 @@ func _hit_enemy(e, dmg: float, knock := 300.0, hs := 0.05, shk := 3.5, crit := f
 		add_energy(28.0)
 		shake = maxf(shake, 12.0)
 		hitstop_t = maxf(hitstop_t, 0.12)
+		player.haste_t = 4.0          # 连杀加速(奖励进攻)
 		for i in 8:
 			spark(pos, e.color)
+		if e.explode:                 # 亡爆:死亡播撒延迟炸弹(区域封锁 → 注意补刀站位)
+			for i in 4:
+				spawn_boom(pos + Vector2(randf_range(-54.0, 54.0), randf_range(-24.0, 16.0)), 0.45 + i * 0.12, 48.0, 10.0)
 		enemies.erase(e)
 		e.queue_free()
 
@@ -671,10 +720,10 @@ func _combat() -> void:
 	var pp: Vector2 = player.position
 	for e in enemies:
 		var se := scale_for(e.frozen_t)
-		# 扑影只在"扑杀(lunge)"那一下碰到才伤人 → 平时贴着也不掉血, 能躲能反击
-		if se > 0.0 and e.type == "charger" and e.attacking:
+		# 近战类只在"攻击命中窗口(attacking)"碰到才伤人 → 平时贴着也不掉血, 能躲能反击
+		if se > 0.0 and e.attacking:
 			if absf(e.position.x - pp.x) < 24.0 + e.w * 0.5 and absf(e.position.y - pp.y) < 24.0 + e.h * 0.5:
-				hurt_player(12.0, e.position.x)
+				hurt_player(12.0 * e.dmg_mult, e.position.x)
 	for b in bullets:
 		if b.dead:
 			continue
@@ -759,6 +808,20 @@ func spawn_bullet(from: Vector2, target: Vector2) -> void:
 	b.vel = Vector2(cos(ang), sin(ang)) * 240.0
 	world.add_child(b)
 	bullets.append(b)
+
+## 弓手的水平直射箭(可跳过 / 可下穿): 比瞄准弹更快、走平线
+func spawn_arrow(from: Vector2, dir: float) -> void:
+	var b := TSBullet.new()
+	b.game = self
+	b.position = from
+	b.vel = Vector2(dir * 360.0, 0.0)
+	b.r = 6.0
+	world.add_child(b)
+	bullets.append(b)
+
+## 投一个延迟 AoE 危害(投弹/亡爆共用): delay 后在 radius 内引爆伤 dmg
+func spawn_boom(pos: Vector2, delay: float, radius: float, dmg: float) -> void:
+	_booms.append({ "p": pos, "t": delay, "r": radius, "dmg": dmg, "fired": false, "linger": 0.0 })
 
 func heal_allies(healer) -> void:
 	for o in enemies:
@@ -848,6 +911,15 @@ func _draw() -> void:
 		var er: Rect2 = e.rect
 		draw_rect(Rect2(er.position.x, er.position.y, 3.0, er.size.y), Color(0.36, 0.88, 1.0, 0.5))
 		draw_rect(Rect2(er.position.x + er.size.x - 3.0, er.position.y, 3.0, er.size.y), Color(0.36, 0.88, 1.0, 0.5))
+	# 延迟 AoE 危害(投弹/亡爆): 预警圈逼近 → 引爆闪红(读得到就离开那块地)
+	for bm in _booms:
+		var rr: float = bm.r
+		if not bm.fired:
+			var prog: float = clampf(1.0 - bm.t / 0.85, 0.0, 1.0)
+			draw_arc(bm.p, rr, 0.0, TAU, 30, Color(1.0, 0.45, 0.3, 0.55), 2.0)
+			draw_circle(bm.p, rr * prog, Color(1.0, 0.4, 0.25, 0.13))
+		else:
+			draw_circle(bm.p, rr, Color(1.0, 0.7, 0.35, clampf(bm.linger / 0.14, 0.0, 1.0) * 0.55))
 	# 跳伤害数字(白=普通, 金=终结/重击; 上飘淡出)
 	if _dmg_font:
 		for dn in _dmgnums:

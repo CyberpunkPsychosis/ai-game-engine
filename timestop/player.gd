@@ -42,6 +42,7 @@ const AIR_JUMP_V := -560.0  # 二段跳初速(略弱于地面跳)
 # 受击击退(短暂夺控, 做"挨打有反应"; knock_t 内由 knock_vx 接管横移)
 var knock_t := 0.0
 var knock_vx := 0.0
+var haste_t := 0.0          # 击杀加速(死亡细胞:连杀越打越快, 奖励进攻)
 # 连击表现(由 game 填; 终结段画更大更亮的挥砍)
 var atk_finisher := false
 
@@ -180,6 +181,7 @@ func tick(delta: float) -> void:
 	dodge_t = maxf(0.0, dodge_t - delta)
 	dodge_cd = maxf(0.0, dodge_cd - delta)
 	knock_t = maxf(0.0, knock_t - delta)
+	haste_t = maxf(0.0, haste_t - delta)
 	if knock_t > 0.0:
 		vx = knock_vx                      # 受击击退期:夺控横移(可被翻滚打断)
 	elif dodging:
@@ -187,7 +189,7 @@ func tick(delta: float) -> void:
 		if dodge_t <= 0.0:
 			dodging = false
 	else:
-		vx = move_dir * 320.0
+		vx = move_dir * (384.0 if haste_t > 0.0 else 320.0)   # 连杀加速 +20%
 		if absf(move_dir) > 0.2:
 			facing = 1 if move_dir > 0.0 else -1
 	# ---- 抓沿状态:挂在沿上时接管本帧(跳=爬上 / 外推=松手 / 挂久自动爬) ----

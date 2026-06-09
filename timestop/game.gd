@@ -68,6 +68,7 @@ var joy_center := Vector2.ZERO
 var joy_radius := 96.0           # 摇杆底盘半径(手指落在这范围内即抓摇杆)
 var joy_vec := Vector2.ZERO
 var joy_id := -999
+var _jump_touch_id := -999       # 按住"跳"键的那根手指(变量跳:按住=高跳)
 var btn_defs: Array = []         # 圆形动作键 [{act, center, radius, label, col, enabled}]
 var _btn_flash: Dictionary = {}  # act → 剩余高亮时间(点按反馈)
 
@@ -375,6 +376,8 @@ func _touch_press(idx: int, pos: Vector2) -> void:
 	# 先判动作键(圆形, 按距离)
 	for bd in btn_defs:
 		if bool(bd.get("enabled", true)) and pos.distance_to(bd.center) <= float(bd.radius) + 6.0:
+			if String(bd.act) == "jump":
+				_jump_touch_id = idx          # 记住这根手指, 按住 = 高跳
 			_do_action(String(bd.act))
 			return
 	# 否则:落在摇杆区域 → 抓摇杆(左半屏更宽容)
@@ -386,6 +389,8 @@ func _touch_release(idx: int) -> void:
 	if idx == joy_id:
 		joy_id = -999
 		joy_vec = Vector2.ZERO
+	if idx == _jump_touch_id:
+		_jump_touch_id = -999            # 松开跳键 → 变量跳截断
 
 func _joy_update(pos: Vector2) -> void:
 	var d: Vector2 = (pos - joy_center).limit_length(82.0)
@@ -445,6 +450,7 @@ func _handle_keys() -> void:
 	if Input.is_action_pressed("move_right"): mv += 1.0
 	if absf(joy_vec.x) > 0.15: mv = joy_vec.x
 	player.move_dir = clampf(mv, -1.0, 1.0)
+	player.jump_held = Input.is_action_pressed("jump") or _jump_touch_id != -999  # 变量跳:按住跳更高
 	if Input.is_action_just_pressed("jump"):
 		player.want_jump = true
 	if Input.is_action_just_pressed("attack"):

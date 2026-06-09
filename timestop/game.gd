@@ -59,6 +59,15 @@ var wave := 0
 var gameover := false
 var bar_flash := 0.0
 
+# 连击 / 打击反馈(死亡细胞手感)
+var combo_step := 0          # 三段连击当前段(0/1/2)
+var combo_t := 0.0           # 继续连击的时间窗(过期归零)
+var atk_buf_t := 0.0         # 攻击输入缓冲(后摇中预按 → 出后摇自动接下一段)
+var _dmgnums: Array = []     # 跳伤害数字 [{p,v,t,crit}]
+var _dmg_font: Font          # 伤害数字字体(zpix 像素中文)
+var _look := Vector2.ZERO    # 相机前瞻(朝移动方向多看一截)
+const COMBO_WINDOW := 0.46
+
 # 凝界氛围:半空悬停、永不下落的雨丝/尘(时间停了)。纯表现, 不参与玩法。
 var _motes: Array = []
 var _amb_t := 0.0
@@ -93,6 +102,7 @@ func scale_for(entity_frozen_t: float) -> float:
 # ---------------------------------------------------------------- 初始化
 func _ready() -> void:
 	randomize()
+	_dmg_font = load("res://fonts/zpix.ttf")             # 伤害数字字体(缺失则跳字不画)
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED   # draw_texture_rect 平铺需要
 	_tile_ground = load("res://art/timestop/tiles/shrine_ground.png")
 	_tile_top = load("res://art/timestop/tiles/shrine_top.png")
@@ -476,14 +486,33 @@ func _process(delta: float) -> void:
 	var target := 0.0 if freeze_t > 0.0 else 1.0
 	world_scale = lerpf(world_scale, target, 1.0 - pow(0.0009, delta))   # 平滑刹停/恢复
 
+	# 连击窗口 / 攻击输入缓冲 / 跳伤害数字
+	combo_t = maxf(0.0, combo_t - delta)
+	if combo_t <= 0.0:
+		combo_step = 0
+	atk_buf_t = maxf(0.0, atk_buf_t - delta)
+	if atk_buf_t > 0.0 and player.atkcd <= 0.0 and not gameover:
+		atk_buf_t = 0.0
+		do_attack()
+	for dn in _dmgnums:
+		dn.t -= delta
+		dn.p.y -= 36.0 * delta
+	if _dmgnums.size() > 0:
+		_dmgnums = _dmgnums.filter(func(x): return x.t > 0.0)
+
 	if not gameover and not _transitioning:
 		player.tick(delta)
 		_combat()
 		_check_transitions(delta)
 
-	if cam:                              # 相机跟随玩家(房间内, limit 自动夹边), 震屏走 offset
+	if cam:                              # 相机跟随玩家(房间内, limit 自动夹边), 前瞻+震屏走 offset
 		cam.position = player.position
-		cam.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake
+		var lx := 0.0
+		if absf(player.vx) > 40.0:
+			lx = float(player.facing) * 56.0   # 朝移动方向多看一截(死亡细胞前瞻)
+		_look = _look.lerp(Vector2(lx, 0.0), 1.0 - pow(0.0025, delta))
+		var sh := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake
+		cam.offset = _look + sh
 	var cold := 1.0 - world_scale
 	canvas_mod.color = Color.WHITE.lerp(Color(0.55, 0.62, 0.88), cold)
 	overlay_mat.set_shader_parameter("freeze", cold)
@@ -497,6 +526,7 @@ func _handle_keys() -> void:
 	if Input.is_action_pressed("move_right"): mv += 1.0
 	if absf(joy_vec.x) > 0.15: mv = joy_vec.x
 	player.move_dir = clampf(mv, -1.0, 1.0)
+	player.want_down = Input.is_action_pressed("move_down") or joy_vec.y > 0.45     # 按下/下推摇杆=快速下落
 	player.jump_held = Input.is_action_pressed("jump") or _jump_touch_id != -999  # 变量跳:按住跳更高
 	if Input.is_action_just_pressed("jump"):
 		player.want_jump = true
@@ -523,36 +553,82 @@ func do_attack() -> void:
 	if gameover:
 		_restart()
 		return
+	# 后摇中再按 → 缓冲, 出后摇自动接下一段(攻击输入缓冲, 不吞输入)
 	if player.atkcd > 0.0:
+		atk_buf_t = 0.18
 		return
-	player.atk_t = 0.12
-	player.atkcd = 0.32
+	# 翻滚中砍 → 取消翻滚(滚 → 砍, 死亡细胞核心手感)
+	if player.dodging:
+		player.dodging = false
+		player.dodge_t = 0.0
 	if not touch_mode:
 		player.facing = 1 if _mouse_world().x >= player.position.x else -1
-	var ax := player.position.x + player.facing * 34.0
+	_auto_face()                                          # 近身微转向最近敌人(让"该中的砍中")
+	# 三段连击:终结段(第3下)更重 —— 高伤/大击退/长顿帧/大震屏/更大判定
+	var step := combo_step
+	combo_step = (combo_step + 1) % 3
+	combo_t = COMBO_WINDOW
+	var finisher := step == 2
+	var dmg := 20.0 if finisher else 11.0
+	var reach := 40.0 if finisher else 34.0
+	var box := 28.0 if finisher else 23.0
+	var knock := 520.0 if finisher else 300.0
+	var hs := 0.10 if finisher else 0.05
+	var shk := 9.0 if finisher else 3.5
+	player.atk_t = 0.14 if finisher else 0.11
+	player.atkcd = 0.40 if finisher else 0.25
+	player.atk_finisher = finisher
+	var ax := player.position.x + player.facing * reach
 	var ay := player.position.y
+	var hit_any := false
 	for e in enemies.duplicate():
-		if absf(e.position.x - ax) < 23.0 + e.w * 0.5 and absf(e.position.y - ay) < 23.0 + e.h * 0.5:
-			_hit_enemy(e, 12.0)
+		if absf(e.position.x - ax) < box + e.w * 0.5 and absf(e.position.y - ay) < box + e.h * 0.5:
+			_hit_enemy(e, dmg, knock, hs, shk, finisher)
+			hit_any = true
 	for b in bullets:
-		if not b.dead and absf(b.position.x - ax) < 23.0 + b.r and absf(b.position.y - ay) < 23.0 + b.r:
+		if not b.dead and absf(b.position.x - ax) < box + b.r and absf(b.position.y - ay) < box + b.r:
 			b.dead = true
 			spark(b.position, Color(1.0, 0.82, 0.35))
+			hit_any = true
+	if not hit_any:
+		shake = maxf(shake, 1.5)                          # 挥空给一点点轻反馈
 
-func _hit_enemy(e, dmg: float) -> void:
+## 近身自动微转向最近敌人(死亡细胞:静默修正朝向, 让玩家"想砍的"砍中)
+func _auto_face() -> void:
+	var best = null
+	var bd := 92.0
+	for e in enemies:
+		if e.frozen_t > 0.0:
+			continue
+		var ed: float = absf(e.position.x - player.position.x)
+		if ed < bd and absf(e.position.y - player.position.y) < 60.0:
+			bd = ed
+			best = e
+	if best != null and absf(best.position.x - player.position.x) > 6.0:
+		player.facing = 1 if best.position.x > player.position.x else -1
+
+func _hit_enemy(e, dmg: float, knock := 300.0, hs := 0.05, shk := 3.5, crit := false) -> void:
 	var pos: Vector2 = e.position
 	e.hp -= dmg
-	e.stagger(player.facing)          # 击退 + 打断它当前动作/扑击(hitstun)
-	hitstop_t = maxf(hitstop_t, 0.05)
+	e.stagger(player.facing, knock)   # 击退(按力度) + 打断它当前动作/扑击(hitstun, 无内置冷却→可压制)
+	hitstop_t = maxf(hitstop_t, hs)   # 命中顿帧(轻/重不同 → 打击感)
+	shake = maxf(shake, shk)          # 每下命中都震屏(原来只有挨打才震)
 	add_energy(8.0)
 	spark(pos, e.color)
+	_pop_dmg(pos + Vector2(0.0, -e.h * 0.5 - 6.0), int(round(dmg)), crit)
 	if e.hp <= 0.0:
 		kills += 1
 		add_energy(28.0)
+		shake = maxf(shake, 12.0)
+		hitstop_t = maxf(hitstop_t, 0.12)
 		for i in 8:
 			spark(pos, e.color)
 		enemies.erase(e)
 		e.queue_free()
+
+## 跳一个伤害数字(白=普通, 金=终结/重击)
+func _pop_dmg(p: Vector2, v: int, crit: bool) -> void:
+	_dmgnums.append({ "p": p + Vector2(randf_range(-6.0, 6.0), 0.0), "v": v, "t": 0.7, "crit": crit })
 
 func add_energy(v: float) -> void:
 	energy = minf(ENERGY_MAX, energy + v)
@@ -598,14 +674,14 @@ func _combat() -> void:
 		# 扑影只在"扑杀(lunge)"那一下碰到才伤人 → 平时贴着也不掉血, 能躲能反击
 		if se > 0.0 and e.type == "charger" and e.attacking:
 			if absf(e.position.x - pp.x) < 24.0 + e.w * 0.5 and absf(e.position.y - pp.y) < 24.0 + e.h * 0.5:
-				hurt_player(12.0)
+				hurt_player(12.0, e.position.x)
 	for b in bullets:
 		if b.dead:
 			continue
 		var sb := scale_for(b.frozen_t)
 		if sb > 0.0 and absf(b.position.x - pp.x) < 16.0 and absf(b.position.y - pp.y) < 24.0:
 			b.dead = true
-			hurt_player(8.0)
+			hurt_player(8.0, b.position.x)
 	for b in bullets:
 		if b.dead:
 			b.queue_free()
@@ -615,12 +691,19 @@ func _combat() -> void:
 	if player.hp <= 0.0:
 		gameover = true
 
-func hurt_player(d: float) -> void:
+func hurt_player(d: float, from_x := NAN) -> void:
 	if player.iframe > 0.0:
 		return
 	player.hp -= d
 	player.iframe = 0.6
 	shake = maxf(shake, 8.0)
+	hitstop_t = maxf(hitstop_t, 0.06)         # 挨打也顿帧(收到打击的反馈)
+	if not is_nan(from_x):                     # 被弹/被扑:朝远离来源方向击退+小跳(挨打有反应)
+		var dir := 1.0 if player.position.x >= from_x else -1.0
+		player.knock_vx = dir * 260.0
+		player.knock_t = 0.12
+		if player.vy > -120.0:
+			player.vy = -200.0
 
 # ---------------------------------------------------------------- 导演 / 生成
 func spawn_wave() -> void:
@@ -765,3 +848,10 @@ func _draw() -> void:
 		var er: Rect2 = e.rect
 		draw_rect(Rect2(er.position.x, er.position.y, 3.0, er.size.y), Color(0.36, 0.88, 1.0, 0.5))
 		draw_rect(Rect2(er.position.x + er.size.x - 3.0, er.position.y, 3.0, er.size.y), Color(0.36, 0.88, 1.0, 0.5))
+	# 跳伤害数字(白=普通, 金=终结/重击; 上飘淡出)
+	if _dmg_font:
+		for dn in _dmgnums:
+			var a: float = clampf(dn.t / 0.7, 0.0, 1.0)
+			var col: Color = Color(1.0, 0.84, 0.3, a) if dn.crit else Color(1.0, 1.0, 1.0, a)
+			var sz: int = 26 if dn.crit else 19
+			draw_string(_dmg_font, dn.p, str(dn.v), HORIZONTAL_ALIGNMENT_CENTER, -1, sz, col)

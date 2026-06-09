@@ -34,6 +34,16 @@ const JUMP_BUF := 0.12
 const JUMP_V := -640.0
 const JUMP_CUT := 0.45     # 松手时上升速度保留比例(越小跳得越矮)
 const GRAV := 1700.0
+# 二段跳(死亡细胞:土狼跳后仍保留二段跳) + 快速下落
+var want_down := false      # 按住下:加速下落(利落落地)
+var air_jumps := 0          # 剩余空中跳次数
+const MAX_AIR_JUMPS := 1
+const AIR_JUMP_V := -560.0  # 二段跳初速(略弱于地面跳)
+# 受击击退(短暂夺控, 做"挨打有反应"; knock_t 内由 knock_vx 接管横移)
+var knock_t := 0.0
+var knock_vx := 0.0
+# 连击表现(由 game 填; 终结段画更大更亮的挥砍)
+var atk_finisher := false
 
 # 抓沿/攀爬(ledge grab):跳到平台边缘抓住沿口, 跳上去 / 往外推松手
 var ledge_grab := false
@@ -121,6 +131,7 @@ func _tick_ledge(delta: float) -> void:
 		position.y = _ledge_top - h * 0.5 - 1.0
 		onground = true
 		coyote_t = COYOTE
+		air_jumps = MAX_AIR_JUMPS
 		_squash = 0.30
 		ledge_grab = false
 		ledge_cd = 0.20
@@ -154,9 +165,12 @@ func try_dodge() -> void:
 	if dodging or dodge_cd > 0.0:
 		return
 	dodging = true
-	dodge_t = 0.22
-	dodge_cd = 0.75
-	iframe = maxf(iframe, 0.30)        # 闪避全程无敌(可穿怪/穿弹)
+	dodge_t = 0.24
+	dodge_cd = 0.36                     # 短 CD → 可连续翻滚(死亡细胞手感)
+	iframe = maxf(iframe, 0.26)         # 无敌覆盖翻滚大部分(留一点点收尾破绽)
+	knock_t = 0.0                       # 翻滚立刻夺回控制(可滚出受击硬直)
+	atk_t = 0.0                         # 滚 → 取消攻击挥砍
+	atkcd = minf(atkcd, 0.06)          # 取消攻击后摇(滚完即可再砍)
 	dodge_dir = facing
 	if absf(move_dir) > 0.2:
 		dodge_dir = 1 if move_dir > 0.0 else -1
@@ -165,7 +179,10 @@ func try_dodge() -> void:
 func tick(delta: float) -> void:
 	dodge_t = maxf(0.0, dodge_t - delta)
 	dodge_cd = maxf(0.0, dodge_cd - delta)
-	if dodging:
+	knock_t = maxf(0.0, knock_t - delta)
+	if knock_t > 0.0:
+		vx = knock_vx                      # 受击击退期:夺控横移(可被翻滚打断)
+	elif dodging:
 		vx = float(dodge_dir) * 720.0      # 冲刺速度
 		if dodge_t <= 0.0:
 			dodging = false
@@ -188,13 +205,20 @@ func tick(delta: float) -> void:
 	if want_jump:
 		jump_buf_t = JUMP_BUF
 		want_jump = false
-	if jump_buf_t > 0.0 and coyote_t > 0.0 and not dodging:
-		vy = JUMP_V
-		coyote_t = 0.0
-		jump_buf_t = 0.0
-		onground = false
-		jumping = true
-		_squash = -0.5                       # 起跳:纵向拉伸
+	if jump_buf_t > 0.0 and not dodging:
+		if coyote_t > 0.0:
+			vy = JUMP_V                       # 地面/土狼跳(不消耗二段跳)
+			coyote_t = 0.0
+			jump_buf_t = 0.0
+			onground = false
+			jumping = true
+			_squash = -0.5                    # 起跳:纵向拉伸
+		elif air_jumps > 0:
+			vy = AIR_JUMP_V                   # 二段跳
+			air_jumps -= 1
+			jump_buf_t = 0.0
+			jumping = true
+			_squash = -0.42
 	# 变量跳:松开跳键且还在上升 → 截断上升(轻点矮跳, 按住高跳)
 	if jumping and vy < 0.0 and not jump_held:
 		vy *= JUMP_CUT
@@ -207,6 +231,8 @@ func tick(delta: float) -> void:
 	else:
 		g = GRAV * 1.35
 		jumping = false
+		if want_down:
+			g *= 1.55                        # 按下:快速下落(利落)
 	vy += g * delta
 	iframe = maxf(0.0, iframe - delta)
 	atk_t = maxf(0.0, atk_t - delta)
@@ -227,6 +253,7 @@ func tick(delta: float) -> void:
 	if onground:
 		coyote_t = COYOTE                     # 站地上持续刷新土狼时间
 		jumping = false
+		air_jumps = MAX_AIR_JUMPS             # 落地补满二段跳
 	# ---- 抓沿检测:空中、不在猛冲段、面朝墙且够到沿 → 抓住(上升/下落段都可)----
 	elif ledge_cd <= 0.0 and not dodging and vy > -380.0:
 		var lt := _ledge_in_front()
@@ -270,5 +297,8 @@ func _draw() -> void:
 		draw_rect(Rect2(facing * 8.0 - 2.0, h * 0.5 - sy + 6.0, 4, 6), Color(0.9, 0.97, 1.0))
 	# 攻击挥砍框(始终画,做打击反馈)
 	if atk_t > 0.0:
-		var ax := facing * 34.0
-		draw_rect(Rect2(ax - 23.0, -23.0, 46, 46), Color(1, 1, 1, 0.45))
+		var rad := 28.0 if atk_finisher else 23.0
+		var off := 40.0 if atk_finisher else 34.0
+		var col := Color(1.0, 0.86, 0.42, 0.52) if atk_finisher else Color(1, 1, 1, 0.42)
+		var ax := facing * off
+		draw_rect(Rect2(ax - rad, -rad, rad * 2.0, rad * 2.0), col)

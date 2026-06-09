@@ -55,10 +55,10 @@ func setup() -> void:
 	state = "patrol"
 
 ## 被玩家命中:击退 + 取消当前动作/攻击 + 短硬直(hitstun)。game._hit_enemy 调它。
-func stagger(from_dir: float) -> void:
+func stagger(from_dir: float, power := 320.0) -> void:
 	flash_t = 0.10
 	stun_t = 0.26
-	vx = from_dir * 320.0
+	vx = from_dir * power
 	attacking = false
 	state = "recover"          # 打断扑击/攻击 → 进短暂破绽
 	state_t = 0.34

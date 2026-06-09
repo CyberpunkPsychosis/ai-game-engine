@@ -40,6 +40,6 @@ https://cyberpunkpsychosis.github.io/ai-game-engine/
 > 历史上还做过另两个游戏（横版弹反、土豆兄弟 survivor），**已废弃删除**，在 git 历史里可找回。详见 `docs/RESTART.md`。
 
 ## 工具链速查（`tools/`，纯前端，CI 部署到 GitHub Pages）
-- `tools/sprite-forge/` **AI 出动作序列帧**：参考图→整表生成→抠绿切帧（密钥走环境变量 `SCENARIO_AUTH_B64`）
-- `tools/enemy-designer/` 怪物路线画布 · `tools/composer/` 关卡 · `tools/tilemap/` 瓦片 · `tools/sprite-rigger/` 绑骨
+- `tools/sprite-keyer/` **手机网页版精灵抠图**：导入视频/GIF→选帧→交互抠图(取色/容差/边缘连通/收边/橡皮)→对齐→导透明横条，发我切帧接入（当前主力素材工具）
+- `tools/enemy-designer/` 怪物路线画布 · `tools/composer/` 关卡 · `tools/tilemap/` 瓦片 · `tools/sprite-rigger/` 绑骨（通用编辑器，当前 TimeStop 未必都接）
 - `scripts/autoload/dev_tools.gd` 游戏内实时调参（F1 调参 / F3 透视；手机左上角按钮）

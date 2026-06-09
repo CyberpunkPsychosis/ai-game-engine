@@ -35,6 +35,13 @@ const JUMP_V := -640.0
 const JUMP_CUT := 0.45     # 松手时上升速度保留比例(越小跳得越矮)
 const GRAV := 1700.0
 
+# 抓沿/攀爬(ledge grab):跳到平台边缘抓住沿口, 跳上去 / 往外推松手
+var ledge_grab := false
+var ledge_cd := 0.0        # 松手后短暂禁抓(防立刻又抓住)
+var ledge_hang_t := 0.0    # 已挂时长(挂够久自动翻上)
+var _ledge_top := 0.0      # 抓住的那道沿的顶 y
+const LEDGE_AUTO := 0.30   # 不操作时挂多久自动爬上
+
 # 视觉:精灵帧就位前用色块 _draw;set_sprite_frames() 后切 AnimatedSprite2D
 var _anim: AnimatedSprite2D = null
 var _use_sprite := false
@@ -96,6 +103,53 @@ func _stand_on_frozen() -> void:
 			onground = true
 			return
 
+## 挂在沿上时每帧:跳/上=翻身爬上, 往沿外推=松手掉下, 挂够久自动爬上
+func _tick_ledge(delta: float) -> void:
+	vx = 0.0
+	vy = 0.0
+	onground = false
+	ledge_hang_t += delta
+	# 往沿外侧(背朝墙)推 → 松手
+	if absf(move_dir) > 0.35 and signf(move_dir) != float(facing):
+		ledge_grab = false
+		ledge_cd = 0.35
+		want_jump = false
+		return
+	# 按跳 / 挂够久 → 翻身爬上去, 站到平台顶
+	if want_jump or ledge_hang_t > LEDGE_AUTO:
+		position.x += float(facing) * (w * 0.5 + 8.0)
+		position.y = _ledge_top - h * 0.5 - 1.0
+		onground = true
+		coyote_t = COYOTE
+		_squash = 0.30
+		ledge_grab = false
+		ledge_cd = 0.20
+	want_jump = false
+
+func _point_solid(x: float, y: float) -> bool:
+	for sd in game.solids:
+		if (sd as Rect2).has_point(Vector2(x, y)):
+			return true
+	return false
+
+## 面朝方向是否够到一道可抓的沿;是→返回沿顶 y, 否→返回 NAN。
+## 判据:前方某实体的水平范围罩住手前方点, 其顶沿落在头部上下一段"够得到"的带里,
+## 且沿口正下方是墙、正上方是空(确认是"沿"而非整面墙/天花板)。
+func _ledge_in_front() -> float:
+	var dir := float(facing)
+	var fx := position.x + dir * (w * 0.5 + 7.0)
+	var head := position.y - h * 0.5
+	for sd in game.solids:
+		var rr: Rect2 = sd
+		if fx < rr.position.x or fx > rr.position.x + rr.size.x:
+			continue
+		var top := rr.position.y
+		if top < head - 10.0 or top > head + 24.0:
+			continue                             # 沿顶不在"手能够到"的带里
+		if _point_solid(fx, top + 6.0) and not _point_solid(fx, top - 8.0):
+			return top                           # 下面是墙、上面是空 → 是沿, 可抓
+	return NAN
+
 func try_dodge() -> void:
 	if dodging or dodge_cd > 0.0:
 		return
@@ -119,6 +173,12 @@ func tick(delta: float) -> void:
 		vx = move_dir * 320.0
 		if absf(move_dir) > 0.2:
 			facing = 1 if move_dir > 0.0 else -1
+	# ---- 抓沿状态:挂在沿上时接管本帧(跳=爬上 / 外推=松手 / 挂久自动爬) ----
+	ledge_cd = maxf(0.0, ledge_cd - delta)
+	if ledge_grab:
+		_tick_ledge(delta)
+		queue_redraw()
+		return
 	# ---- 跳跃:土狼时间(离台仍可跳) + 缓冲(提前按落地即跳) ----
 	coyote_t = maxf(0.0, coyote_t - delta)
 	jump_buf_t = maxf(0.0, jump_buf_t - delta)
@@ -164,6 +224,16 @@ func tick(delta: float) -> void:
 	if onground:
 		coyote_t = COYOTE                     # 站地上持续刷新土狼时间
 		jumping = false
+	# ---- 抓沿检测:空中、不在猛冲段、面朝墙且够到沿 → 抓住(上升/下落段都可)----
+	elif ledge_cd <= 0.0 and not dodging and vy > -380.0:
+		var lt := _ledge_in_front()
+		if not is_nan(lt):
+			ledge_grab = true
+			_ledge_top = lt
+			ledge_hang_t = 0.0
+			position.y = lt + h * 0.5 - 10.0  # 手挂在沿口
+			vx = 0.0
+			vy = 0.0
 	# 掉出房间(断坑)→ 受伤并送回出生点
 	if position.y > game.room_h + 60.0:
 		position = game._spawn

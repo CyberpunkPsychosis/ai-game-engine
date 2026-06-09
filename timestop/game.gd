@@ -43,6 +43,7 @@ var rested_t := 0.0              # 长椅"已休息"提示
 var _fade: ColorRect
 var _tile_ground: Texture2D       # 地形瓦片(AI 出, 神社街青冷石)
 var _tile_top: Texture2D          # 顶面苔层
+var decor_nodes: Array = []       # 房间装饰(鸟居/灯笼/草等), 换房清掉
 
 # 时间状态
 var world_scale := 1.0
@@ -102,6 +103,7 @@ func _ready() -> void:
 	add_child(canvas_mod)
 	player = TSPlayer.new()
 	player.game = self
+	player.z_index = 5               # 在背景装饰(z 1~2)之上, 又不挡前景
 	world.add_child(player)
 	_load_hero_sprites()
 	_build_camera()
@@ -131,6 +133,10 @@ func _apply_room(room_id: String, data: Dictionary, entry: String) -> void:
 		if is_instance_valid(b):
 			b.queue_free()
 	bullets.clear()
+	for nd in decor_nodes:
+		if is_instance_valid(nd):
+			nd.queue_free()
+	decor_nodes.clear()
 	# 尺寸 / 地面
 	var wd: Dictionary = data.get("world", {})
 	room_w = float(wd.get("width", 2880))
@@ -169,7 +175,42 @@ func _apply_room(room_id: String, data: Dictionary, entry: String) -> void:
 	# 刷本房怪
 	for en in data.get("enemies", []):
 		spawn_enemy_at(String(en.get("kind", "charger")), float(en["x"]), float(en["y"]))
+	# 摆本房装饰(鸟居/灯笼/草...)
+	for dc in data.get("decor", []):
+		_spawn_decor(dc)
 	_exit_lock = true
+
+## 摆一个装饰:img=静态贴图(Sprite2D), anim=动画序列表(AnimatedSprite2D)。
+## x,y=底部中心(贴地), z=层(负=玩家身后)。装饰在 world 里, 渲染于地形瓦片之上。
+func _spawn_decor(dc: Dictionary) -> void:
+	var x := float(dc.get("x", 0.0))
+	var y := float(dc.get("y", GROUND))
+	var z := int(dc.get("z", -1))
+	if dc.has("anim"):
+		var tex: Texture2D = load("res://art/timestop/decor/%s_sheet.png" % String(dc["anim"]))
+		if tex == null:
+			return
+		var fw := int(dc.get("fw", 64))
+		var sf := SpriteSheet.build_from_strips({"a": {"tex": tex, "fps": float(dc.get("fps", 8.0)), "loop": true}}, Vector2i(fw, tex.get_height()))
+		var a := AnimatedSprite2D.new()
+		a.sprite_frames = sf
+		a.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		a.position = Vector2(x, y - tex.get_height() * 0.5)
+		a.z_index = z
+		a.play("a")
+		world.add_child(a)
+		decor_nodes.append(a)
+	else:
+		var tex2: Texture2D = load("res://art/timestop/decor/%s.png" % String(dc.get("img", "")))
+		if tex2 == null:
+			return
+		var spr := Sprite2D.new()
+		spr.texture = tex2
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.position = Vector2(x, y - tex2.get_height() * 0.5)
+		spr.z_index = z
+		world.add_child(spr)
+		decor_nodes.append(spr)
 
 ## 取门坐标:entry 命中 doors 里的门则用之, 否则用 spawn。
 func _door_pos(data: Dictionary, entry: String) -> Vector2:

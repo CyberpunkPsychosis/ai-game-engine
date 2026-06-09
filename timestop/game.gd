@@ -295,7 +295,7 @@ func _build_fade() -> void:
 func _build_camera() -> void:
 	cam = Camera2D.new()
 	cam.position_smoothing_enabled = true
-	cam.position_smoothing_speed = 9.0
+	cam.position_smoothing_speed = 20.0   # 跟手(原 9 太慢, 画面追不上=像有惯性)
 	cam.limit_left = 0
 	cam.limit_top = 0
 	cam.limit_right = int(room_w)

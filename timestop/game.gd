@@ -619,7 +619,7 @@ func _load_hero_sprites() -> void:
 		"run": {"tex": run_tex, "fps": 8.0, "loop": true},
 		"idle": {"tex": idle_tex, "fps": 4.0, "loop": true},
 		"crouch": {"tex": crouch_tex, "fps": 4.0, "loop": true},
-	}, Vector2i(151, 200))
+	}, Vector2i(152, 200))
 	player.set_sprite_frames(sf, 108.0, player.h * 0.5)
 
 ## 召唤悬龙 Boss(飞行残响)。其 _process 自动接时间系统(可被全场定格冻住)。

@@ -29,7 +29,7 @@ var jump_buf_t := 0.0      # 落地前提前按跳的缓冲
 var jumping := false       # 处于跳跃上升中(变量跳截断用)
 var jump_held := false     # 跳键是否按住(game 每帧填, 决定跳多高)
 var _squash := 0.0         # 起跳(负=拉伸)/落地(正=压扁)的形变, 纯表现
-const COYOTE := 0.10
+const COYOTE := 0.14
 const JUMP_BUF := 0.12
 const JUMP_V := -640.0
 const JUMP_CUT := 0.45     # 松手时上升速度保留比例(越小跳得越矮)
@@ -180,7 +180,10 @@ func tick(delta: float) -> void:
 		queue_redraw()
 		return
 	# ---- 跳跃:土狼时间(离台仍可跳) + 缓冲(提前按落地即跳) ----
-	coyote_t = maxf(0.0, coyote_t - delta)
+	# 关键:只在空中流逝 coyote(用上一帧的 onground 判定)→ 离台当帧保住满窗口,
+	# 不会"一离开就先被扣掉一帧"。
+	if not onground:
+		coyote_t = maxf(0.0, coyote_t - delta)
 	jump_buf_t = maxf(0.0, jump_buf_t - delta)
 	if want_jump:
 		jump_buf_t = JUMP_BUF

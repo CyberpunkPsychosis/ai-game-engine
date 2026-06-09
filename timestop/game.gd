@@ -606,12 +606,21 @@ func spawn_enemy(t: String, x: float) -> void:
 	world.add_child(e)
 	enemies.append(e)
 
-## 主角精灵:AI 出图路线已搁置(产出需大量人工修),暂回退到色块占位
-## ——player.gd 的 _draw() 自带方块+朝向标+闪避拖影,先验证机制。
-## 未来拿到现成素材时:在此用 SpriteSheet 切出 SpriteFrames,再
-##   player.set_sprite_frames(sf, 想要的帧高, player.h * 0.5)  即可切到精灵。
+## 主角精灵(粉发草帽少女):run/idle/crouch 三套动画, 统一格子 151×200, 脚底对齐。
+## 由 AI 流程产出:RD Plus 角色 → Flux Kontext 去影子+姿势 → Seedance 首=尾循环 →
+##   白底阈值抠图 → 统一画框抽帧(详见 docs)。播放速度(fps)随时可调。
 func _load_hero_sprites() -> void:
-	return
+	var run_tex: Texture2D = load("res://art/timestop/hero/run_sheet.png")
+	var idle_tex: Texture2D = load("res://art/timestop/hero/idle_sheet.png")
+	var crouch_tex: Texture2D = load("res://art/timestop/hero/crouch_sheet.png")
+	if run_tex == null or idle_tex == null:
+		return
+	var sf := SpriteSheet.build_from_strips({
+		"run": {"tex": run_tex, "fps": 8.0, "loop": true},
+		"idle": {"tex": idle_tex, "fps": 4.0, "loop": true},
+		"crouch": {"tex": crouch_tex, "fps": 4.0, "loop": true},
+	}, Vector2i(151, 200))
+	player.set_sprite_frames(sf, 108.0, player.h * 0.5)
 
 ## 召唤悬龙 Boss(飞行残响)。其 _process 自动接时间系统(可被全场定格冻住)。
 ## 真龙立绘就位后:boss.set_texture(load("res://.../dragon.png"))。

@@ -5,6 +5,8 @@ config_version=5
 
 [application]
 
+run/max_fps=60
+
 config/name="AI Game Engine"
 config/version="0.1.0"
 run/main_scene="res://timestop/main.tscn"

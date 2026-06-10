@@ -55,8 +55,8 @@ const CLIMB_DUR := 0.22
 # 跑步动画的"蹬地速度"(屏幕px/s, speed_scale=1 时):贴地脚每帧后滑的速度。
 # 步频基准:死亡细胞的做法是动画固定中速、容忍轻微滑步, 保证腿部动作可读,
 # 而不是和移速完全咬合(咬合=全速 4 步/秒, 腿快成风火轮)。
-# 190 → 全速(320)步频 1.68x ≈ 0.4s/圈(2.5步/秒), 上限 2.0 封顶。
-const RUN_TREAD := 190.0
+# 130 → 全速(224)步频 1.72x ≈ 0.39s/圈, 上限 2.0 封顶。
+const RUN_TREAD := 130.0
 
 # 抓沿/攀爬(ledge grab):跳到平台边缘抓住沿口, 跳上去 / 往外推松手
 var ledge_grab := false
@@ -86,7 +86,7 @@ func current_anim() -> String:
 	if want_down:
 		return "crouchwalk" if absf(vx) > 12.0 else "crouch"
 	if absf(vx) > 12.0:
-		return "walk" if absf(vx) < 200.0 else "run"
+		return "walk" if absf(vx) < 150.0 else "run"
 	return "idle"
 
 ## 动画缺表时的回退链(素材渐进式补齐, 缺哪个都不会卡)
@@ -221,13 +221,15 @@ func tick(delta: float) -> void:
 	if knock_t > 0.0:
 		vx = knock_vx                      # 受击击退期:夺控横移(可被翻滚打断)
 	elif dodging:
-		vx = float(dodge_dir) * 720.0      # 冲刺速度
+		vx = float(dodge_dir) * 500.0      # 冲刺速度(原720, 随全局0.7档)
 		if dodge_t <= 0.0:
 			dodging = false
 	else:
-		vx = move_dir * (384.0 if haste_t > 0.0 else 320.0)   # 连杀加速 +20%
+		vx = move_dir * (269.0 if haste_t > 0.0 else 224.0)   # 连杀加速 +20%
+		# 速度对标死亡细胞实测(3.2身位/s): 原 320=6.4身位/s 整两倍 → ×0.7=224(4.5身位/s)。
+		# 不能×0.5: 房间 300px 级间隙按二段跳@320 设计, 0.7 档配合翻滚+二段跳可达。
 		if onground and want_down:
-			vx = clampf(vx, -110.0, 110.0)        # 蹲走限速(潜行)
+			vx = clampf(vx, -77.0, 77.0)          # 蹲走限速(潜行)
 		if absf(move_dir) > 0.2:
 			facing = 1 if move_dir > 0.0 else -1
 	# ---- 抓沿状态:挂在沿上时接管本帧(跳=爬上 / 外推=松手 / 挂久自动爬) ----

@@ -78,7 +78,7 @@ func current_anim() -> String:
 	if ledge_grab:
 		return "hang"
 	if atk_t > 0.0:
-		return "attack%d" % (atk_stage + 1)
+		return "attack"
 	if not onground:
 		if _flip_t > 0.0 and vy < 80.0:
 			return "flip"

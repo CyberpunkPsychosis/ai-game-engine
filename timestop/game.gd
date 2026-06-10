@@ -609,11 +609,9 @@ func do_attack() -> void:
 	player.atkcd = 0.40 if finisher else 0.25
 	player.atk_finisher = finisher
 	player.atk_stage = step
-	if player._anim and player._anim.sprite_frames:
-		var an := player._resolve_anim("attack%d" % (step + 1))
-		if player._anim.sprite_frames.has_animation(an):
-			player._anim.stop()
-			player._anim.play(an)             # 每段连击从第0帧重播(同名连放不会重启)
+	if player._anim and player._anim.sprite_frames and player._anim.sprite_frames.has_animation("attack"):
+		player._anim.stop()
+		player._anim.play("attack")           # 每次挥击从第0帧重播(同名连放不会自动重启)
 	var ax := player.position.x + player.facing * reach
 	var ay := player.position.y
 	var hit_any := false
@@ -856,7 +854,7 @@ func _load_hero_sprites() -> void:
 		"crouch": [4.0, true], "crouchwalk": [8.0, true],
 		"jump": [20.0, false], "fall": [12.0, false], "flip": [16.0, true],
 		"dash": [25.0, false],
-		"attack1": [30.0, false], "attack2": [30.0, false], "attack3": [30.0, false],
+		"attack": [30.0, false],
 		"hang": [3.0, true], "climb": [14.0, false],
 	}
 	var cell := Vector2i(80, 80)

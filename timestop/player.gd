@@ -63,7 +63,7 @@ var ledge_grab := false
 var ledge_cd := 0.0        # 松手后短暂禁抓(防立刻又抓住)
 var ledge_hang_t := 0.0    # 已挂时长(挂够久自动翻上)
 var _ledge_top := 0.0      # 抓住的那道沿的顶 y
-const LEDGE_AUTO := 0.30   # 不操作时挂多久自动爬上
+const LEDGE_AUTO := 0.16   # 不操作时挂多久自动爬上
 
 # 视觉:精灵帧就位前用色块 _draw;set_sprite_frames() 后切 AnimatedSprite2D
 var _anim: AnimatedSprite2D = null
@@ -162,8 +162,9 @@ func _tick_ledge(delta: float) -> void:
 		ledge_cd = 0.35
 		want_jump = false
 		return
-	# 按跳 / 挂够久 → 翻身爬上去, 站到平台顶
-	if want_jump or ledge_hang_t > LEDGE_AUTO:
+	# 按跳 / 顶着朝向推 / 挂够久 → 翻身爬上去(死亡细胞: 跑向台沿顺势就上)
+	if want_jump or ledge_hang_t > LEDGE_AUTO \
+	or (absf(move_dir) > 0.35 and signf(move_dir) == float(facing)):
 		# 翻上沿口: 不再瞬移, 位置在 tick 里沿"先上后前"弧线补间(死亡细胞 mantle)
 		_climb_t = CLIMB_DUR
 		_climb_from = position
@@ -280,6 +281,7 @@ func tick(delta: float) -> void:
 			jump_buf_t = 0.0
 			jumping = true
 			_squash = -0.42
+			_flip_t = 0.60                    # 二段跳 → 空翻动画窗口
 	# 变量跳:松开跳键且还在上升 → 截断上升(轻点矮跳, 按住高跳)
 	if jumping and vy < 0.0 and not jump_held:
 		vy *= JUMP_CUT

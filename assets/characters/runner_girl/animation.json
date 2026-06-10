@@ -1,20 +1,21 @@
 {
   "name": "runner_girl_run",
   "source": "21e0ebe2-run.mp4 (832x1120 @24fps), cycle frames 44-63",
+  "pipeline": "isnet-anime matting + alpha remap + shadow removal (tools/video2sprites.py)",
   "loop": true,
   "fps": 24,
   "frame_count": 20,
   "frame_size_full": [
-    821,
-    1026
+    819,
+    1022
   ],
   "sheet": {
     "file": "run_sheet_10x2_half.png",
     "columns": 10,
     "rows": 2,
     "frame_size": [
-      410,
-      513
+      409,
+      511
     ]
   },
   "frames": [

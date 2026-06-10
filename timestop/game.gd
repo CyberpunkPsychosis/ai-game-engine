@@ -849,14 +849,15 @@ func _load_hero_sprites() -> void:
 		return
 	var cell := Vector2i(48, 48)
 	var sf := SpriteSheet.build_from_strips({
-		"idle": { "tex": idle_tex, "fps": 5.0, "loop": true },
-		"run": { "tex": run_tex, "fps": 12.0, "loop": true },
+		"idle": { "tex": idle_tex, "fps": 3.0, "loop": true },
+		"run": { "tex": run_tex, "fps": 10.0, "loop": true },
 	}, cell)
-	# 跳/落/闪取迈步幅度大的行走帧, 攻击暂用 idle 首帧, 后续换真表
-	_hero_single(sf, run_tex, cell, "jump", 2)
-	_hero_single(sf, run_tex, cell, "fall", 5)
+	# run=4帧完整交替步态(取自精灵表通道); idle=中立帧+1px呼吸合成2帧。
+	# 跳/落/闪取迈步帧, 攻击暂用 idle 首帧, 后续换真表
+	_hero_single(sf, run_tex, cell, "jump", 1)
+	_hero_single(sf, run_tex, cell, "fall", 3)
 	_hero_single(sf, idle_tex, cell, "attack", 0)
-	_hero_single(sf, run_tex, cell, "dash", 2)
+	_hero_single(sf, run_tex, cell, "dash", 1)
 	# 96 = 48 的 2 倍整数缩放(像素风必须整倍缩放, 否则像素宽窄不一)
 	player.set_sprite_frames(sf, 96.0, player.h * 0.5)
 

@@ -844,7 +844,7 @@ func _load_hero_sprites() -> void:
 	var tex: Texture2D = load("res://art/timestop/hero/run_strip.png")
 	if tex == null:
 		return
-	var cell := Vector2i(165, 200)
+	var cell := Vector2i(163, 200)
 	var sf := SpriteSheet.build_from_strips({ "run": { "tex": tex, "fps": 14.0, "loop": true } }, cell)
 	var n := int(tex.get_width() / cell.x)
 	# 缺的状态先用单帧占位(站=第0帧, 跳/落/攻/闪各取一帧), 后续换成真表

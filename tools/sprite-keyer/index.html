@@ -33,10 +33,10 @@
   input[type=number]{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px;font-size:13px;width:64px;}
   input[type=range]{flex:1;min-width:120px;}
   .hint{font-size:12px;color:var(--muted);line-height:1.6;}
-  .tray{display:flex;gap:6px;overflow-x:auto;padding:6px 0;}
+  .tray{display:flex;gap:6px;overflow-x:auto;padding:6px 0;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
   .thumb{position:relative;flex:0 0 auto;width:58px;height:58px;border:2px solid var(--line);border-radius:8px;background:#0d1115;
     background-image:repeating-conic-gradient(#2a3036 0% 25%,#20262b 0% 50%);background-size:12px 12px;}
-  .thumb canvas{width:100%;height:100%;border:0;border-radius:6px;}
+  .thumb canvas{width:100%;height:100%;border:0;border-radius:6px;touch-action:pan-x;pointer-events:none;} /* 让横滑能滚动缩略条 */
   .thumb .x{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:var(--clay);color:#fff;
     font-size:13px;line-height:20px;text-align:center;border:0;}
   .thumb.sel{border-color:var(--accent);}
@@ -86,6 +86,10 @@
     <div class="row" style="justify-content:space-between"><b>已选帧 (<span id="fcount">0</span>)</b>
       <button class="btn sm" id="clearF">清空</button></div>
     <div class="tray" id="tray"></div>
+    <div class="row"><button class="btn sm" id="playSel">▶ 预览选帧</button>
+      <label>fps</label><input type="number" id="pfps" value="10" min="1" max="30">
+      <span class="hint">循环播放你抓的帧，检查动作顺不顺</span></div>
+    <canvas id="selcanvas" style="max-width:150px;display:block;margin:6px auto;touch-action:auto"></canvas>
     <div class="hint">按时间顺序抓"关键姿势"(跑:腿张最开/腿交错…)。点 ✕ 删，多余的去掉。</div>
   </div>
 </div>
@@ -229,7 +233,21 @@ function refreshTray(){
     d.appendChild(x); tray.appendChild(d);
   });
 }
-$('#clearF').onclick=()=>{ frames=[]; refreshTray(); };
+$('#clearF').onclick=()=>{ frames=[]; refreshTray(); stopPreview(); };
+
+/* 预览:循环播放已选帧(原图, 检查动作/顺序) */
+let prevTimer=null, prevI=0;
+function stopPreview(){ if(prevTimer){ clearInterval(prevTimer); prevTimer=null; } $('#playSel').textContent='▶ 预览选帧'; }
+$('#playSel').onclick=()=>{
+  if(prevTimer){ stopPreview(); return; }
+  if(!frames.length) return;
+  const c=$('#selcanvas'), fps=+$('#pfps').value||10; prevI=0;
+  $('#playSel').textContent='⏹ 停';
+  prevTimer=setInterval(()=>{ if(!frames.length){ stopPreview(); return; }
+    const fr=frames[prevI%frames.length]; prevI++;
+    c.width=fr.w; c.height=fr.h; c.getContext('2d').putImageData(fr.src,0,0);
+  }, 1000/fps);
+};
 
 /* ---------- ② 抠图 ---------- */
 function dist2(r,g,b,c){ const dr=r-c.r,dg=g-c.g,db=b-c.b; return dr*dr+dg*dg+db*db; }

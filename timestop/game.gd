@@ -121,8 +121,7 @@ func _ready() -> void:
 	player.game = self
 	player.z_index = 5               # 在背景装饰(z 1~2)之上, 又不挡前景
 	world.add_child(player)
-	# 暂回退色块主角(用户先自学美术, 做好成品 sheet 再接回; 见 docs/SPRITE_PIPELINE.md)
-	# _load_hero_sprites()
+	_load_hero_sprites()             # 粉发草帽女孩 8 帧跑步(洪水填充抠图+去斑, 朝右)
 	_build_camera()
 	_build_overlay()
 	_build_hud()
@@ -838,15 +837,15 @@ func spawn_enemy(t: String, x: float) -> void:
 ## (player.gd 的 _draw() 自带方块+朝向标+闪避拖影)。后续改用现成素材时,在此
 ## 用 SpriteSheet 切出 SpriteFrames, 再 player.set_sprite_frames(sf, 帧高, player.h*0.5)。
 ## 备注:AI 流程(去影子→Seedance首=尾循环→洪水填充抠图→统一画框)在 git 历史里可找回。
-## 主角精灵:用户在 Ludo 做的 8 帧跑步表(已抠底/底部对齐重排成横条 art/timestop/hero/run_strip.png)。
+## 主角精灵:粉发草帽女孩 8 帧跑步(Seedance 首=尾循环 → 洪水填充抠图保内部白 → 去斑 → 网格切帧保对齐)。
 ## run=8 帧循环; idle/jump/fall/attack/dash 暂用单帧占位(那些表还没做)→ 免动画卡住。
 ## 等用户补了别的动作表, 在此再加对应 strip 即可。
 func _load_hero_sprites() -> void:
 	var tex: Texture2D = load("res://art/timestop/hero/run_strip.png")
 	if tex == null:
 		return
-	var cell := Vector2i(139, 180)
-	var sf := SpriteSheet.build_from_strips({ "run": { "tex": tex, "fps": 14.0, "loop": true } }, cell)
+	var cell := Vector2i(162, 200)
+	var sf := SpriteSheet.build_from_strips({ "run": { "tex": tex, "fps": 10.0, "loop": true } }, cell)
 	var n := int(tex.get_width() / cell.x)
 	# 缺的状态先用单帧占位(站=第0帧, 跳/落/攻/闪各取一帧), 后续换成真表
 	_hero_single(sf, tex, cell, "idle", 0)

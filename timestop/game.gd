@@ -540,8 +540,9 @@ func _process(delta: float) -> void:
 	if cam:                              # 相机跟随玩家(房间内, limit 自动夹边), 前瞻+震屏走 offset
 		cam.position = player.position
 		var lx := 0.0
-		if absf(player.vx) > 40.0:
+		if absf(player.vx) > 120.0:
 			lx = float(player.facing) * 56.0   # 朝移动方向多看一截(死亡细胞前瞻)
+			# 阈值>攻击前送峰值(85): 站桩攻击的小位移不再反复触发前瞻 → 修镜头抽动
 		_look = _look.lerp(Vector2(lx, 0.0), 1.0 - pow(0.0025, delta))
 		var sh := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake
 		cam.offset = _look + sh

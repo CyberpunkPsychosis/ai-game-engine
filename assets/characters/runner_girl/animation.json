@@ -1,0 +1,42 @@
+{
+  "name": "runner_girl_run",
+  "source": "21e0ebe2-run.mp4 (832x1120 @24fps), cycle frames 44-63",
+  "loop": true,
+  "fps": 24,
+  "frame_count": 20,
+  "frame_size_full": [
+    821,
+    1026
+  ],
+  "sheet": {
+    "file": "run_sheet_10x2_half.png",
+    "columns": 10,
+    "rows": 2,
+    "frame_size": [
+      410,
+      513
+    ]
+  },
+  "frames": [
+    "run_01.png",
+    "run_02.png",
+    "run_03.png",
+    "run_04.png",
+    "run_05.png",
+    "run_06.png",
+    "run_07.png",
+    "run_08.png",
+    "run_09.png",
+    "run_10.png",
+    "run_11.png",
+    "run_12.png",
+    "run_13.png",
+    "run_14.png",
+    "run_15.png",
+    "run_16.png",
+    "run_17.png",
+    "run_18.png",
+    "run_19.png",
+    "run_20.png"
+  ]
+}

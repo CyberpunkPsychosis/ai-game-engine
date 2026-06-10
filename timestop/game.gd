@@ -314,6 +314,9 @@ func _build_fade() -> void:
 
 func _build_camera() -> void:
 	cam = Camera2D.new()
+	# 死亡细胞镜头距离: 主角约占屏高 11%。zoom 1.0 时 50px 角色只占 7%(显小),
+	# 2.0 整数倍(像素友好)下 100/720≈14%, 贴近死亡细胞且无半像素失真。
+	cam.zoom = Vector2(2.0, 2.0)
 	cam.position_smoothing_enabled = true
 	cam.position_smoothing_speed = 20.0   # 跟手(原 9 太慢, 画面追不上=像有惯性)
 	cam.limit_left = 0

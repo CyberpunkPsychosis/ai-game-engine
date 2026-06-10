@@ -837,20 +837,21 @@ func spawn_enemy(t: String, x: float) -> void:
 ## (player.gd 的 _draw() 自带方块+朝向标+闪避拖影)。后续改用现成素材时,在此
 ## 用 SpriteSheet 切出 SpriteFrames, 再 player.set_sprite_frames(sf, 帧高, player.h*0.5)。
 ## 备注:AI 流程(去影子→Seedance首=尾循环→洪水填充抠图→统一画框)在 git 历史里可找回。
-## 主角精灵:粉发草帽女孩 8 帧跑步(Seedance 首=尾循环 → 洪水填充抠图保内部白 → 去斑 → 网格切帧保对齐)。
-## run=8 帧循环; idle/jump/fall/attack/dash 暂用单帧占位(那些表还没做)→ 免动画卡住。
-## 等用户补了别的动作表, 在此再加对应 strip 即可。
+## 主角精灵:粉发草帽女孩 10 帧跑步(isnet-anime ML 抠图 → alpha 重映射 → 去地面阴影,
+## 源 20 帧循环隔帧取 10; 管线见 model-identification 分支 tools/video2sprites.py)。
+## run=10 帧 @12fps ≈ 0.83s/圈(与源视频步频一致); idle/jump/fall/attack/dash
+## 暂用单帧占位(那些表还没做)→ 免动画卡住。等用户补了别的动作表, 在此再加对应 strip 即可。
 func _load_hero_sprites() -> void:
 	var tex: Texture2D = load("res://art/timestop/hero/run_strip.png")
 	if tex == null:
 		return
 	var cell := Vector2i(163, 200)
-	var sf := SpriteSheet.build_from_strips({ "run": { "tex": tex, "fps": 14.0, "loop": true } }, cell)
+	var sf := SpriteSheet.build_from_strips({ "run": { "tex": tex, "fps": 12.0, "loop": true } }, cell)
 	var n := int(tex.get_width() / cell.x)
-	# 缺的状态先用单帧占位(站=第0帧, 跳/落/攻/闪各取一帧), 后续换成真表
+	# 缺的状态先用单帧占位(站=第0帧; 跳/落=腾空帧 2/7; 攻/闪各取一帧), 后续换成真表
 	_hero_single(sf, tex, cell, "idle", 0)
-	_hero_single(sf, tex, cell, "jump", mini(1, n - 1))
-	_hero_single(sf, tex, cell, "fall", mini(5, n - 1))
+	_hero_single(sf, tex, cell, "jump", mini(2, n - 1))
+	_hero_single(sf, tex, cell, "fall", mini(7, n - 1))
 	_hero_single(sf, tex, cell, "attack", 0)
 	_hero_single(sf, tex, cell, "dash", mini(3, n - 1))
 	player.set_sprite_frames(sf, 64.0, player.h * 0.5)

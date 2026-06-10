@@ -605,7 +605,7 @@ func do_attack() -> void:
 	var knock := 520.0 if finisher else 300.0
 	var hs := 0.10 if finisher else 0.05
 	var shk := 9.0 if finisher else 3.5
-	player.atk_t = 0.14 if finisher else 0.11
+	player.atk_t = 0.22 if finisher else 0.18   # 与 22fps 攻击动画等长(CD不变,DPS不变)
 	player.atkcd = 0.40 if finisher else 0.25
 	player.atk_finisher = finisher
 	player.atk_stage = step
@@ -854,7 +854,7 @@ func _load_hero_sprites() -> void:
 		"crouch": [4.0, true], "crouchwalk": [8.0, true],
 		"jump": [20.0, false], "fall": [12.0, false], "flip": [16.0, true],
 		"dash": [25.0, false],
-		"attack": [30.0, false],
+		"attack": [22.0, false],   # 4帧0.18s, 3x镜头下30fps是一道闪光
 		"hang": [3.0, true], "climb": [14.0, false],
 	}
 	var cell := Vector2i(80, 80)

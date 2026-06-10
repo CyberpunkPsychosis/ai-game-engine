@@ -314,9 +314,11 @@ func _build_fade() -> void:
 
 func _build_camera() -> void:
 	cam = Camera2D.new()
-	# 死亡细胞镜头(官方截图实测): 主角占屏高 20.4%(220px/1080), 可视宽≈8.7身位。
-	# zoom 3.0 → 角色 150px/720=20.8%, 可视宽 8.5 身位, 整数倍像素零失真。
-	cam.zoom = Vector2(3.0, 3.0)
+	# 空洞骑士镜头(官方截图实测): 小骑士 140px/1080 = 占屏高 13.0%。
+	# zoom 2.0 → 角色 100px/720=13.9%(HK区间), 整数倍像素零失真;
+	# 视野 640x360 > 关卡校验基准 427x240, 落脚点可见性只增不减。
+	# (死亡细胞是 20.4% 的近镜, 用户选择 HK 的远视野; 速度已独立修正不受影响)
+	cam.zoom = Vector2(2.0, 2.0)
 	cam.position_smoothing_enabled = true
 	cam.position_smoothing_speed = 20.0   # 跟手(原 9 太慢, 画面追不上=像有惯性)
 	cam.limit_left = 0

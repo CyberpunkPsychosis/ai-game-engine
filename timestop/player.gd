@@ -81,8 +81,8 @@ func current_anim() -> String:
 	if atk_t > 0.0:
 		return "attack"
 	if not onground:
-		if _flip_t > 0.0 and vy < 80.0:
-			return "flip"
+		if _flip_t > 0.0:
+			return "flip"                  # 空翻窗口=动画整圈时长, 转完再切落下
 		return "jump" if vy < 0.0 else "fall"
 	if want_down:
 		return "crouchwalk" if absf(vx) > 12.0 else "crouch"
@@ -287,7 +287,7 @@ func tick(delta: float) -> void:
 			jump_buf_t = 0.0
 			jumping = true
 			_squash = -0.42
-			_flip_t = 0.60                    # 二段跳 → 空翻动画窗口
+			_flip_t = 0.38                    # 二段跳 → 空翻窗口(=6帧@16fps整圈)
 	# 变量跳:松开跳键且还在上升 → 截断上升(轻点矮跳, 按住高跳)
 	if jumping and vy < 0.0 and not jump_held:
 		vy *= JUMP_CUT

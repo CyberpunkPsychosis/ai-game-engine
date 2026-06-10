@@ -857,7 +857,7 @@ func _load_hero_sprites() -> void:
 	var defs := {
 		"idle": [4.5, true], "run": [12.0, true], "walk": [10.0, true],
 		"crouch": [4.0, true], "crouchwalk": [8.0, true],
-		"jump": [20.0, false], "fall": [12.0, false], "flip": [16.0, true],
+		"jump": [20.0, false], "fall": [12.0, false], "flip": [16.0, false],
 		"dash": [17.0, false],   # 6帧0.35s 与翻滚时长同步
 		"attack": [16.0, false],   # 4帧0.25s(死亡细胞轻剑节奏)
 		"hang": [3.0, true], "climb": [14.0, false],

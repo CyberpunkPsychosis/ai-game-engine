@@ -845,7 +845,7 @@ func _load_hero_sprites() -> void:
 	if tex == null:
 		return
 	var cell := Vector2i(162, 200)
-	var sf := SpriteSheet.build_from_strips({ "run": { "tex": tex, "fps": 10.0, "loop": true } }, cell)
+	var sf := SpriteSheet.build_from_strips({ "run": { "tex": tex, "fps": 14.0, "loop": true } }, cell)
 	var n := int(tex.get_width() / cell.x)
 	# 缺的状态先用单帧占位(站=第0帧, 跳/落/攻/闪各取一帧), 后续换成真表
 	_hero_single(sf, tex, cell, "idle", 0)

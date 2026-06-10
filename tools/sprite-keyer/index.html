@@ -170,21 +170,34 @@ $('#file').onchange=e=>{ const f=e.target.files[0]; if(!f) return;
 
 let vid=null, vfps=12;
 function loadVideo(f){
-  $('#vidbox').style.display='block';
-  vid=document.createElement('video'); vid.muted=true; vid.playsInline=true;
-  vid.src=URL.createObjectURL(f);
-  vid.onloadedmetadata=()=>{ seekVid(0); setStatus('视频 '+vid.videoWidth+'×'+vid.videoHeight+' / '+vid.duration.toFixed(1)+'s'); };
+  $('#vidbox').style.display='block'; setStatus('视频加载中…');
+  if(vid){ try{ vid.pause(); vid.remove(); }catch(e){} }
+  vid=document.createElement('video');
+  vid.muted=true; vid.playsInline=true;
+  vid.setAttribute('playsinline',''); vid.setAttribute('webkit-playsinline','');
+  vid.preload='auto';
+  vid.style.cssText='position:fixed;left:-9999px;width:2px;height:2px;opacity:0'; // iOS 需在 DOM 里才肯解码
+  document.body.appendChild(vid);
+  vid.onerror=()=>setStatus('❌ 这个视频浏览器解不了(多半是 H.265/HEVC 编码)。转成 H.264 的 MP4，或直接导我发你的 GIF。');
+  let drawn=false;
+  const first=()=>{ if(drawn||!vid.videoWidth) return; drawn=true; drawVid();
+    setStatus('视频 '+vid.videoWidth+'×'+vid.videoHeight+' · '+(vid.duration||0).toFixed(1)+'s · 拖进度条/◀▶选帧'); };
+  vid.onloadeddata=first; vid.oncanplay=first; vid.onloadedmetadata=first;
+  vid.src=URL.createObjectURL(f); vid.load();
+  const p=vid.play(); if(p&&p.then) p.then(()=>{ vid.pause(); first(); }).catch(()=>{}); // 移动端兜底:逼它解码首帧
 }
 function drawVid(){
-  if(!vid) return;
+  if(!vid||!vid.videoWidth) return;
   const c=$('#vcanvas'); c.width=vid.videoWidth; c.height=vid.videoHeight;
-  c.getContext('2d').drawImage(vid,0,0);
-  $('#scrub').value=Math.round((vid.currentTime/vid.duration)*1000)||0;
+  c.getContext('2d').drawImage(vid,0,0,vid.videoWidth,vid.videoHeight);
+  $('#scrub').value=Math.round((vid.currentTime/(vid.duration||1))*1000)||0;
   $('#vcap').textContent='时间 '+vid.currentTime.toFixed(2)+'s';
 }
-function seekVid(t){ return new Promise(res=>{ if(!vid) return res();
-  vid.currentTime=Math.max(0,Math.min(vid.duration||0,t));
-  vid.onseeked=()=>{ drawVid(); res(); };
+function seekVid(t){ return new Promise(res=>{ if(!vid||!vid.duration) return res();
+  let done=false; const fin=()=>{ if(done)return; done=true; drawVid(); res(); };
+  vid.onseeked=fin;
+  vid.currentTime=Math.max(0,Math.min(vid.duration-0.001,t));
+  setTimeout(fin,450);   // seeked 没触发(如跳到同一时刻)也兜底重绘, 防卡住
 });}
 $('#scrub').oninput=e=>{ if(vid) seekVid((e.target.value/1000)*vid.duration); };
 $('#prev').onclick=()=>{ vfps=+$('#vfps').value||12; if(vid) seekVid(vid.currentTime-1/vfps); };

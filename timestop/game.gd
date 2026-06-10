@@ -837,29 +837,28 @@ func spawn_enemy(t: String, x: float) -> void:
 ## (player.gd 的 _draw() 自带方块+朝向标+闪避拖影)。后续改用现成素材时,在此
 ## 用 SpriteSheet 切出 SpriteFrames, 再 player.set_sprite_frames(sf, 帧高, player.h*0.5)。
 ## 备注:AI 流程(去影子→Seedance首=尾循环→洪水填充抠图→统一画框)在 git 历史里可找回。
-## 主角精灵:时停巫女(Scenario 刹那风格 LoRA 概念图 → RetroDiffusion walking_and_idle,
-## 48x48 原生像素, 东向条, 脚底已预对齐到帧底; 源素材与 API 配方见 model-identification
-## 分支 assets/characters/miko_shrine_maiden_48/)。idle=4帧真表; run=7帧行走条
-## (步频由 player 的 speed_scale 跟随移速); jump/fall/attack/dash 仍单帧占位。
-## 旧粉发女孩 run_strip.png 保留在原位可随时换回。
+## 主角精灵:时停巫女·动作版(死亡细胞风, 52px级/19色)。
+## 管线: 刹那 LoRA 动作姿态概念图 → Seedance 原地疾跑/持刀待机视频 →
+## isnet-anime 抠图 → 降采样锁色板像素化(idle 复用 run 调色板保服装一致)。
+## 源素材与配方见 model-identification 分支 assets/characters/miko_action_52/。
+## run=8帧动作疾跑; idle=6帧持刀戒备呼吸; jump/fall/attack/dash 仍单帧占位。
 func _load_hero_sprites() -> void:
 	var idle_tex: Texture2D = load("res://art/timestop/hero/miko_idle_strip.png")
 	var run_tex: Texture2D = load("res://art/timestop/hero/miko_run_strip.png")
 	if idle_tex == null or run_tex == null:
 		return
-	var cell := Vector2i(48, 48)
+	var cell := Vector2i(64, 64)
 	var sf := SpriteSheet.build_from_strips({
-		"idle": { "tex": idle_tex, "fps": 3.0, "loop": true },
-		"run": { "tex": run_tex, "fps": 10.0, "loop": true },
+		"idle": { "tex": idle_tex, "fps": 4.5, "loop": true },   # 6帧≈1.33s 呼吸循环
+		"run": { "tex": run_tex, "fps": 12.0, "loop": true },
 	}, cell)
-	# run=4帧完整交替步态(取自精灵表通道); idle=中立帧+1px呼吸合成2帧。
-	# 跳/落/闪取迈步帧, 攻击暂用 idle 首帧, 后续换真表
-	_hero_single(sf, run_tex, cell, "jump", 1)
-	_hero_single(sf, run_tex, cell, "fall", 3)
+	# 跳/落/闪取跨步大的疾跑帧, 攻击暂用戒备式首帧, 后续换真表
+	_hero_single(sf, run_tex, cell, "jump", 2)
+	_hero_single(sf, run_tex, cell, "fall", 6)
 	_hero_single(sf, idle_tex, cell, "attack", 0)
-	_hero_single(sf, run_tex, cell, "dash", 1)
-	# 96 = 48 的 2 倍整数缩放(像素风必须整倍缩放, 否则像素宽窄不一)
-	player.set_sprite_frames(sf, 96.0, player.h * 0.5)
+	_hero_single(sf, run_tex, cell, "dash", 3)
+	# 64 = 1x 原生像素显示(角色约50px, 与 46px hitbox 接近, 不缩放零失真)
+	player.set_sprite_frames(sf, 64.0, player.h * 0.5)
 
 ## 给 SpriteFrames 加一个"单帧"动画(占位用)
 func _hero_single(sf: SpriteFrames, tex: Texture2D, cell: Vector2i, name: String, idx: int) -> void:

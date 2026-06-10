@@ -45,6 +45,9 @@ var knock_vx := 0.0
 var haste_t := 0.0          # 击杀加速(死亡细胞:连杀越打越快, 奖励进攻)
 # 连击表现(由 game 填; 终结段画更大更亮的挥砍)
 var atk_finisher := false
+var atk_stage := 0          # 连击段(0/1/2), game.try_attack 填, 选 attack1/2/3 动画
+var _flip_t := 0.0          # 二段跳空翻动画计时(>0 播 flip)
+var _climb_t := 0.0         # 爬上沿口的攀爬动画计时(>0 播 climb)
 
 # 跑步动画的"蹬地速度"(屏幕px/s, speed_scale=1 时):贴地脚每帧后滑的速度。
 # 步频基准:死亡细胞的做法是动画固定中速、容忍轻微滑步, 保证腿部动作可读,
@@ -67,13 +70,37 @@ var _use_sprite := false
 func current_anim() -> String:
 	if dodging:
 		return "dash"
+	if _climb_t > 0.0:
+		return "climb"
+	if ledge_grab:
+		return "hang"
 	if atk_t > 0.0:
-		return "attack"
+		return "attack%d" % (atk_stage + 1)
 	if not onground:
+		if _flip_t > 0.0 and vy < 80.0:
+			return "flip"
 		return "jump" if vy < 0.0 else "fall"
+	if want_down:
+		return "crouchwalk" if absf(vx) > 12.0 else "crouch"
 	if absf(vx) > 12.0:
-		return "run"
+		return "walk" if absf(vx) < 200.0 else "run"
 	return "idle"
+
+## 动画缺表时的回退链(素材渐进式补齐, 缺哪个都不会卡)
+func _resolve_anim(a: String) -> String:
+	if _anim == null or _anim.sprite_frames == null:
+		return a
+	var fb := {
+		"walk": "run", "crouchwalk": "crouch", "crouch": "idle",
+		"flip": "jump", "hang": "idle", "climb": "idle",
+		"attack1": "attack", "attack2": "attack", "attack3": "attack",
+		"attack": "idle", "jump": "run", "fall": "run", "dash": "run",
+	}
+	var guard := 0
+	while not _anim.sprite_frames.has_animation(a) and fb.has(a) and guard < 6:
+		a = fb[a]
+		guard += 1
+	return a
 
 ## 主角精灵帧就位后调它,自动从色块切到精灵(走/跳/攻/闪按 current_anim 播放)
 ## target_h=想要的屏上帧高(px),foot_y=脚底在玩家局部坐标的 y(对齐站位)
@@ -134,6 +161,7 @@ func _tick_ledge(delta: float) -> void:
 		return
 	# 按跳 / 挂够久 → 翻身爬上去, 站到平台顶
 	if want_jump or ledge_hang_t > LEDGE_AUTO:
+		_climb_t = 0.22                        # 翻上沿口: 播攀爬动画
 		position.x += float(facing) * (w * 0.5 + 8.0)
 		position.y = _ledge_top - h * 0.5 - 1.0
 		onground = true
@@ -186,6 +214,8 @@ func try_dodge() -> void:
 func tick(delta: float) -> void:
 	dodge_t = maxf(0.0, dodge_t - delta)
 	dodge_cd = maxf(0.0, dodge_cd - delta)
+	_flip_t = maxf(0.0, _flip_t - delta)
+	_climb_t = maxf(0.0, _climb_t - delta)
 	knock_t = maxf(0.0, knock_t - delta)
 	haste_t = maxf(0.0, haste_t - delta)
 	if knock_t > 0.0:
@@ -196,6 +226,8 @@ func tick(delta: float) -> void:
 			dodging = false
 	else:
 		vx = move_dir * (384.0 if haste_t > 0.0 else 320.0)   # 连杀加速 +20%
+		if onground and want_down:
+			vx = clampf(vx, -110.0, 110.0)        # 蹲走限速(潜行)
 		if absf(move_dir) > 0.2:
 			facing = 1 if move_dir > 0.0 else -1
 	# ---- 抓沿状态:挂在沿上时接管本帧(跳=爬上 / 外推=松手 / 挂久自动爬) ----
@@ -262,6 +294,7 @@ func tick(delta: float) -> void:
 		coyote_t = COYOTE                     # 站地上持续刷新土狼时间
 		jumping = false
 		air_jumps = MAX_AIR_JUMPS             # 落地补满二段跳
+		_flip_t = 0.0
 	# ---- 抓沿检测:空中、不在猛冲段、面朝墙且够到沿 → 抓住(上升/下落段都可)----
 	elif ledge_cd <= 0.0 and not dodging and vy > -380.0:
 		var lt := _ledge_in_front()
@@ -279,7 +312,7 @@ func tick(delta: float) -> void:
 		vy = 0.0
 		game.hurt_player(10.0)
 	if _use_sprite and _anim and _anim.sprite_frames:
-		var a := current_anim()
+		var a := _resolve_anim(current_anim())
 		if _anim.sprite_frames.has_animation(a) and _anim.animation != a:
 			_anim.play(a)
 		_anim.flip_h = facing < 0

@@ -608,6 +608,12 @@ func do_attack() -> void:
 	player.atk_t = 0.14 if finisher else 0.11
 	player.atkcd = 0.40 if finisher else 0.25
 	player.atk_finisher = finisher
+	player.atk_stage = step
+	if player._anim and player._anim.sprite_frames:
+		var an := player._resolve_anim("attack%d" % (step + 1))
+		if player._anim.sprite_frames.has_animation(an):
+			player._anim.stop()
+			player._anim.play(an)             # 每段连击从第0帧重播(同名连放不会重启)
 	var ax := player.position.x + player.facing * reach
 	var ay := player.position.y
 	var hit_any := false
@@ -840,28 +846,38 @@ func spawn_enemy(t: String, x: float) -> void:
 ## (player.gd 的 _draw() 自带方块+朝向标+闪避拖影)。后续改用现成素材时,在此
 ## 用 SpriteSheet 切出 SpriteFrames, 再 player.set_sprite_frames(sf, 帧高, player.h*0.5)。
 ## 备注:AI 流程(去影子→Seedance首=尾循环→洪水填充抠图→统一画框)在 git 历史里可找回。
-## 主角精灵:时停巫女·动作版(死亡细胞风, 52px级/19色)。
-## 管线: 刹那 LoRA 动作姿态概念图 → Seedance 原地疾跑/持刀待机视频 →
-## isnet-anime 抠图 → 降采样锁色板像素化(idle 复用 run 调色板保服装一致)。
-## 源素材与配方见 model-identification 分支 assets/characters/miko_action_52/。
-## run=8帧动作疾跑; idle=6帧持刀戒备呼吸; jump/fall/attack/dash 仍单帧占位。
+## 主角精灵:时停巫女·动作版全套(死亡细胞风, 52px级/19色, 统一 80x80 格)。
+## 14 个动画全部由 Seedance 视频管线产出(同一概念图驱动保角色一致,
+## 全部锁定 run 的 19 色调色板)。配方见 model-identification 分支。
 func _load_hero_sprites() -> void:
-	var idle_tex: Texture2D = load("res://art/timestop/hero/miko_idle_strip.png")
-	var run_tex: Texture2D = load("res://art/timestop/hero/miko_run_strip.png")
-	if idle_tex == null or run_tex == null:
+	# name: [fps, loop]
+	var defs := {
+		"idle": [4.5, true], "run": [12.0, true], "walk": [10.0, true],
+		"crouch": [4.0, true], "crouchwalk": [8.0, true],
+		"jump": [20.0, false], "fall": [12.0, false], "flip": [16.0, true],
+		"dash": [25.0, false],
+		"attack1": [30.0, false], "attack2": [30.0, false], "attack3": [30.0, false],
+		"hang": [3.0, true], "climb": [14.0, false],
+	}
+	var cell := Vector2i(80, 80)
+	var sf := SpriteFrames.new()
+	sf.remove_animation("default")
+	for name in defs:
+		var tex: Texture2D = load("res://art/timestop/hero/miko_%s_strip.png" % name)
+		if tex == null:
+			continue
+		sf.add_animation(name)
+		sf.set_animation_speed(name, defs[name][0])
+		sf.set_animation_loop(name, defs[name][1])
+		for i in range(int(tex.get_width() / cell.x)):
+			var at := AtlasTexture.new()
+			at.atlas = tex
+			at.region = Rect2(i * cell.x, 0, cell.x, cell.y)
+			sf.add_frame(name, at)
+	if not sf.has_animation("idle"):
 		return
-	var cell := Vector2i(64, 64)
-	var sf := SpriteSheet.build_from_strips({
-		"idle": { "tex": idle_tex, "fps": 4.5, "loop": true },   # 6帧≈1.33s 呼吸循环
-		"run": { "tex": run_tex, "fps": 12.0, "loop": true },
-	}, cell)
-	# 跳/落/闪取跨步大的疾跑帧, 攻击暂用戒备式首帧, 后续换真表
-	_hero_single(sf, run_tex, cell, "jump", 2)
-	_hero_single(sf, run_tex, cell, "fall", 6)
-	_hero_single(sf, idle_tex, cell, "attack", 0)
-	_hero_single(sf, run_tex, cell, "dash", 3)
-	# 64 = 1x 原生像素显示(角色约50px, 与 46px hitbox 接近, 不缩放零失真)
-	player.set_sprite_frames(sf, 64.0, player.h * 0.5)
+	# 80 = 1x 原生像素显示(角色约50px, 贴近 46px hitbox)
+	player.set_sprite_frames(sf, 80.0, player.h * 0.5)
 
 ## 给 SpriteFrames 加一个"单帧"动画(占位用)
 func _hero_single(sf: SpriteFrames, tex: Texture2D, cell: Vector2i, name: String, idx: int) -> void:

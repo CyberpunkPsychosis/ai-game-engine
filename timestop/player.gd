@@ -202,9 +202,9 @@ func try_dodge() -> void:
 	if dodging or dodge_cd > 0.0:
 		return
 	dodging = true
-	dodge_t = 0.24
-	dodge_cd = 0.36                     # 短 CD → 可连续翻滚(死亡细胞手感)
-	iframe = maxf(iframe, 0.26)         # 无敌覆盖翻滚大部分(留一点点收尾破绽)
+	dodge_t = 0.35
+	dodge_cd = 0.48                     # 短 CD → 可连续翻滚(死亡细胞手感)
+	iframe = maxf(iframe, 0.34)         # 无敌覆盖翻滚大部分(留一点点收尾破绽)
 	knock_t = 0.0                       # 翻滚立刻夺回控制(可滚出受击硬直)
 	atk_t = 0.0                         # 滚 → 取消攻击挥砍
 	atkcd = minf(atkcd, 0.06)          # 取消攻击后摇(滚完即可再砍)
@@ -222,9 +222,12 @@ func tick(delta: float) -> void:
 	if knock_t > 0.0:
 		vx = knock_vx                      # 受击击退期:夺控横移(可被翻滚打断)
 	elif dodging:
-		vx = float(dodge_dir) * 500.0      # 冲刺速度(原720, 随全局0.7档)
+		vx = float(dodge_dir) * 320.0      # 翻滚速度(死亡细胞节奏: 0.35s滚112px≈2.2身位)
 		if dodge_t <= 0.0:
 			dodging = false
+	elif atk_t > 0.0 and onground:
+		# 死亡细胞: 地面攻击站桩, 但随挥击小幅前送(不能跑砍, 转向也锁定)
+		vx = float(facing) * 85.0 * (atk_t / 0.25)
 	else:
 		vx = move_dir * (269.0 if haste_t > 0.0 else 224.0)   # 连杀加速 +20%
 		# 速度对标死亡细胞实测(3.2身位/s): 原 320=6.4身位/s 整两倍 → ×0.7=224(4.5身位/s)。

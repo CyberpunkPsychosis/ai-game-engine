@@ -87,3 +87,17 @@
 - [Scenario: AI Sprite Generator 三种工作流](https://www.scenario.com/blog/ai-sprite-generator)
 - [Gamelabs: AI 精灵表透明背景生成](https://gamelabstudio.co/blog/how-to-ai-spritesheet-transparency)
 - [Sprite-AI: 2026 像素画生成器评测](https://www.sprite-ai.art/blog/best-pixel-art-generators-2026)
+
+## 6. 视频模型抽卡实战补遗(闪避翻滚 4 抽记录)
+
+**现象**: 视频模型(Seedance)对"人体倒转"有强烈先验抗拒。无论怎么用动作词措辞
+(combat roll / shoulder roll / somersault / 详细解剖学描述), 贴地语境下都会被
+"安全化"为下蹲前扑——角色埋头团身后腿永远不过头顶。空中语境(高跳)倒愿意翻转。
+
+**破法: 物体运动隐喻**。把"她翻滚"改写成"她蜷成球, 球像轮子一样向前滚一整圈"
+(curls into a tight ball ... rolls forward like a wheel turning one full revolution),
+一发命中完整的背着地+腿过顶旋转。模型愿意滚一个球, 不愿意滚一个人。
+
+**监工 SOP**: 每抽必须放大逐帧检查关键姿态(旋转类动作=找"倒立帧"), 缩略图会骗人;
+不合格直接毙, 不要试图用烂底料做后处理补救(残影/特效救不了姿势)。
+残影建议程序化合成(前N帧剪影偏移+主题色半透明), 比让模型烤进视频干净可控。

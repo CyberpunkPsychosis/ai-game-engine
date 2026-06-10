@@ -567,14 +567,16 @@ func _handle_keys() -> void:
 		do_attack()
 	if Input.is_action_just_pressed("block"):                 # K = 冻单体(瞄准鼠标)
 		freeze_single(_mouse_world(), 260.0)
-	if Input.is_action_just_pressed("special"):               # L = 全场定格
+	if Input.is_action_just_pressed("special"):               # L/Q = 全场定格
 		do_full_freeze()
+	if Input.is_action_just_pressed("dodge"):                 # Shift/C = 闪避翻滚
+		do_dodge()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		freeze_single(_mouse_world(), 260.0)
-	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_C:
-		do_dodge()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and not touch_mode:
+		do_attack()                                       # 左键=攻击(鼠标本来就在瞄准)
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
 		_restart()
 

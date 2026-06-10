@@ -314,9 +314,10 @@ func _build_fade() -> void:
 
 func _build_camera() -> void:
 	cam = Camera2D.new()
-	# 死亡细胞镜头距离: 主角约占屏高 11%。zoom 1.0 时 50px 角色只占 7%(显小),
-	# 2.0 整数倍(像素友好)下 100/720≈14%, 贴近死亡细胞且无半像素失真。
-	cam.zoom = Vector2(2.0, 2.0)
+	# 死亡细胞镜头距离: 主角约占屏高 10-11%。zoom 2.0 时所有运动的屏幕速度
+	# 翻倍, 整个游戏像开了二倍速; 1.5 = 角色 75px/720≈10.4%(正合死亡细胞),
+	# 速度感知降回 1.5x。非整数缩放的轻微像素不均在运动中不可见, 是更优权衡。
+	cam.zoom = Vector2(1.5, 1.5)
 	cam.position_smoothing_enabled = true
 	cam.position_smoothing_speed = 20.0   # 跟手(原 9 太慢, 画面追不上=像有惯性)
 	cam.limit_left = 0

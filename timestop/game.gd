@@ -121,7 +121,7 @@ func _ready() -> void:
 	player.game = self
 	player.z_index = 5               # 在背景装饰(z 1~2)之上, 又不挡前景
 	world.add_child(player)
-	_load_hero_sprites()             # 粉发草帽女孩 8 帧跑步(洪水填充抠图+去斑, 朝右)
+	_load_hero_sprites()             # Mattz Art 免费武士包: idle/run/attack/hurt(朝右)
 	_build_camera()
 	_build_overlay()
 	_build_hud()
@@ -853,20 +853,18 @@ func spawn_enemy(t: String, x: float) -> void:
 ## 14 个动画全部由 Seedance 视频管线产出(同一概念图驱动保角色一致,
 ## 全部锁定 run 的 19 色调色板)。配方见 model-identification 分支。
 func _load_hero_sprites() -> void:
+	# 武士包(Mattz Art 免费版)4 动作:idle/run/attack/hurt; 缺的动作走 _resolve_anim 回退链
 	# name: [fps, loop]
 	var defs := {
-		"idle": [4.5, true], "run": [12.0, true], "walk": [10.0, true],
-		"crouch": [4.0, true], "crouchwalk": [8.0, true],
-		"jump": [20.0, false], "fall": [12.0, false], "flip": [16.0, false],
-		"dash": [17.0, false],   # 6帧0.35s 与翻滚时长同步
-		"attack": [16.0, false],   # 4帧0.25s(死亡细胞轻剑节奏)
-		"hang": [3.0, true], "climb": [14.0, false],
+		"idle": [8.0, true], "run": [14.0, true],
+		"attack": [20.0, false],   # 7帧0.35s
+		"hurt": [12.0, false],
 	}
-	var cell := Vector2i(80, 80)
+	var cell := Vector2i(96, 35)   # 对称裁切:身体居中, 翻面不跳位; 脚底=帧底
 	var sf := SpriteFrames.new()
 	sf.remove_animation("default")
 	for name in defs:
-		var tex: Texture2D = load("res://art/timestop/hero/miko_%s_strip.png" % name)
+		var tex: Texture2D = load("res://art/timestop/hero/samurai_%s_strip.png" % name)
 		if tex == null:
 			continue
 		sf.add_animation(name)
@@ -879,8 +877,8 @@ func _load_hero_sprites() -> void:
 			sf.add_frame(name, at)
 	if not sf.has_animation("idle"):
 		return
-	# 80 = 1x 原生像素显示(角色约50px, 贴近 46px hitbox)
-	player.set_sprite_frames(sf, 80.0, player.h * 0.5)
+	# 角色身高34px → 1.5x≈51px 屏显, 贴近 46px hitbox
+	player.set_sprite_frames(sf, 52.5, player.h * 0.5)
 
 ## 给 SpriteFrames 加一个"单帧"动画(占位用)
 func _hero_single(sf: SpriteFrames, tex: Texture2D, cell: Vector2i, name: String, idx: int) -> void:

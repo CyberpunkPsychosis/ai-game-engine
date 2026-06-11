@@ -556,7 +556,7 @@ func _handle_keys() -> void:
 	var mv := 0.0
 	if Input.is_action_pressed("move_left"): mv -= 1.0
 	if Input.is_action_pressed("move_right"): mv += 1.0
-	if absf(joy_vec.x) > 0.15: mv = joy_vec.x
+	if absf(joy_vec.x) > 0.15: mv = signf(joy_vec.x)   # 摇杆数字化: 过死区即全速跑(无走路动画, 不做模拟量慢走)
 	player.move_dir = clampf(mv, -1.0, 1.0)
 	player.want_down = Input.is_action_pressed("move_down") or joy_vec.y > 0.45     # 按下/下推摇杆=快速下落
 	player.jump_held = Input.is_action_pressed("jump") or _jump_touch_id != -999  # 变量跳:按住跳更高

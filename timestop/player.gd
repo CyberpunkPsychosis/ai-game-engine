@@ -86,8 +86,9 @@ func current_anim() -> String:
 			return "flip"                  # 空翻窗口=动画整圈时长, 转完再切落下
 		return "jump" if vy < 0.0 else "fall"
 	# (地面蹲走已删: 武士包无蹲姿动画, 下推摇杆曾导致 idle 姿势滑行"平移")
+	# (走路档已删: 摇杆数字化=过死区即全速, 移动只有 run 一档)
 	if absf(vx) > 12.0:
-		return "walk" if absf(vx) < 150.0 else "run"
+		return "run"
 	return "idle"
 
 ## 动画缺表时的回退链(素材渐进式补齐, 缺哪个都不会卡)

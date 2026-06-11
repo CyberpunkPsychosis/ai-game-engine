@@ -32,7 +32,7 @@ var _squash := 0.0         # 起跳(负=拉伸)/落地(正=压扁)的形变, 纯
 const COYOTE := 0.14
 const JUMP_BUF := 0.12
 const JUMP_V := -640.0
-const JUMP_CUT := 0.45     # 松手时上升速度保留比例(越小跳得越矮)
+const JUMP_CUT := 0.35     # 松手时上升速度保留比例(越小跳得越矮)
 const GRAV := 1700.0
 # 二段跳(死亡细胞:土狼跳后仍保留二段跳) + 快速下落
 var want_down := false      # 按住下:加速下落(利落落地)
@@ -203,8 +203,8 @@ func try_dodge() -> void:
 	if dodging or dodge_cd > 0.0:
 		return
 	dodging = true
-	dodge_t = 0.35
-	dodge_cd = 0.48                     # 短 CD → 可连续翻滚(死亡细胞手感)
+	dodge_t = 0.22
+	dodge_cd = 0.55                     # HK 冲刺节奏: 短促有力, CD 略长不无脑连发
 	iframe = maxf(iframe, 0.34)         # 无敌覆盖翻滚大部分(留一点点收尾破绽)
 	knock_t = 0.0                       # 翻滚立刻夺回控制(可滚出受击硬直)
 	atk_t = 0.0                         # 滚 → 取消攻击挥砍
@@ -223,16 +223,16 @@ func tick(delta: float) -> void:
 	if knock_t > 0.0:
 		vx = knock_vx                      # 受击击退期:夺控横移(可被翻滚打断)
 	elif dodging:
-		vx = float(dodge_dir) * 320.0      # 翻滚速度(死亡细胞节奏: 0.35s滚112px≈2.2身位)
+		vx = float(dodge_dir) * 700.0      # HK 冲刺: 0.22s × 700 ≈ 154px(3身位) 水平瞬移
 		if dodge_t <= 0.0:
 			dodging = false
 	elif atk_t > 0.0 and onground:
 		# 死亡细胞: 地面攻击站桩, 但随挥击小幅前送(不能跑砍, 转向也锁定)
 		vx = float(facing) * 85.0 * (atk_t / 0.35)   # 0.35 = 攻击动画全长(7帧@20fps)
 	else:
-		vx = move_dir * (269.0 if haste_t > 0.0 else 224.0)   # 连杀加速 +20%
-		# 速度对标死亡细胞实测(3.2身位/s): 原 320=6.4身位/s 整两倍 → ×0.7=224(4.5身位/s)。
-		# 不能×0.5: 房间 300px 级间隙按二段跳@320 设计, 0.7 档配合翻滚+二段跳可达。
+		vx = move_dir * (208.0 if haste_t > 0.0 else 173.0)   # 连杀加速 +20%
+		# 速度对标空洞骑士: HK 横穿一屏≈3.7s → 640px 屏宽 ÷ 3.7 ≈ 173px/s(≈3.4身位/s)。
+		# (旧死亡细胞档 224; 房间已无大间隙, 降速无通行问题)
 		if absf(move_dir) > 0.2:
 			facing = 1 if move_dir > 0.0 else -1
 	# ---- 抓沿状态:挂在沿上时接管本帧(跳=爬上 / 外推=松手 / 挂久自动爬) ----
@@ -293,15 +293,19 @@ func tick(delta: float) -> void:
 		jumping = false
 	# ---- 非对称重力:接近顶点减重(留空感) + 下落加重(利落不飘) ----
 	var g := GRAV
-	if vy < 0.0:
-		if absf(vy) < 150.0:
-			g = GRAV * 0.72
+	if dodging:
+		g = 0.0
+		vy = 0.0                             # HK 冲刺: 纯水平位移, 重力挂起
+	elif vy < 0.0:
+		if absf(vy) < 240.0:
+			g = GRAV * 0.55                  # HK 式顶点滞空(窗口宽+减重狠 → 浮一下再落)
 	else:
 		g = GRAV * 1.35
 		jumping = false
 		if want_down:
 			g *= 1.55                        # 按下:快速下落(利落)
 	vy += g * delta
+	vy = minf(vy, 820.0 if want_down else 620.0)   # 终端速度(HK: 下落≈起跳初速, 从不失控; 下推稍快)
 	iframe = maxf(0.0, iframe - delta)
 	atk_t = maxf(0.0, atk_t - delta)
 	atkcd = maxf(0.0, atkcd - delta)

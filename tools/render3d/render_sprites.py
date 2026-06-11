@@ -51,9 +51,24 @@ sc.render.image_settings.color_mode = 'RGBA'
 
 os.makedirs(OUT, exist_ok=True)
 f0, f1 = sc.frame_start, sc.frame_end
+dg = bpy.context.evaluated_depsgraph_get()
+def mesh_center():
+    mn = mathutils.Vector((1e9,)*3); mx = mathutils.Vector((-1e9,)*3)
+    for ob in bpy.context.scene.objects:
+        if ob.type == 'MESH':
+            ev = ob.evaluated_get(dg)
+            for v in ev.bound_box:
+                w = ev.matrix_world @ mathutils.Vector(v)
+                mn = mathutils.Vector(map(min, mn, w)); mx = mathutils.Vector(map(max, mx, w))
+    return (mn + mx) / 2
 for i in range(N_FRAMES):
     fr = f0 + (f1 - f0) * i / max(1, N_FRAMES)   # 均匀采样(末帧=首帧, 循环不取重)
     sc.frame_set(int(round(fr)))
+    dg.update()
+    c = mesh_center()
+    # 相机水平跟随角色(抵消根位移→等效原地), 垂直保持初始(地面线稳定)
+    cam.location.x = c.x + dist*math.sin(a)
+    cam.location.y = c.y - dist*math.cos(a)
     sc.render.filepath = os.path.join(OUT, f"f{i:02d}.png")
     bpy.ops.render.render(write_still=True)
 print("RENDER_DONE", N_FRAMES, "frames ->", OUT)

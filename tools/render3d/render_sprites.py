@@ -45,7 +45,7 @@ sc.render.engine = 'BLENDER_WORKBENCH'
 sc.display.shading.light = 'FLAT'
 sc.display.shading.color_type = 'TEXTURE'
 sc.render.film_transparent = True
-sc.render.resolution_x = 512; sc.render.resolution_y = 512
+sc.render.resolution_x = 720; sc.render.resolution_y = 720
 sc.render.image_settings.file_format = 'PNG'
 sc.render.image_settings.color_mode = 'RGBA'
 

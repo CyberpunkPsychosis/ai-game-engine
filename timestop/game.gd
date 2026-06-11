@@ -549,11 +549,11 @@ func _process(delta: float) -> void:
 			_cam_anchor_y = player.position.y
 		else:
 			_cam_anchor_y = clampf(_cam_anchor_y, player.position.y - 90.0, player.position.y + 130.0)
-		_cam_pos.x = lerpf(_cam_pos.x, player.position.x, 1.0 - pow(0.00005, delta))  # 横: ~10/s 跟手
-		_cam_pos.y = lerpf(_cam_pos.y, _cam_anchor_y, 1.0 - pow(0.004, delta))        # 纵: ~5.5/s 缓沉
+		_cam_pos.x = lerpf(_cam_pos.x, player.position.x, 1.0 - pow(0.0025, delta))   # 横: ~6/s(弹反作实测档)
+		_cam_pos.y = lerpf(_cam_pos.y, _cam_anchor_y, 1.0 - pow(0.004, delta))        # 纵: ~5.5/s 缓沉(锚地面)
 		cam.position = _cam_pos
-		# 横轴前瞻: 始终朝面向偏移(站立 40 / 跑动 88), 阈值 120 > 攻击前送峰值(85) 防抽动
-		var lx := float(player.facing) * (88.0 if absf(player.vx) > 120.0 else 40.0)
+		# 横轴前瞻: 朝面向固定偏 64(弹反作 playtest 用固定前瞻, 不分跑站, lerp 平滑)
+		var lx := float(player.facing) * 64.0
 		_look = _look.lerp(Vector2(lx, 0.0), 1.0 - pow(0.0025, delta))
 		var sh := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake
 		cam.offset = _look + sh
@@ -570,7 +570,6 @@ func _handle_keys() -> void:
 	if Input.is_action_pressed("move_right"): mv += 1.0
 	if absf(joy_vec.x) > 0.15: mv = signf(joy_vec.x)   # 摇杆数字化: 过死区即全速跑(无走路动画, 不做模拟量慢走)
 	player.move_dir = clampf(mv, -1.0, 1.0)
-	player.want_down = Input.is_action_pressed("move_down") or joy_vec.y > 0.45     # 按下/下推摇杆=快速下落
 	player.jump_held = Input.is_action_pressed("jump") or _jump_touch_id != -999  # 变量跳:按住跳更高
 	if Input.is_action_just_pressed("jump"):
 		player.want_jump = true
@@ -607,9 +606,11 @@ func do_attack() -> void:
 	if player.dodging:
 		player.dodging = false
 		player.dodge_t = 0.0
-	if not touch_mode:
-		player.facing = 1 if _mouse_world().x >= player.position.x else -1
 	_auto_face()                                          # 近身微转向最近敌人(让"该中的砍中")
+	# 攻击面向: 按住方向键=明确意图, 优先级最高(覆盖自动转向)。
+	# (旧版桌面端跟鼠标指针定向已删: 按住左键挥刀却朝鼠标那边砍, 是 bug 之源)
+	if absf(player.move_dir) > 0.2:
+		player.facing = 1 if player.move_dir > 0.0 else -1
 	# 三段连击:终结段(第3下)更重 —— 高伤/大击退/长顿帧/大震屏/更大判定
 	var step := combo_step
 	combo_step = (combo_step + 1) % 3

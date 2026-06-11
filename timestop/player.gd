@@ -29,16 +29,20 @@ var jump_buf_t := 0.0      # 落地前提前按跳的缓冲
 var jumping := false       # 处于跳跃上升中(变量跳截断用)
 var jump_held := false     # 跳键是否按住(game 每帧填, 决定跳多高)
 var _squash := 0.0         # 起跳(负=拉伸)/落地(正=压扁)的形变, 纯表现
-const COYOTE := 0.14
-const JUMP_BUF := 0.12
-const JUMP_V := -640.0
-const JUMP_CUT := 0.35     # 松手时上升速度保留比例(越小跳得越矮)
-const GRAV := 1700.0
-# 二段跳(死亡细胞:土狼跳后仍保留二段跳) + 快速下落
-var want_down := false      # 按住下:加速下落(利落落地)
+# ---- 手感参数: 整套照搬旧弹反作 actor_2d.gd 实测调参(身板同尺度, 原值直用) ----
+const COYOTE := 0.10
+const JUMP_BUF := 0.10
+const JUMP_V := -430.0     # 弹反作: 贴地短跳(类隻狼), 不是大跳台风格
+const JUMP_CUT := 0.45     # 松手时上升速度保留比例(越小跳得越矮)
+const GRAV_UP := 1300.0    # 上升重力
+const GRAV_DOWN := 1800.0  # 下落重力(1.38x, 利落不飘)
+const SPEED := 200.0       # 跑速
+const ACCEL := 1800.0      # 起步加速度(0→全速 0.11s, 微惯性)
+const FRICTION := 2200.0   # 刹车减速度(全速→0 0.09s)
+# 二段跳(timestop 自己的纵向机动, 弹反作没有; 初速跟着主跳缩)
 var air_jumps := 0          # 剩余空中跳次数
 const MAX_AIR_JUMPS := 1
-const AIR_JUMP_V := -560.0  # 二段跳初速(略弱于地面跳)
+const AIR_JUMP_V := -380.0  # 二段跳初速(略弱于地面跳)
 # 受击击退(短暂夺控, 做"挨打有反应"; knock_t 内由 knock_vx 接管横移)
 var knock_t := 0.0
 var knock_vx := 0.0
@@ -204,8 +208,8 @@ func try_dodge() -> void:
 		return
 	dodging = true
 	dodge_t = 0.22
-	dodge_cd = 0.55                     # HK 冲刺节奏: 短促有力, CD 略长不无脑连发
-	iframe = maxf(iframe, 0.34)         # 无敌覆盖翻滚大部分(留一点点收尾破绽)
+	dodge_cd = 0.45                     # 弹反作节奏
+	iframe = maxf(iframe, 0.22)         # 无敌帧=闪避全程(弹反作设定)
 	knock_t = 0.0                       # 翻滚立刻夺回控制(可滚出受击硬直)
 	atk_t = 0.0                         # 滚 → 取消攻击挥砍
 	atkcd = minf(atkcd, 0.06)          # 取消攻击后摇(滚完即可再砍)
@@ -223,18 +227,18 @@ func tick(delta: float) -> void:
 	if knock_t > 0.0:
 		vx = knock_vx                      # 受击击退期:夺控横移(可被翻滚打断)
 	elif dodging:
-		vx = float(dodge_dir) * 700.0      # HK 冲刺: 0.22s × 700 ≈ 154px(3身位) 水平瞬移
+		vx = float(dodge_dir) * 460.0      # 弹反作闪避: 0.22s × 460 ≈ 101px
 		if dodge_t <= 0.0:
 			dodging = false
 	elif atk_t > 0.0 and onground:
-		# 死亡细胞: 地面攻击站桩, 但随挥击小幅前送(不能跑砍, 转向也锁定)
-		vx = float(facing) * 85.0 * (atk_t / 0.35)   # 0.35 = 攻击动画全长(7帧@20fps)
+		vx = move_toward(vx, 0.0, FRICTION * delta)   # 弹反作: 地面攻击定身(摩擦刹停, 不前送)
 	else:
-		vx = move_dir * (208.0 if haste_t > 0.0 else 173.0)   # 连杀加速 +20%
-		# 速度对标空洞骑士: HK 横穿一屏≈3.7s → 640px 屏宽 ÷ 3.7 ≈ 173px/s(≈3.4身位/s)。
-		# (旧死亡细胞档 224; 房间已无大间隙, 降速无通行问题)
-		if absf(move_dir) > 0.2:
+		var top := SPEED * (1.2 if haste_t > 0.0 else 1.0)   # 连杀加速 +20%(timestop 保留)
+		if absf(move_dir) > 0.05:
+			vx = move_toward(vx, move_dir * top, ACCEL * delta)
 			facing = 1 if move_dir > 0.0 else -1
+		else:
+			vx = move_toward(vx, 0.0, FRICTION * delta)
 	# ---- 抓沿状态:挂在沿上时接管本帧(跳=爬上 / 外推=松手 / 挂久自动爬) ----
 	ledge_cd = maxf(0.0, ledge_cd - delta)
 	if ledge_grab:
@@ -291,21 +295,10 @@ func tick(delta: float) -> void:
 	if jumping and vy < 0.0 and not jump_held:
 		vy *= JUMP_CUT
 		jumping = false
-	# ---- 非对称重力:接近顶点减重(留空感) + 下落加重(利落不飘) ----
-	var g := GRAV
-	if dodging:
-		g = 0.0
-		vy = 0.0                             # HK 冲刺: 纯水平位移, 重力挂起
-	elif vy < 0.0:
-		if absf(vy) < 240.0:
-			g = GRAV * 0.55                  # HK 式顶点滞空(窗口宽+减重狠 → 浮一下再落)
-	else:
-		g = GRAV * 1.35
+	# ---- 非对称重力(弹反作): 上升 1300 / 下落 1800, 简单利落 ----
+	if vy >= 0.0:
 		jumping = false
-		if want_down:
-			g *= 1.55                        # 按下:快速下落(利落)
-	vy += g * delta
-	vy = minf(vy, 820.0 if want_down else 620.0)   # 终端速度(HK: 下落≈起跳初速, 从不失控; 下推稍快)
+	vy += (GRAV_UP if vy < 0.0 else GRAV_DOWN) * delta
 	iframe = maxf(0.0, iframe - delta)
 	atk_t = maxf(0.0, atk_t - delta)
 	atkcd = maxf(0.0, atkcd - delta)

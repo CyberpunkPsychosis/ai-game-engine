@@ -84,8 +84,7 @@ func current_anim() -> String:
 		if _flip_t > 0.0:
 			return "flip"                  # 空翻窗口=动画整圈时长, 转完再切落下
 		return "jump" if vy < 0.0 else "fall"
-	if want_down:
-		return "crouchwalk" if absf(vx) > 12.0 else "crouch"
+	# (地面蹲走已删: 武士包无蹲姿动画, 下推摇杆曾导致 idle 姿势滑行"平移")
 	if absf(vx) > 12.0:
 		return "walk" if absf(vx) < 150.0 else "run"
 	return "idle"
@@ -227,13 +226,11 @@ func tick(delta: float) -> void:
 			dodging = false
 	elif atk_t > 0.0 and onground:
 		# 死亡细胞: 地面攻击站桩, 但随挥击小幅前送(不能跑砍, 转向也锁定)
-		vx = float(facing) * 85.0 * (atk_t / 0.25)
+		vx = float(facing) * 85.0 * (atk_t / 0.35)   # 0.35 = 攻击动画全长(7帧@20fps)
 	else:
 		vx = move_dir * (269.0 if haste_t > 0.0 else 224.0)   # 连杀加速 +20%
 		# 速度对标死亡细胞实测(3.2身位/s): 原 320=6.4身位/s 整两倍 → ×0.7=224(4.5身位/s)。
 		# 不能×0.5: 房间 300px 级间隙按二段跳@320 设计, 0.7 档配合翻滚+二段跳可达。
-		if onground and want_down:
-			vx = clampf(vx, -77.0, 77.0)          # 蹲走限速(潜行)
 		if absf(move_dir) > 0.2:
 			facing = 1 if move_dir > 0.0 else -1
 	# ---- 抓沿状态:挂在沿上时接管本帧(跳=爬上 / 外推=松手 / 挂久自动爬) ----
@@ -325,7 +322,8 @@ func tick(delta: float) -> void:
 		air_jumps = MAX_AIR_JUMPS             # 落地补满二段跳
 		_flip_t = 0.0
 	# ---- 抓沿检测:空中、不在猛冲段、面朝墙且够到沿 → 抓住(上升/下落段都可)----
-	elif ledge_cd <= 0.0 and not dodging and vy > -380.0:
+	# 武士包无 hang/climb 动画(挂墙=僵直站姿), 先关; 换全动作包后把 false 改回
+	elif false and ledge_cd <= 0.0 and not dodging and vy > -380.0:
 		var lt := _ledge_in_front()
 		if not is_nan(lt):
 			ledge_grab = true

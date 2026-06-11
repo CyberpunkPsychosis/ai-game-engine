@@ -610,8 +610,8 @@ func do_attack() -> void:
 	var knock := 520.0 if finisher else 300.0
 	var hs := 0.10 if finisher else 0.05
 	var shk := 9.0 if finisher else 3.5
-	player.atk_t = 0.30 if finisher else 0.25   # 与 16fps 攻击动画等长
-	player.atkcd = 0.40 if finisher else 0.25
+	player.atk_t = 0.35                          # 与 20fps×7帧 攻击动画等长(挥砍不再被截断)
+	player.atkcd = 0.62 if finisher else 0.48    # 砍速放慢: 出刀更有分量, 连按不抽风
 	player.atk_finisher = finisher
 	player.atk_stage = step
 	if player._anim and player._anim.sprite_frames and player._anim.sprite_frames.has_animation("attack"):

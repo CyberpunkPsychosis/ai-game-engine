@@ -58,6 +58,7 @@ const CLIMB_DUR := 0.22
 # 160 → 全速(224)步频 1.4x ≈ 0.48s/圈(贴近死亡细胞), 3x镜头下更耐看;
 # 滑步率 1.48 在可接受带内(完全咬合的快步频在大镜头下视觉超载)。
 const RUN_TREAD := 160.0
+const RUN_ENTRY_FRAME := 13  # run 循环里身姿最挺拔的一帧(30px, 量过): idle 切 run 由它进场过渡最顺
 
 # 抓沿/攀爬(ledge grab):跳到平台边缘抓住沿口, 跳上去 / 往外推松手
 var ledge_grab := false
@@ -341,7 +342,10 @@ func tick(delta: float) -> void:
 	if _use_sprite and _anim and _anim.sprite_frames:
 		var a := _resolve_anim(current_anim())
 		if _anim.sprite_frames.has_animation(a) and _anim.animation != a:
+			var from_idle := _anim.animation == "idle"
 			_anim.play(a)
+			if a == "run" and from_idle:
+				_anim.frame = RUN_ENTRY_FRAME   # idle→run 从最挺拔帧切入, 身姿顺势压低不突兀
 		_anim.flip_h = facing < 0
 		# 步频跟随移速(消除脚底打滑):跑得越快腿迈越快, 加减速/连杀加速自然跟随
 		_anim.speed_scale = clampf(absf(vx) / RUN_TREAD, 0.6, 2.0) if a == "run" else 1.0

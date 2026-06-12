@@ -16,11 +16,11 @@
 
 | 工具 | 用法 | 要点 |
 |---|---|---|
-| **RetroDiffusion**(retrodiffusion.ai) | 选 tile 模式:`tileset`(整套自动拼接)/`single_tile`(单张无缝)/`tile_object`(瓦片对齐物件)/`scene_object`(大场景物) | 像素瓦片专模,实测推荐;**喂色板**锁风格(`docs/style/palette.png`);各模式对应用途见 `TILE_ASSETS.md` |
+| **RetroDiffusion**(retrodiffusion.ai) | 选 tile 模式:`tileset`(整套自动拼接)/`single_tile`(单张无缝)/`tile_object`(瓦片对齐物件)/`scene_object`(大场景物) | 像素瓦片专模,实测推荐;各模式对应用途见 `TILE_ASSETS.md` |
 | **[PixelLab 瓦片工具](https://www.pixellab.ai/docs/tools/create-tileset)** | 文字或贴图 → 生成整套 tileset,可导出 **Wang / dual-grid 15 / 3×3** 格式 | 直接出引擎友好的 autotile 排布,省拼装功夫 |
 | 通用生图(混元 TokenHub 等) | 提示词写明 `seamless tileable texture, 32x32 pixel art, top-down/side view` | 出**单张无缝纹理**还行,整套 autotile 别指望;产物交给路线 C 的 Tilesetter 切 |
 
-**提示词要点**(实测有效):写明 `seamless / tileable`、视角(横版写 `side view platformer tile`)、尺寸、`limited palette`、贴主题词(我们的:青冷石、霜苔、神社、凝晶)。
+**提示词要点**(实测有效):写明 `seamless / tileable`、视角(横版写 `side view platformer tile`)、尺寸、贴主题词。
 
 ## 路线 B:现成包(零成本保底)
 
@@ -38,10 +38,10 @@
 把瓦片 **2×2 平铺**看一眼:接缝处有没有亮线/断纹/重复感过强的图案。
 (AI 出的"伪无缝"很常见,平铺一下立刻现形;不过关就让工具重roll或手修边缘几列像素。)
 
-## 色板纪律
+## 色板(暂不锁定,2026-06 用户定)
 
-所有瓦片过同一色板(`docs/style/palette.png`,世界观:**世界是冷的、你是暖的、冻结是亮蓝的**,详见 `WORLD.md`)。
-AI 出图后可让 Claude 用脚本做色板量化对齐,不用手修。
+颜色现阶段**不做统一规定**——按工具默认/素材自带配色出即可。
+等素材成规模后若想统一色调,Claude 可用脚本对已有素材做色板量化,一次性补齐(不用手修)。
 
 ## 交付规格(给 Claude 时对照)
 

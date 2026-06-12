@@ -17,7 +17,7 @@
 - `scripts/sprite_sheet.gd`：精灵表→SpriteFrames 切片器（**FX 依赖，勿删**）
 - `shaders/flash.gdshader`、`art/fx/`、`assets/sfx/`：**FX 依赖资源，勿删**
 - `fonts/zpix.ttf`：像素中文字体
-- **工具** `tools/`：`sprite-keyer`(手机网页:选帧/抠图/对齐/导横条,当前主力) `enemy-designer` `composer` `tilemap` `sprite-rigger`
+- **工具** `tools/`：`sprite-keyer`(手机网页:选帧/抠图/对齐/导横条,当前主力) `enemy-designer` `composer` `tilemap`(sprite-rigger/sprite-forge 已删,在 git 历史)
 - **构建/配置**：`.github/workflows/build.yml`(CI 导出网页版到 Pages)、`export_presets.cfg`、`project.godot`、`.mcp.json`
 - **文档** `docs/`：`TIMESTOP.md`(当前游戏) `SPRITE_PIPELINE.md`(选帧/抠图/对齐) `CLOUD_WORKFLOW.md`(出素材流程) `AI_TOOLS.md` `ASSET_SOURCING.md` `LUDO_MCP.md` `LEARN_GODOT.md` 本文件
 

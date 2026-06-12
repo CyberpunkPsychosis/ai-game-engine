@@ -75,26 +75,9 @@ jobs:
           name: AIGameEngine-Windows
           path: build/windows/
 
-      - name: 安装 Node
-        continue-on-error: true
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: tools/sprite-rigger/package-lock.json
-
-      - name: 构建像素拼装工具
-        continue-on-error: true
-        working-directory: tools/sprite-rigger
-        run: |
-          npm ci
-          npm run build
-
-      - name: 把工具并入网页输出 (/tools/sprite-rigger)
+      - name: 把工具并入网页输出
         continue-on-error: true   # 工具是附带品，缺了也要让游戏先上线
         run: |
-          mkdir -p build/web/tools/sprite-rigger
-          cp -r tools/sprite-rigger/dist/* build/web/tools/sprite-rigger/
           mkdir -p build/web/tools/composer
           cp -r tools/composer/* build/web/tools/composer/
           mkdir -p build/web/tools/tilemap
@@ -103,8 +86,6 @@ jobs:
           cp -r tools/enemy-designer/* build/web/tools/enemy-designer/
           mkdir -p build/web/tools/sprite-keyer
           cp -r tools/sprite-keyer/* build/web/tools/sprite-keyer/
-          mkdir -p build/web/tools/sprite-forge
-          cp -r tools/sprite-forge/* build/web/tools/sprite-forge/
           mkdir -p build/web/assets
           cp -r assets/* build/web/assets/ 2>/dev/null || true
           mkdir -p build/web/scenes

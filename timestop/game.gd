@@ -429,6 +429,11 @@ func _build_touch(cl: CanvasLayer) -> void:
 	touch_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	cl.add_child(touch_panel)
 	touch_panel.gui_input.connect(_on_touch)
+	# 桌面(无触摸屏)默认隐藏虚拟按键并放行鼠标; 若真有触摸事件再现形(触屏笔电兜底)
+	if not DisplayServer.is_touchscreen_available():
+		_set_touch_visible(false)
+	else:
+		touch_mode = true
 
 func _on_touch(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
@@ -447,6 +452,14 @@ func _on_touch(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		if joy_id == -1:
 			_joy_update(event.position)
+
+## 虚拟按键显隐: 隐时面板放行鼠标(桌面键鼠直达 _unhandled_input)
+func _set_touch_visible(on: bool) -> void:
+	touch_mode = on
+	if touch_ui:
+		touch_ui.visible = on
+	if touch_panel:
+		touch_panel.mouse_filter = Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
 
 func _touch_press(idx: int, pos: Vector2) -> void:
 	touch_mode = true
@@ -583,6 +596,8 @@ func _handle_keys() -> void:
 		do_dodge()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch and event.pressed and not touch_mode:
+		_set_touch_visible(true)            # 触屏设备兜底现形
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		freeze_single(_mouse_world(), 260.0)
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and not touch_mode:

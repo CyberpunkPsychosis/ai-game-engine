@@ -41,5 +41,6 @@ https://cyberpunkpsychosis.github.io/ai-game-engine/
 
 ## 工具链速查（`tools/`，纯前端，CI 部署到 GitHub Pages）
 - `tools/sprite-keyer/` **手机网页版精灵抠图**：导入视频/GIF→选帧→交互抠图(取色/容差/边缘连通/收边/橡皮)→对齐→导透明横条，发我切帧接入（当前主力素材工具）
+- `tools/sprite-forge/` **自助 AI 抽卡页**(fal key 存本机)：出角色图(文生图/图生图)→Seedance 出动作视频→下载 mp4 接 sprite-keyer。**用户试后决定不走抽卡、改自学像素画**，工具留着备用
 - `tools/enemy-designer/` 怪物路线画布 · `tools/composer/` 关卡 · `tools/tilemap/` 瓦片 · `tools/sprite-rigger/` 绑骨（通用编辑器，当前 TimeStop 未必都接）
 - `scripts/autoload/dev_tools.gd` 游戏内实时调参（F1 调参 / F3 透视；手机左上角按钮）

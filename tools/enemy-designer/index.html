@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>怪物导演 · 画布路线</title>
+<style>
+  :root{--ink:#eae6dd;--muted:#9a958a;--panel:#1d2226;--panel2:#262c31;--line:#333b41;--clay:#cc785c;--accent:#5cc0cc;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;background:#11151a;color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}
+  .topbar{position:sticky;top:0;display:flex;align-items:center;gap:5px;padding:7px;background:rgba(20,25,29,.96);
+    border-bottom:1px solid var(--line);z-index:10;flex-wrap:wrap;}
+  .title{font-size:14px;font-weight:700;margin-right:auto;}
+  .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:8px;
+    padding:7px 9px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .btn:active{background:#30373d;} .btn.p{background:var(--clay);border-color:var(--clay);}
+  .btn.on{background:var(--accent);border-color:var(--accent);color:#05222a;}
+  .btn.sm{padding:5px 7px;font-size:12px;}
+  .tools{display:flex;gap:5px;padding:7px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:#171c21;position:sticky;top:46px;z-index:9;}
+  .wrap{padding:10px;}
+  .stagebox{position:relative;width:100%;max-width:760px;margin:0 auto;}
+  canvas{background:#0d1115;border:1px solid var(--line);border-radius:10px;display:block;width:100%;height:auto;touch-action:none;}
+  .cap{font-size:13px;min-height:18px;margin:6px auto;color:#bfe3d2;font-weight:600;max-width:760px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px;margin:10px auto;max-width:760px;}
+  .card h3{margin:0 0 8px;font-size:14px;}
+  .row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px;flex-wrap:wrap;}
+  .row label{color:var(--muted);}
+  input[type=text],input[type=number],select{background:var(--panel2);border:1px solid var(--line);
+    color:var(--ink);border-radius:7px;padding:6px;font-size:13px;}
+  input[type=checkbox]{width:18px;height:18px;}
+  .node{display:flex;align-items:center;gap:6px;font-size:12px;margin:5px 0;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px;flex-wrap:wrap;}
+  .hint{font-size:12px;color:var(--muted);line-height:1.55;}
+  textarea{width:100%;height:130px;background:#0d1115;color:var(--ink);border:1px solid var(--line);border-radius:8px;font-family:monospace;font-size:12px;padding:8px;}
+  .swatch{width:14px;height:14px;border-radius:4px;display:inline-block;}
+  .pill{font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:2px 8px;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="title">🎬 怪物导演</div>
+  <button class="btn sm" id="bPlay">▶ 播放</button>
+  <button class="btn sm" id="bLoop">循环</button>
+  <button class="btn sm" id="bSample">示例</button>
+  <button class="btn sm" id="bNew">新建</button>
+  <button class="btn sm" id="bCopy">复制给AI</button>
+  <button class="btn sm" id="bExport">导出</button>
+  <button class="btn sm" id="bImport">导入</button>
+  <input type="file" id="fileIn" accept="application/json" style="display:none">
+</div>
+<div class="tools" id="tools"></div>
+
+<div class="wrap">
+  <div class="stagebox"><canvas id="stage" width="760" height="420"></canvas></div>
+  <div class="cap" id="cap"></div>
+
+  <div class="card" id="propCard"><h3>选中对象</h3><div id="prop"></div></div>
+  <div class="card"><h3>行动路线文本（复制给我）</h3><textarea id="out" spellcheck="false"></textarea></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const LS="aiengine.director.v2";
+function uid(){return Math.random().toString(36).slice(2,8);}
+const W=760,H=420,GY=H-46;             // 画布尺寸 + 地面y
+const COLORS=["#cc785c","#5cc0cc","#c2a85a","#b07acc","#7ac28a","#cc6a8a"];
+const NODE_ACTS=[["move","路过"],["attack","到此攻击"],["combo","到此连击"],["fire","到此发射弹道"],["summon","到此召唤"],["say","到此说话"],["wait","到此停顿"]];
+
+function blankScene(){return {title:"新场景",
+  entities:[{id:uid(),kind:"player",name:"玩家",x:200,y:GY,color:"#7fd4dd"}],
+};}
+function mantisSample(){
+  const p=uid();
+  const mk=(name,x,y,delay,col)=>({id:uid(),kind:"enemy",name,x,y,color:col,flying:y<GY-10,speed:160,startDelay:delay,path:[]});
+  const A=mk("螳A",560,150,2.0,COLORS[0]);
+  const B=mk("螳B",600,GY,0,COLORS[1]);
+  const C=mk("螳C",660,120,2.0,COLORS[3]);
+  // B: 冲到玩家连戳再退回
+  B.path=[{x:300,y:GY,wait:0,action:"combo",n:3,text:""},{x:600,y:GY,wait:0.4,action:"move",n:1,text:""}];
+  // A/C 从空中俯冲到玩家两侧各砍一下再回去
+  A.path=[{x:250,y:GY,wait:0,action:"attack",n:1,text:""},{x:560,y:150,wait:0.3,action:"move",n:1,text:""}];
+  C.path=[{x:360,y:GY,wait:0,action:"attack",n:1,text:""},{x:660,y:120,wait:0.3,action:"move",n:1,text:""}];
+  // 远程弓手：原地朝玩家抛物线发射3发
+  const D=mk("弓手",710,GY,1.0,COLORS[2]);D.flying=false;
+  D.path=[{x:710,y:GY,wait:0.2,action:"fire",n:1,text:"",proj:{pts:[{x:480,y:110},{x:215,y:GY-18}],curve:true,speed:240,count:3}}];
+  return {title:"三螳螂+弓手",entities:[{id:p,kind:"player",name:"玩家",x:200,y:GY,color:"#7fd4dd"},A,B,C,D]};
+}
+let scene=load()||mantisSample();
+let tool="select", selId=null, drag=null;   // drag={kind:'ent'|'node', ent, idx, dx,dy}
+let fireTarget=null;                          // {ent, node} 正在画弹道的节点
+
+function load(){try{const s=localStorage.getItem(LS);if(s)return JSON.parse(s);}catch(e){}return null;}
+function save(){try{localStorage.setItem(LS,JSON.stringify(scene));}catch(e){}}
+function sel(){return scene.entities.find(e=>e.id===selId);}
+function enemies(){return scene.entities.filter(e=>e.kind==="enemy");}
+function player(){return scene.entities.find(e=>e.kind==="player");}
+function routePts(e){return [{x:e.x,y:e.y},...(e.path||[])];}
+
+// ---------- 工具栏 ----------
+const TOOLS=[["select","✋ 选择/移动"],["enemy","＋ 放怪"],["player","＋ 放玩家"],["path","✏ 画路线"],["erase","🗑 删除"]];
+function renderTools(){
+  const t=$("tools");t.innerHTML="";
+  TOOLS.forEach(([k,lab])=>{const b=document.createElement("button");b.className="btn sm"+(tool===k?" on":"");b.textContent=lab;
+    b.onclick=()=>{tool=k;fireTarget=null;renderTools();renderProp();updateCap();};t.appendChild(b);});
+}
+function updateCap(){
+  const tips={select:"拖动怪/玩家改位置；拖路线上的点可调整。点一下怪选中它。",
+    enemy:"在画布空白处点一下放一只怪（点空中=会飞）。",
+    player:"点画布放玩家起点。",
+    path:"先选中一只怪，再在画布上依次点出它要走的路线（地上/空中都行）。",
+    firePath:"在画布上依次点出弹道经过的点（想要弧线就把中间点抬高/压低）。画完再点一次按钮结束。",
+    erase:"点怪删除整只；点路线上的点删除该点。"};
+  if(!playing)$("cap").textContent=(tool==="firePath"?"🎯 ":"✋ ")+(tips[tool]||"");
+}
+
+// ---------- 画布坐标 ----------
+const cv=$("stage"),ctx=cv.getContext("2d");
+function evPos(ev){const r=cv.getBoundingClientRect();const sx=W/r.width,sy=H/r.height;
+  return {x:(ev.clientX-r.left)*sx, y:(ev.clientY-r.top)*sy};}
+function hitEnt(p){for(let i=scene.entities.length-1;i>=0;i--){const e=scene.entities[i];if(Math.hypot(e.x-p.x,e.y-p.y)<22)return e;}return null;}
+function hitNode(e,p){if(!e||!e.path)return -1;for(let i=0;i<e.path.length;i++){if(Math.hypot(e.path[i].x-p.x,e.path[i].y-p.y)<16)return i;}return -1;}
+
+cv.addEventListener("pointerdown",ev=>{ev.preventDefault();const p=evPos(ev);
+  if(tool==="select"){
+    const e=sel();const ni=hitNode(e,p);
+    if(ni>=0){drag={kind:"node",ent:e,idx:ni};return;}
+    const h=hitEnt(p);if(h){selId=h.id;drag={kind:"ent",ent:h,dx:h.x-p.x,dy:h.y-p.y};onChange();}
+    else{selId=null;onChange();}
+  }else if(tool==="enemy"){
+    const i=enemies().length;const e={id:uid(),kind:"enemy",name:"怪"+String.fromCharCode(65+i),x:p.x,y:p.y,color:COLORS[i%COLORS.length],flying:p.y<GY-12,speed:160,startDelay:0,path:[]};
+    scene.entities.push(e);selId=e.id;tool="select";renderTools();onChange();
+  }else if(tool==="player"){
+    let pl=player();if(pl){pl.x=p.x;pl.y=p.y;}else scene.entities.unshift({id:uid(),kind:"player",name:"玩家",x:p.x,y:p.y,color:"#7fd4dd"});onChange();
+  }else if(tool==="path"){
+    const e=sel();if(!e||e.kind!=="enemy"){$("cap").textContent="⚠ 先用「选择」点一只怪，再画路线";return;}
+    e.path=e.path||[];e.path.push({x:p.x,y:p.y,wait:0,action:"move",n:1,text:""});onChange();
+  }else if(tool==="firePath"){
+    if(!fireTarget){$("cap").textContent="⚠ 先在下方某个『发射弹道』点点「✏画此弹道」";return;}
+    fireTarget.node.proj.pts.push({x:p.x,y:p.y});onChange();
+  }else if(tool==="erase"){
+    const e=sel();const ni=hitNode(e,p);
+    if(ni>=0){e.path.splice(ni,1);onChange();return;}
+    const h=hitEnt(p);if(h&&h.kind==="enemy"){scene.entities=scene.entities.filter(x=>x!==h);if(selId===h.id)selId=null;onChange();}
+  }
+});
+cv.addEventListener("pointermove",ev=>{if(!drag)return;ev.preventDefault();const p=evPos(ev);
+  if(drag.kind==="ent"){drag.ent.x=clamp(p.x+drag.dx,8,W-8);drag.ent.y=clamp(p.y+drag.dy,8,H-8);if(drag.ent.kind==="enemy")drag.ent.flying=drag.ent.y<GY-12;}
+  else if(drag.kind==="node"){drag.ent.path[drag.idx].x=clamp(p.x,8,W-8);drag.ent.path[drag.idx].y=clamp(p.y,8,H-8);}
+  save();renderProp();syncOut();
+});
+cv.addEventListener("pointerup",()=>{drag=null;});
+cv.addEventListener("pointercancel",()=>{drag=null;});
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+// ---------- 属性面板 ----------
+function renderProp(){
+  const c=$("prop");c.innerHTML="";const e=sel();
+  if(!e){c.innerHTML='<div class="hint">点画布上的怪/玩家来编辑。空白处用上面的工具放置。</div>';return;}
+  if(e.kind==="player"){c.innerHTML='<div class="row"><span class="swatch" style="background:'+e.color+'"></span><b>玩家</b> <span class="pill">起点 ('+(e.x|0)+','+(e.y|0)+')</span></div>';return;}
+  const r1=document.createElement("div");r1.className="row";
+  r1.innerHTML='<span class="swatch" style="background:'+e.color+'"></span>';
+  const nm=document.createElement("input");nm.type="text";nm.value=e.name;nm.style.width="90px";nm.oninput=()=>{e.name=nm.value;onChange();};r1.appendChild(nm);
+  r1.insertAdjacentHTML("beforeend",'<span class="pill">起点 ('+(e.x|0)+','+(e.y|0)+')</span>');c.appendChild(r1);
+  const r2=document.createElement("div");r2.className="row";
+  r2.innerHTML='<label>会飞</label>';const fl=document.createElement("input");fl.type="checkbox";fl.checked=!!e.flying;fl.onchange=()=>{e.flying=fl.checked;onChange();};r2.appendChild(fl);
+  r2.insertAdjacentHTML("beforeend",'<label>速度</label>');const sp=document.createElement("input");sp.type="number";sp.step=10;sp.value=e.speed;sp.style.width="70px";sp.oninput=()=>{e.speed=+sp.value;onChange();};r2.appendChild(sp);
+  r2.insertAdjacentHTML("beforeend",'<label>出场延迟</label>');const dl=document.createElement("input");dl.type="number";dl.step=0.2;dl.value=e.startDelay;dl.style.width="60px";dl.oninput=()=>{e.startDelay=+dl.value;onChange();};r2.appendChild(dl);r2.insertAdjacentHTML("beforeend",'<span class="hint">秒</span>');c.appendChild(r2);
+  // 路线节点
+  const h=document.createElement("div");h.className="row";h.innerHTML='<b>路线点</b> <span class="hint">用「✏画路线」在画布上加；这里调每个点的动作</span>';c.appendChild(h);
+  (e.path||[]).forEach((n,i)=>{
+    const row=document.createElement("div");row.className="node";
+    row.insertAdjacentHTML("beforeend",'<b>'+(i+1)+'</b> <span class="hint">('+(n.x|0)+','+(n.y|0)+')</span>');
+    const sel2=document.createElement("select");NODE_ACTS.forEach(a=>{const o=document.createElement("option");o.value=a[0];o.textContent=a[1];sel2.appendChild(o);});sel2.value=n.action;sel2.onchange=()=>{n.action=sel2.value;if(n.action==="fire"&&!n.proj)n.proj={pts:[],curve:true,speed:280,count:1};onChange();};row.appendChild(sel2);
+    if(n.action==="attack"||n.action==="combo"){const inp=document.createElement("input");inp.type="number";inp.min=1;inp.value=n.n;inp.style.width="48px";inp.oninput=()=>{n.n=+inp.value;onChange();};row.appendChild(inp);row.insertAdjacentHTML("beforeend",'<span class="hint">下</span>');}
+    if(n.action==="fire"){if(!n.proj)n.proj={pts:[],curve:true,speed:280,count:1};const pr=n.proj;
+      const drawBtn=document.createElement("button");drawBtn.className="btn sm"+(fireTarget&&fireTarget.node===n?" on":"");
+      drawBtn.textContent=(fireTarget&&fireTarget.node===n)?"✏画弹道中…再点结束":"✏画此弹道";
+      drawBtn.onclick=()=>{if(fireTarget&&fireTarget.node===n){fireTarget=null;tool="select";}else{fireTarget={ent:e,node:n};tool="firePath";}renderTools();onChange();};
+      row.appendChild(drawBtn);
+      const cv2=document.createElement("label");cv2.className="hint";cv2.style.display="flex";cv2.style.alignItems="center";cv2.style.gap="3px";
+      const cb=document.createElement("input");cb.type="checkbox";cb.checked=pr.curve;cb.onchange=()=>{pr.curve=cb.checked;onChange();};cv2.appendChild(cb);cv2.appendChild(document.createTextNode("弧线"));row.appendChild(cv2);
+      row.insertAdjacentHTML("beforeend",'<span class="hint">弹速</span>');const sv=document.createElement("input");sv.type="number";sv.step=20;sv.value=pr.speed;sv.style.width="58px";sv.oninput=()=>{pr.speed=+sv.value;onChange();};row.appendChild(sv);
+      row.insertAdjacentHTML("beforeend",'<span class="hint">发数</span>');const cn=document.createElement("input");cn.type="number";cn.min=1;cn.value=pr.count;cn.style.width="44px";cn.oninput=()=>{pr.count=+cn.value;onChange();};row.appendChild(cn);
+      row.insertAdjacentHTML("beforeend",'<span class="hint">'+pr.pts.length+'点</span>');
+      if(pr.pts.length){const cl=document.createElement("button");cl.className="btn sm";cl.textContent="清弹道";cl.onclick=()=>{pr.pts=[];onChange();};row.appendChild(cl);}}
+    if(n.action==="summon"){const inp=document.createElement("input");inp.type="number";inp.min=1;inp.value=n.n;inp.style.width="48px";inp.oninput=()=>{n.n=+inp.value;onChange();};row.appendChild(inp);row.insertAdjacentHTML("beforeend",'<span class="hint">只</span>');}
+    if(n.action==="say"){const inp=document.createElement("input");inp.type="text";inp.placeholder="台词";inp.value=n.text;inp.style.width="110px";inp.oninput=()=>{n.text=inp.value;onChange();};row.appendChild(inp);}
+    row.insertAdjacentHTML("beforeend",'<span class="hint">停</span>');const wt=document.createElement("input");wt.type="number";wt.min=0;wt.step=0.2;wt.value=n.wait;wt.style.width="52px";wt.oninput=()=>{n.wait=+wt.value;onChange();};row.appendChild(wt);row.insertAdjacentHTML("beforeend",'<span class="hint">秒</span>');
+    const del=document.createElement("button");del.className="btn sm";del.textContent="🗑";del.onclick=()=>{e.path.splice(i,1);onChange();};row.appendChild(del);
+    c.appendChild(row);
+  });
+  if(e.path&&e.path.length){const cl=document.createElement("button");cl.className="btn sm";cl.textContent="清空路线";cl.onclick=()=>{e.path=[];onChange();};c.appendChild(cl);}
+}
+
+// ---------- 文本导出 ----------
+function actLabel(n){let fire="";if(n.action==="fire"&&n.proj){const pts=n.proj.pts.map(p=>"("+(p.x|0)+","+(p.y|0)+")").join("→");
+    fire="发射弹道"+(n.proj.curve?"(弧线)":"(直线)")+" "+(n.proj.count||1)+"发 弹速"+n.proj.speed+" 轨迹:此点→"+(pts||"未画");}
+  const m={move:"路过",attack:"攻击"+(n.n||1)+"下",combo:"连击"+(n.n||1)+"下",fire:fire,summon:"召唤"+(n.n||1)+"只",say:'说"'+(n.text||"")+'"',wait:"停顿"}[n.action]||"路过";
+  return m+((n.wait>0&&n.action!=="wait")?("·停"+n.wait+"s"):"");}
+function sceneText(){
+  const L=[];L.push("场景: "+scene.title+"（侧视，画布 "+W+"×"+H+"，地面 y="+GY+"，y越小越高/空中）");
+  const pl=player();if(pl)L.push("玩家起点: ("+(pl.x|0)+","+(pl.y|0)+")");
+  L.push("怪与路线:");
+  enemies().forEach(e=>{
+    let s="  - "+e.name+(e.flying?"[飞]":"")+" 起点("+(e.x|0)+","+(e.y|0)+") 速度"+e.speed+(e.startDelay>0?(" 延迟"+e.startDelay+"s出场"):"");
+    L.push(s);
+    if(e.path&&e.path.length){const segs=e.path.map(n=>"("+(n.x|0)+","+(n.y|0)+")["+actLabel(n)+"]");
+      L.push("      路线: 起点 → "+segs.join(" → "));}
+    else L.push("      路线: 原地不动");
+  });
+  L.push("");L.push("（具体伤害/手感我来定，做好后你试玩用游戏内 ⚙调参 面板即时微调）");
+  return L.join("\n");
+}
+function syncOut(){$("out").value=sceneText()+"\n\n```json\n"+JSON.stringify(scene,null,2)+"\n```";}
+function onChange(){renderProp();syncOut();save();updateCap();}
+
+// ---------- 播放 ----------
+let playing=false,loop=false,t0=0;
+function totalDur(){let mx=2;enemies().forEach(e=>{mx=Math.max(mx,enemyDur(e)+(e.startDelay||0));});return mx;}
+function enemyDur(e){const pts=routePts(e);let t=0;for(let i=1;i<pts.length;i++){t+=dist(pts[i-1],pts[i])/Math.max(20,e.speed);t+=actDur(e.path[i-1]);}return t;}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+function actDur(n){if(!n)return 0;let d=n.wait||0;if(n.action==="attack")d+=0.3*Math.max(1,n.n||1);if(n.action==="combo")d+=0.3*Math.max(1,n.n||1);if(n.action==="say")d+=1.2;if(n.action==="summon")d+=0.4;if(n.action==="fire"&&n.proj)d+=0.25*Math.max(1,n.proj.count||1);return d;}
+// 弹道平滑(Catmull-Rom)与采样
+function smoothPath(pts,curve){if(pts.length<3||!curve)return pts.slice();const out=[];const SEG=10;
+  for(let i=0;i<pts.length-1;i++){const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||p2;
+    for(let j=0;j<SEG;j++){const t=j/SEG,t2=t*t,t3=t2*t;
+      out.push({x:0.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3),
+                y:0.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3)});}}
+  out.push(pts[pts.length-1]);return out;}
+function polyAt(samp,d){if(samp.length<2)return null;let acc=0;for(let i=1;i<samp.length;i++){const seg=dist(samp[i-1],samp[i]);if(d<=acc+seg){const f=seg>0?(d-acc)/seg:0;return {x:samp[i-1].x+(samp[i].x-samp[i-1].x)*f,y:samp[i-1].y+(samp[i].y-samp[i-1].y)*f};}acc+=seg;}return null;}
+// 每个路线点动作的开始全局时刻
+function nodeTimes(e){const pts=routePts(e);let t=e.startDelay||0;const arr=[];
+  for(let i=1;i<pts.length;i++){t+=dist(pts[i-1],pts[i])/Math.max(20,e.speed);const n=e.path[i-1];arr.push({n,actStart:t});t+=actDur(n);}return arr;}
+function enemyStateAt(e,T){const pts=routePts(e);let t=T-(e.startDelay||0);
+  if(t<0)return {x:e.x,y:e.y,act:null};
+  for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];const seg=dist(a,b)/Math.max(20,e.speed);
+    if(t<=seg){const f=seg>0?t/seg:1;return {x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f,act:null};}
+    t-=seg;const n=e.path[i-1];const ad=actDur(n);
+    if(t<=ad){const act=(n.action==="attack"||n.action==="combo")?{type:n.action,n:n.n}:(n.action==="say"?{type:"say",text:n.text}:(n.action==="summon"?{type:"summon",n:n.n}:null));
+      return {x:b.x,y:b.y,act,prog:ad>0?t/ad:0};}
+    t-=ad;}
+  const last=pts[pts.length-1];return {x:last.x,y:last.y,act:null,done:true};
+}
+function play(){if(enemies().length===0)return;playing=true;t0=performance.now();}
+function draw(){
+  ctx.clearRect(0,0,W,H);ctx.fillStyle="#0d1115";ctx.fillRect(0,0,W,H);
+  // 网格+地面
+  ctx.strokeStyle="#1b2127";ctx.lineWidth=1;for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.strokeStyle="#3a444c";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,GY);ctx.lineTo(W,GY);ctx.stroke();
+  ctx.fillStyle="#566";ctx.font="11px sans-serif";ctx.textAlign="left";ctx.fillText("地面",6,GY-5);ctx.fillText("↑空中",6,18);
+  // 路线
+  enemies().forEach(e=>{const pts=routePts(e);if(pts.length<2)return;const isSel=e.id===selId;
+    ctx.strokeStyle=isSel?e.color:hexA(e.color,0.5);ctx.lineWidth=isSel?3:2;ctx.setLineDash(isSel?[]:[6,5]);
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);ctx.stroke();ctx.setLineDash([]);
+    (e.path||[]).forEach((n,i)=>{const isAtk=n.action==="attack"||n.action==="combo";const isFire=n.action==="fire";
+      ctx.fillStyle=isFire?"#ff8a4a":(isAtk?"#ff6b6b":"#cfc9bd");ctx.beginPath();ctx.arc(n.x,n.y,isSel?6:4,0,7);ctx.fill();
+      if(isSel){ctx.fillStyle="#9a958a";ctx.font="10px sans-serif";ctx.textAlign="center";ctx.fillText(String(i+1),n.x,n.y-9);}});
+  });
+  // 弹道轨迹（橙色虚线，从发射点画到末端 + 箭头）
+  enemies().forEach(e=>{(e.path||[]).forEach(n=>{if(n.action!=="fire"||!n.proj||!n.proj.pts.length)return;
+    const full=[{x:n.x,y:n.y},...n.proj.pts];const samp=smoothPath(full,n.proj.curve);
+    ctx.strokeStyle=hexA("#ff8a4a",0.85);ctx.lineWidth=2;ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.moveTo(samp[0].x,samp[0].y);for(let i=1;i<samp.length;i++)ctx.lineTo(samp[i].x,samp[i].y);ctx.stroke();ctx.setLineDash([]);
+    const a=samp[samp.length-2]||samp[0],b=samp[samp.length-1],ang=Math.atan2(b.y-a.y,b.x-a.x);
+    ctx.fillStyle="#ff8a4a";ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x-9*Math.cos(ang-0.4),b.y-9*Math.sin(ang-0.4));ctx.lineTo(b.x-9*Math.cos(ang+0.4),b.y-9*Math.sin(ang+0.4));ctx.closePath();ctx.fill();
+    n.proj.pts.forEach(pt=>{ctx.fillStyle="#ffb37a";ctx.beginPath();ctx.arc(pt.x,pt.y,3,0,7);ctx.fill();});});});
+  // 播放
+  let T=0;if(playing){T=(performance.now()-t0)/1000;const dur=totalDur();
+    if(T>=dur){if(loop){t0=performance.now();T=0;}else{playing=false;$("cap").textContent="✔ 播放完";}}}
+  // 实体
+  scene.entities.forEach(e=>{
+    let x=e.x,y=e.y,act=null;
+    if(e.kind==="enemy"&&playing){const st=enemyStateAt(e,T);x=st.x;y=st.y;act=st.act;}
+    const isSel=e.id===selId;
+    if(e.kind==="player"){ctx.fillStyle=e.color;ctx.fillRect(x-9,y-30,18,30);}
+    else{ctx.fillStyle=e.color;roundRect(x-11,y-14,22,28,5);ctx.fill();if(e.flying){ctx.strokeStyle="#cfe";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x-15,y-2);ctx.lineTo(x-11,y-6);ctx.moveTo(x+15,y-2);ctx.lineTo(x+11,y-6);ctx.stroke();}}
+    if(isSel){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.strokeRect(x-13,y-16,26,32);}
+    ctx.fillStyle="#cfc9bd";ctx.font="11px sans-serif";ctx.textAlign="center";ctx.fillText(e.name,x,y+26);
+    if(act){if(act.type==="attack"||act.type==="combo"){ctx.fillStyle="rgba(255,80,80,.55)";const dir=(player()&&x>player().x)?-1:1;ctx.fillRect(x+dir*16-7,y-8,16,18);}
+      else if(act.type==="say"){const tw=ctx.measureText(act.text||"…").width+12;ctx.fillStyle="#0d1115";ctx.strokeStyle="#5cc0cc";ctx.strokeRect(x-tw/2,y-40,tw,16);ctx.fillRect(x-tw/2,y-40,tw,16);ctx.fillStyle="#bfe3d2";ctx.fillText(act.text||"…",x,y-28);}
+      else if(act.type==="summon"){ctx.fillStyle="#b07acc";for(let k=0;k<(act.n||1);k++)ctx.fillRect(x-9-(k+1)*11,y+2,8,12);}}
+  });
+  // 飞行中的弹丸
+  if(playing){enemies().forEach(e=>{const times=nodeTimes(e);
+    times.forEach(({n,actStart})=>{if(n.action!=="fire"||!n.proj||!n.proj.pts.length)return;
+      const full=[{x:n.x,y:n.y},...n.proj.pts];const samp=smoothPath(full,n.proj.curve);
+      let len=0;for(let i=1;i<samp.length;i++)len+=dist(samp[i-1],samp[i]);
+      for(let k=0;k<Math.max(1,n.proj.count||1);k++){const el=T-(actStart+k*0.25);if(el<0)continue;
+        const d=el*n.proj.speed;if(d>len+30)continue;const pos=polyAt(samp,Math.min(d,len));if(!pos)continue;
+        ctx.fillStyle="#ff8a4a";ctx.beginPath();ctx.arc(pos.x,pos.y,6,0,7);ctx.fill();
+        ctx.fillStyle="rgba(255,138,74,.3)";ctx.beginPath();ctx.arc(pos.x,pos.y,10,0,7);ctx.fill();}});});}
+  if(playing)$("cap").textContent="▶ 播放中… "+T.toFixed(1)+"s / "+totalDur().toFixed(1)+"s";
+  requestAnimationFrame(draw);
+}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function hexA(h,a){const n=parseInt(h.slice(1),16);return"rgba("+((n>>16)&255)+","+((n>>8)&255)+","+(n&255)+","+a+")";}
+requestAnimationFrame(draw);
+
+// ---------- 按钮 ----------
+$("bPlay").onclick=play;
+$("bLoop").onclick=()=>{loop=!loop;$("bLoop").classList.toggle("on",loop);};
+$("bNew").onclick=()=>{if(confirm("新建空画布？")){scene=blankScene();selId=null;fireTarget=null;tool="select";renderTools();onChange();}};
+$("bSample").onclick=()=>{if(confirm("载入三螳螂示例？")){scene=mantisSample();selId=null;fireTarget=null;tool="select";renderTools();onChange();}};
+$("bExport").onclick=()=>{const blob=new Blob([JSON.stringify(scene,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(scene.title||"scene")+".json";a.click();};
+$("bImport").onclick=()=>$("fileIn").click();
+$("fileIn").onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{scene=Object.assign(blankScene(),JSON.parse(await f.text()));selId=null;onChange();}catch(err){alert("解析失败");}};
+$("bCopy").onclick=async()=>{try{await navigator.clipboard.writeText(sceneText());$("bCopy").textContent="已复制✓";setTimeout(()=>$("bCopy").textContent="复制给AI",1200);}catch(e){$("out").select();}};
+
+renderTools();updateCap();onChange();
+</script>
+</body>
+</html>

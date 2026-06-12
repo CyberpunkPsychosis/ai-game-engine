@@ -1,0 +1,16 @@
+{
+  "name": "room_a",
+  "purpose": "empty_stage",
+  "world": { "width": 2880, "height": 1080 },
+  "groundY": 1000,
+  "solids": [
+    [0, 1000, 2880, 80],
+    [-40, -400, 40, 1480],
+    [2880, -400, 40, 1480]
+  ],
+  "spawn": { "x": 1440, "y": 956 },
+  "exits": [],
+  "benches": [],
+  "decor": [],
+  "enemies": []
+}

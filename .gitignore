@@ -1,0 +1,11 @@
+# Godot 4 import cache & temp
+.godot/
+.import/
+
+# Export output
+build/
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db

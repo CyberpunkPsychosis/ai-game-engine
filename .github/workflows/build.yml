@@ -1,0 +1,110 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.5"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 缓存 Godot + 导出模板
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-v1
+
+      - name: 安装 Godot + 导出模板（缓存未命中才下载）
+        run: |
+          set -e
+          BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable"
+          mkdir -p ~/godot
+          if [ ! -f ~/godot/godot ]; then
+            curl -sSL -o godot.zip "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+            unzip -q godot.zip
+            mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" ~/godot/godot
+            chmod +x ~/godot/godot
+          fi
+          echo "$HOME/godot" >> "$GITHUB_PATH"
+          TPL="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          if [ ! -d "$TPL" ] || [ -z "$(ls -A "$TPL" 2>/dev/null)" ]; then
+            mkdir -p "$TPL"
+            curl -sSL -o templates.tpz "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+            unzip -q templates.tpz
+            cp templates/* "$TPL"/
+          fi
+
+      - name: 导入资源
+        run: godot --headless --import || true
+
+      - name: 导出网页版
+        run: |
+          mkdir -p build/web
+          godot --headless --export-release "Web" build/web/index.html
+          ls -la build/web
+
+      - name: 导出 Windows 版
+        continue-on-error: true   # 失败不挡网页版部署
+        run: |
+          mkdir -p build/windows
+          godot --headless --export-release "Windows Desktop" build/windows/AIGameEngine.exe
+          ls -la build/windows
+
+      - name: 上传 Windows 版 (双击即玩)
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIGameEngine-Windows
+          path: build/windows/
+
+      - name: 把工具并入网页输出
+        continue-on-error: true   # 工具是附带品，缺了也要让游戏先上线
+        run: |
+          mkdir -p build/web/tools/composer
+          cp -r tools/composer/* build/web/tools/composer/
+          mkdir -p build/web/tools/tilemap
+          cp -r tools/tilemap/* build/web/tools/tilemap/
+          mkdir -p build/web/tools/enemy-designer
+          cp -r tools/enemy-designer/* build/web/tools/enemy-designer/
+          mkdir -p build/web/tools/sprite-keyer
+          cp -r tools/sprite-keyer/* build/web/tools/sprite-keyer/
+          mkdir -p build/web/assets
+          cp -r assets/* build/web/assets/ 2>/dev/null || true
+          mkdir -p build/web/scenes
+          cp -r scenes/* build/web/scenes/ 2>/dev/null || true
+          node -e "const fs=require('fs');const d=fs.existsSync('scenes')?fs.readdirSync('scenes').filter(f=>f.endsWith('.json')&&f!=='index.json'):[];fs.mkdirSync('build/web/scenes',{recursive:true});fs.writeFileSync('build/web/scenes/index.json',JSON.stringify(d));console.log('scenes index:',d)"
+          ls -la build/web/tools
+
+      - name: 打包网页版为 Pages 工件
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy-pages:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

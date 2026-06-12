@@ -1,0 +1,1605 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>关卡编辑器 · 自由＋瓦片 · AI Game Engine</title>
+<style>
+  :root{
+    --ink:#eae6dd; --muted:#9a958a; --panel:#1d2226; --panel2:#262c31;
+    --line:#333b41; --clay:#cc785c; --accent:#5cc0cc; --sel:#ffd24a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;overflow:hidden;background:#11151a;color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    user-select:none;-webkit-user-select:none;}
+  #stage{position:fixed;inset:0;touch-action:none;display:block;}
+  /* top bar */
+  .topbar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;gap:6px;
+    padding:0 8px;background:rgba(20,25,29,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:20;}
+  .topbar .title{font-size:14px;font-weight:700;margin-right:auto;}
+  .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:9px;
+    padding:8px 10px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .btn:active{background:#30373d;}
+  .btn.p{background:var(--clay);border-color:var(--clay);}
+  .btn.sm{padding:7px 9px;font-size:12px;}
+  /* layer tabs */
+  .layers{position:fixed;top:48px;left:0;right:0;height:38px;display:flex;gap:0;z-index:19;
+    background:rgba(20,25,29,.9);border-bottom:1px solid var(--line);}
+  .layers .lt{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;
+    color:var(--muted);border-right:1px solid var(--line);cursor:pointer;gap:5px;}
+  .layers .lt.active{color:var(--ink);background:var(--panel2);box-shadow:inset 0 -2px 0 var(--accent);}
+  .layers .lt small{font-size:10px;color:var(--muted);}
+  /* bottom palette */
+  .palette{position:fixed;left:0;right:0;bottom:0;height:128px;background:rgba(20,25,29,.96);
+    border-top:1px solid var(--line);z-index:18;display:flex;flex-direction:column;transition:transform .2s;}
+  .palette.hidden{transform:translateY(128px);}
+  .cats{display:flex;gap:6px;overflow-x:auto;padding:6px 8px;border-bottom:1px solid var(--line);}
+  .cat{padding:5px 9px;font-size:12px;border-radius:7px;background:var(--panel2);color:var(--muted);
+    white-space:nowrap;cursor:pointer;border:1px solid transparent;}
+  .cat.active{color:var(--ink);border-color:var(--accent);}
+  .pieces{display:flex;gap:6px;overflow-x:auto;padding:8px;flex:1;align-items:center;}
+  .pc{flex:0 0 auto;width:76px;height:76px;background:#0d1115;border:1px solid var(--line);border-radius:8px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;padding:4px;}
+  .pc img{max-width:100%;max-height:100%;image-rendering:auto;}
+  /* selection action bar */
+  .actions{position:fixed;left:0;right:0;bottom:0;z-index:21;display:none;gap:6px;flex-wrap:wrap;
+    padding:8px;background:rgba(20,25,29,.97);border-top:1px solid var(--line);justify-content:center;}
+  .actions.show{display:flex;}
+  .actions .btn{flex:0 0 auto;}
+  /* generic panel */
+  .panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(420px,92vw);
+    max-height:80vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:16px;z-index:40;display:none;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+  .panel.show{display:block;}
+  .panel h3{margin:0 0 12px;font-size:15px;}
+  .row{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:13px;}
+  .row label{flex:0 0 92px;color:var(--muted);}
+  .row input[type=range]{flex:1;}
+  .row input[type=color]{width:42px;height:30px;border:none;background:none;}
+  .row input[type=text],.row select{flex:1;background:var(--panel2);border:1px solid var(--line);
+    color:var(--ink);border-radius:8px;padding:8px;font-size:13px;}
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:39;display:none;}
+  .scrim.show{display:block;}
+  .hint{position:fixed;top:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);
+    color:#fff;font-size:12px;padding:6px 12px;border-radius:20px;z-index:15;pointer-events:none;opacity:0;transition:opacity .3s;}
+  .hint.show{opacity:1;}
+  .menu{position:fixed;top:54px;right:8px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:6px;z-index:30;display:none;flex-direction:column;gap:4px;min-width:150px;}
+  .menu.show{display:flex;}
+  .menu .btn{text-align:left;border:none;background:none;}
+  .menu .btn:active{background:var(--panel2);}
+  .toggle{display:flex;background:var(--panel2);border-radius:8px;overflow:hidden;border:1px solid var(--line);}
+  .toggle button{flex:1;border:none;background:none;color:var(--muted);padding:7px;font-size:12px;font-weight:600;}
+  .toggle button.on{background:var(--accent);color:#04222a;}
+  /* 模式切换(自由/瓦片) */
+  .modesw{display:flex;background:var(--panel2);border-radius:8px;overflow:hidden;border:1px solid var(--line);margin-right:4px;}
+  .modesw button{border:none;background:none;color:var(--muted);padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer;}
+  .modesw button.on{background:var(--clay);color:#fff;}
+  /* 瓦片工具条 */
+  .tilebar{position:fixed;top:86px;left:0;right:0;height:40px;display:none;align-items:center;gap:6px;
+    padding:0 8px;background:rgba(26,32,37,.95);border-bottom:1px solid var(--line);z-index:17;overflow-x:auto;}
+  .tilebar.show{display:flex;}
+  .tilebar .bchip{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:8px;padding:3px 6px;font-size:12px;color:var(--muted);white-space:nowrap;}
+  .tilebar .bchip img{width:30px;height:30px;object-fit:contain;image-rendering:pixelated;background:#0d1115;border-radius:4px;}
+  .tilebar .btn.sm{padding:6px 8px;}
+  .pc.tilekind{outline:2px solid var(--accent);outline-offset:-2px;}
+  .pc .tag{position:absolute;top:2px;left:2px;background:var(--accent);color:#04222a;font-size:9px;font-weight:700;
+    padding:1px 4px;border-radius:4px;}
+  .pc{position:relative;}
+  /* 取块面板 */
+  #cropPanel canvas{max-width:100%;background:#0d1115;border:1px solid var(--line);border-radius:8px;touch-action:none;display:block;margin:8px auto;}
+  #pxCv{image-rendering:pixelated;background:#15191e;border:1px solid var(--line);border-radius:6px;touch-action:none;display:inline-block;margin:6px auto;cursor:crosshair;}
+  /* 右侧刷库竖排 */
+  #libDock{position:fixed;top:128px;right:0;bottom:0;width:88px;background:rgba(20,25,29,.97);
+    border-left:1px solid var(--line);z-index:22;display:none;flex-direction:column;}
+  #libDock.show{display:flex;}
+  #libDock .libgrip{position:absolute;left:-5px;top:0;bottom:0;width:10px;cursor:ew-resize;z-index:1;}
+  #libDock .libgrip::after{content:"";position:absolute;left:3px;top:50%;width:3px;height:36px;margin-top:-18px;background:var(--line);border-radius:2px;}
+  #libList{flex-direction:row;flex-wrap:wrap;}
+  #libDock .libhdr{display:flex;align-items:center;gap:4px;padding:6px;border-bottom:1px solid var(--line);font-size:12px;font-weight:700;}
+  #libDock .libhdr span{margin-right:auto;}
+  #libDock .libhdr button{border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+    border-radius:6px;width:22px;height:22px;line-height:1;padding:0;cursor:pointer;font-weight:700;}
+  #libList{flex:1;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:8px;align-items:center;}
+  #libList .libcard{position:relative;width:72px;text-align:center;}
+  #libList canvas{width:64px;height:64px;background:#0d1115;border:1px solid var(--line);border-radius:8px;image-rendering:pixelated;cursor:pointer;}
+  #libList .libcard.cur canvas{outline:2px solid var(--accent);}
+  #libList .delx{position:absolute;top:-7px;right:-1px;width:20px;height:20px;line-height:1;padding:0;border-radius:50%;
+    border:1px solid var(--line);background:#30373d;color:#fff;cursor:pointer;}
+  #libList .nm{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<div class="topbar">
+  <div class="title">关卡编辑器·b12</div>
+  <div class="modesw" id="modesw">
+    <button data-m="free" class="on">自由摆放</button>
+    <button data-m="tile">瓦片铺</button>
+  </div>
+  <button class="btn sm" id="btnHome">主视角</button>
+  <button class="btn sm" id="btnMarker">标记</button>
+  <button class="btn sm" id="btnPlay">▶ 预览</button>
+  <button class="btn sm p" id="btnMenu">⋯</button>
+</div>
+
+<div class="layers" id="layers"></div>
+
+<!-- 瓦片模式工具条 -->
+<div class="tilebar" id="tilebar">
+  <span class="bchip" id="brushChip"><span style="color:var(--muted)">未选瓦片</span></span>
+  <button class="btn sm" data-t="scaleDn">－</button>
+  <span id="tileScaleV" style="font-size:12px;color:var(--muted);min-width:34px;text-align:center">1.5×</span>
+  <button class="btn sm" data-t="scaleUp">＋</button>
+  <button class="btn sm p" id="btnGrid" data-t="grid">网格:32px</button>
+  <button class="btn sm" id="btnAct" data-t="act">🖌 铺</button>
+  <button class="btn sm" id="btnSnap" data-t="snap" style="display:none">按格移</button>
+  <button class="btn sm" id="btnErase" data-t="erase">🧹 擦除</button>
+  <button class="btn sm" id="btnPx" data-t="px">🔍 像素</button>
+  <button class="btn sm" id="btnDbg" data-t="dbg">▦ 描边</button>
+  <button class="btn sm" id="btnDump" data-t="dump">📋 导出选中</button>
+  <span style="font-size:11px;color:var(--muted);white-space:nowrap">铺/取/选 · 右键擦 · 双指平移</span>
+</div>
+
+<div class="menu" id="menu">
+  <button class="btn" id="mNew">🆕 新建空场景</button>
+  <button class="btn" id="mBg">🎨 背景与雾</button>
+  <button class="btn" id="mSave">💾 保存到仓库</button>
+  <button class="btn" id="mLoad">📂 从仓库读取</button>
+  <button class="btn" id="mExport">⬇ 导出场景(到文件)</button>
+  <button class="btn" id="mImport">⬆ 导入场景(从文件)</button>
+  <button class="btn" id="mPng">🖼 导出预览图</button>
+</div>
+
+<div class="hint" id="hint"></div>
+
+<!-- palette -->
+<div class="palette" id="palette">
+  <div class="cats" id="cats"></div>
+  <div class="pieces" id="pieces"></div>
+</div>
+
+<!-- selection actions -->
+<div class="actions" id="actions">
+  <button class="btn sm" data-a="scaleUp">放大＋</button>
+  <button class="btn sm" data-a="scaleDn">缩小－</button>
+  <button class="btn sm" data-a="rotL">↺</button>
+  <button class="btn sm" data-a="rotR">↻</button>
+  <button class="btn sm" data-a="flip">翻转</button>
+  <button class="btn sm p" data-a="fill">铺满可视区</button>
+  <button class="btn sm" data-a="layer">层↔</button>
+  <button class="btn sm" data-a="front">置顶</button>
+  <button class="btn sm" data-a="back">置底</button>
+  <button class="btn sm" data-a="dup">复制</button>
+  <button class="btn sm" data-a="del">🗑删除</button>
+  <button class="btn sm p" data-a="done">完成</button>
+</div>
+
+<!-- bg panel -->
+<div class="scrim" id="scrim"></div>
+<div class="panel" id="bgPanel">
+  <h3>背景与雾 · 可视区</h3>
+  <div class="row"><label>可视高度</label><input type="range" id="vH" min="400" max="2000"><span id="vHV" style="color:var(--muted)"></span></div>
+  <div class="row"><label>地面线</label><input type="range" id="vG" min="200" max="2000"><span id="vGV" style="color:var(--muted)"></span></div>
+  <div class="row"><label>顶部颜色</label><input type="color" id="bgTop"><span id="bgTopV" style="color:var(--muted)"></span></div>
+  <div class="row"><label>底部颜色</label><input type="color" id="bgBot"><span id="bgBotV" style="color:var(--muted)"></span></div>
+  <div class="row"><label>雾颜色</label><input type="color" id="bgFog"></div>
+  <div class="row"><label>雾浓度</label><input type="range" id="bgFogA" min="0" max="100"><span id="bgFogAV" style="color:var(--muted)"></span></div>
+  <div class="row"><label>萤火虫</label><input type="range" id="bgFire" min="0" max="120"><span id="bgFireV" style="color:var(--muted)"></span></div>
+  <button class="btn p" id="bgClose" style="width:100%;margin-top:8px">完成</button>
+</div>
+
+<!-- marker palette -->
+<div class="panel" id="markPanel">
+  <h3>放置标记（点画布放下）</h3>
+  <div class="row"><label>类型</label>
+    <select id="markType">
+      <option value="spawn">出生点 spawn</option>
+      <option value="enemy">敌人 enemy</option>
+      <option value="exit">出口 exit</option>
+      <option value="hazard">机关 hazard</option>
+    </select>
+  </div>
+  <button class="btn p" id="markClose" style="width:100%;margin-top:8px">开始放置</button>
+</div>
+
+<!-- save panel -->
+<div class="panel" id="savePanel">
+  <h3>保存到仓库</h3>
+  <div class="row"><label>场景名</label><input type="text" id="saveName" placeholder="level1"></div>
+  <div class="row"><label>GitHub 令牌</label><input type="text" id="saveTok" placeholder="自动用上传页存的" autocomplete="off"></div>
+  <div id="saveLog" style="font-size:12px;color:var(--muted);margin:8px 0;white-space:pre-wrap"></div>
+  <button class="btn p" id="saveGo" style="width:100%">提交到 scenes/</button>
+  <button class="btn" id="saveCancel" style="width:100%;margin-top:6px">取消</button>
+</div>
+
+<!-- load panel -->
+<div class="panel" id="loadPanel">
+  <h3>从仓库读取</h3>
+  <div id="loadList" style="font-size:13px"></div>
+  <button class="btn" id="loadCancel" style="width:100%;margin-top:10px">取消</button>
+</div>
+
+<!-- 取块面板 -->
+<div class="panel" id="cropPanel">
+  <h3>取块 · 点格子拿来铺</h3>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:6px">选一张素材 → <b>点一格 = 拿来铺</b>；拖几格 = 拿一整块。网格大小用下面按钮。</div>
+  <div class="cats" id="cropCats" style="border:none;padding:4px 0"></div>
+  <div class="row" id="cropGridRow" style="flex-wrap:wrap;gap:5px;margin:4px 0">
+    <label style="flex:0 0 auto;color:var(--muted)">格子</label>
+    <button class="btn sm" data-g="16">16</button>
+    <button class="btn sm" data-g="24">24</button>
+    <button class="btn sm" data-g="32">32</button>
+    <button class="btn sm" data-g="48">48</button>
+    <button class="btn sm" data-g="64">64</button>
+  </div>
+  <canvas id="cropCv" width="300" height="300"></canvas>
+  <div id="cropInfo" style="font-size:12px;color:var(--muted);text-align:center"></div>
+  <button class="btn" id="cropSaveAll" style="width:100%;margin-top:8px">★ 全部格子 → 刷库</button>
+  <button class="btn" id="cropCancel" style="width:100%;margin-top:6px">取消</button>
+</div>
+
+<!-- 瓦片刷库：右侧常驻竖排(可拉宽) -->
+<div id="libDock">
+  <div class="libgrip" id="libGrip" title="拖动改变宽度"></div>
+  <div class="libhdr"><span>最近取块</span>
+    <button id="libClear" title="清空">🗑</button>
+    <button id="libDockClose" title="收起">×</button></div>
+  <div id="libList"></div>
+</div>
+
+<!-- 像素放大器 -->
+<div class="panel" id="pxPanel" style="width:min(940px,98vw);max-height:94vh">
+  <h3>像素放大器</h3>
+  <div class="row" style="flex-wrap:wrap;gap:6px;margin:2px 0">
+    <button class="btn sm p" id="pxErase">🧽 橡皮</button>
+    <button class="btn sm" id="pxPick">💧 取色</button>
+    <button class="btn sm" id="pxPaint">🖌 刷</button>
+    <span id="pxSwatch" title="当前颜色" style="width:24px;height:24px;border-radius:5px;border:1px solid var(--line);display:inline-block;background:#fff"></span>
+    <button class="btn sm" id="pxZoomOut">－</button><span id="pxZoomV" style="font-size:12px;color:var(--muted);min-width:42px;text-align:center"></span><button class="btn sm" id="pxZoomIn">＋</button>
+    <button class="btn sm" id="pxUndo">↩ 撤销</button>
+  </div>
+  <div style="overflow:auto;max-height:74vh;text-align:center"><canvas id="pxCv"></canvas></div>
+  <div id="pxInfo" style="font-size:12px;color:var(--muted);text-align:center;margin-top:4px">橡皮=擦透明 · 取色=吸取像素颜色 · 刷=用该色画（都实时改这块）</div>
+  <button class="btn" id="pxClose" style="width:100%;margin-top:8px">关闭</button>
+</div>
+
+<input type="file" id="fileIn" accept="application/json" style="display:none">
+
+<script>
+//==================== 配置 ====================
+const OWNER="CyberpunkPsychosis", REPO="ai-game-engine";
+// 保存写入的分支（= 当前开发分支，和 Pages 部署同源一致）
+const BRANCH="claude/game-engine-claude-chat-mbKeN";
+// 素材与场景同源加载（构建时拷进 build/web）—— 读取不需要令牌
+const ASSET_BASE="../../assets/packs/anokolisa/";
+const ANIM_BASE="../../assets/anim/";
+const SCENE_BASE="../../scenes/";
+const PARALLAX={far:0.30, back:0.60, play:1.00, fore:1.18};
+const LAYER_DEF=[
+  {id:"far",  name:"远景"},
+  {id:"back", name:"中背景"},
+  {id:"play", name:"可玩层"},
+  {id:"fore", name:"前景"},
+];
+const MARK_COLOR={spawn:"#46d160",enemy:"#ff5a5a",exit:"#5cc0cc",hazard:"#ffb02e"};
+const MARK_LABEL={spawn:"S",enemy:"E",exit:"X",hazard:"!"};
+
+//==================== 状态 ====================
+const cv=document.getElementById("stage"), ctx=cv.getContext("2d");
+let DPR=Math.min(window.devicePixelRatio||1,2);
+let manifest=null;
+let PAL=[];                        // 统一调色板分类 [{name,key,anim,items}]
+const ANIM={};                    // clipName -> {file,fw,fh,count,cols,fps,role}
+const imgCache=new Map();          // url -> {img, loaded}
+let scene=blankScene();
+let cam={x:0,y:0,zoom:0.5};
+let curLayer="play";
+let sel=null;                      // selected instance id
+let mode="edit";                   // edit | marker | play
+let markType="spawn";
+let palCat=null;
+let t0=performance.now();
+// 瓦片模式
+let placeMode="free";          // free | tile
+let brush=null;                // {asset, crop:[x,y,w,h]|null, w, h}
+let tileScale=1.5;
+let eraseMode=false;
+let painting=false;
+let lastCell=null;             // 防止同格重复盖
+let tileAct="paint";          // paint=铺  grab=框选取块  select=选移
+let grabSel=null;             // 取块框选 {ins,sx,sy,w,h,世界矩形}
+let selTiles=[];             // 选中的瓦片实例(选移用)
+let selBox=null;             // 选移框选矩形(屏幕,临时)
+let moveSnap=true;           // 选移:true=按格 false=按像素
+let dbgTiles=false;          // 调试:描出每块瓦片精确像素边框
+
+function blankScene(){
+  const h=1400;
+  return {
+    version:1, name:"untitled",
+    world:{width:4000,height:h},
+    // 玩家相机：纵向可视高度 h，groundY=可视区底部(地面线)
+    view:{h:Math.round(h*0.72), groundY:h-100},
+    background:{top:"#0a1018",bottom:"#10202c",fog:"#10202c",fogA:0.12,fireflies:0},
+    instances:[], markers:[]
+  };
+}
+
+//==================== 工具 ====================
+const $=id=>document.getElementById(id);
+function showHint(t){const h=$("hint");h.textContent=t;h.classList.add("show");clearTimeout(h._t);h._t=setTimeout(()=>h.classList.remove("show"),1400);}
+function uid(){return Math.random().toString(36).slice(2,9);}
+function hexA(hex,a){const c=hex.replace("#","");const n=parseInt(c.length===3?c.replace(/(.)/g,"$1$1"):c,16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+function layerIndex(id){return LAYER_DEF.findIndex(l=>l.id===id);}
+function parallaxOf(id){return PARALLAX[id]??1;}
+
+function getImg(url){
+  let e=imgCache.get(url);
+  if(e) return e;
+  e={img:new Image(),loaded:false};
+  e.img.crossOrigin="anonymous";
+  e.img.onload=()=>{e.loaded=true;};
+  e.img.src=url;
+  imgCache.set(url,e);
+  return e;
+}
+
+// 取实例的源图与裁剪信息（支持 crop 取块）
+function imgUrlOf(o){ return o.src ? o.src : ASSET_BASE+o.asset; }   // src=像素编辑后的dataURL优先
+function srcDims(ins){
+  if(ins.anim){
+    const c=ANIM[ins.anim];
+    return {url:ANIM_BASE+c.file, fw:c.fw, fh:c.fh, sx:0, sy:0, sw:c.fw, sh:c.fh, anim:c};
+  }
+  const url=imgUrlOf(ins), e=getImg(url);
+  if(ins.crop && !ins.src){const[cx,cy,cw,ch]=ins.crop;return {e,url,fw:cw,fh:ch,sx:cx,sy:cy,sw:cw,sh:ch};}
+  const nw=e.loaded?e.img.naturalWidth:64, nh=e.loaded?e.img.naturalHeight:64;
+  return {e,url,fw:nw,fh:nh,sx:0,sy:0,sw:nw,sh:nh};
+}
+
+// 世界<->屏幕（按图层视差）
+function worldToScreen(wx,wy,p){
+  return [(wx-cam.x*p)*cam.zoom, (wy-cam.y*p)*cam.zoom];
+}
+function screenToWorld(sx,sy,p){
+  return [sx/cam.zoom+cam.x*p, sy/cam.zoom+cam.y*p];
+}
+
+//==================== 画布尺寸 ====================
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  cv.width=innerWidth*DPR; cv.height=innerHeight*DPR;
+  cv.style.width=innerWidth+"px"; cv.style.height=innerHeight+"px";
+}
+addEventListener("resize",resize); resize();
+
+//==================== 渲染 ====================
+function draw(){
+  const t=(performance.now()-t0)/1000;
+  const W=cv.width,H=cv.height;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const w=innerWidth,h=innerHeight;
+  ctx.imageSmoothingEnabled=false;          // 像素画:关插值,瓦片边缘不发虚/不露缝
+  // 背景渐变
+  const g=ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,scene.background.top);
+  g.addColorStop(1,scene.background.bottom);
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+
+  // 实例：按图层(远->近)再按数组序
+  const order=[...scene.instances].sort((a,b)=>
+    layerIndex(a.layer)-layerIndex(b.layer) || (a.z||0)-(b.z||0));
+  for(const ins of order){
+    const p=parallaxOf(ins.layer);
+    const [sx,sy]=worldToScreen(ins.x,ins.y,p);
+    const isAnim=!!ins.anim;
+    let e,fw,fh,srcx=0,srcy=0;
+    if(isAnim){
+      const clip=ANIM[ins.anim];if(!clip)continue;
+      e=getImg(ANIM_BASE+clip.file);fw=clip.fw;fh=clip.fh;
+      const fps=ins.fps||clip.fps;
+      const fi=Math.floor(t*fps)%clip.count;
+      srcx=(fi%clip.cols)*fw;srcy=Math.floor(fi/clip.cols)*fh;
+    }else{
+      const d=srcDims(ins);e=d.e;fw=d.fw;fh=d.fh;srcx=d.sx;srcy=d.sy;
+    }
+    const iw=fw*ins.scale*cam.zoom, ih=fh*ins.scale*cam.zoom;
+    // 边已对齐到设备像素,相邻瓦片本就严丝合缝,无需"溢出"(溢出会因图大小不同把内容推偏→错位)
+    const rot=(ins.rot||0), bl=0;
+    ctx.save();
+    ctx.globalAlpha=ins.opacity==null?1:ins.opacity;
+    if(rot===0){
+      // 左右上下"边"各自取整到设备像素 → 共享世界边的瓦片对齐到同一物理像素(无错位/无缝)
+      const hw=fw*ins.scale/2, hh=fh*ins.scale/2, DP=DPR;
+      const L=Math.round((ins.x-hw-cam.x*p)*cam.zoom*DP)/DP, R=Math.round((ins.x+hw-cam.x*p)*cam.zoom*DP)/DP;
+      const T=Math.round((ins.y-hh-cam.y*p)*cam.zoom*DP)/DP, B=Math.round((ins.y+hh-cam.y*p)*cam.zoom*DP)/DP;
+      const blx=bl/DP;
+      if(e.loaded){
+        if(ins.flipX){ ctx.translate(R+blx,T-blx); ctx.scale(-1,1); ctx.drawImage(e.img,srcx,srcy,fw,fh,0,0,(R-L)+2*blx,(B-T)+2*blx); }
+        else ctx.drawImage(e.img,srcx,srcy,fw,fh,L-blx,T-blx,(R-L)+2*blx,(B-T)+2*blx);
+      }else{ctx.fillStyle="#333";ctx.fillRect(L,T,R-L,B-T);}
+      if(dbgTiles && ins.tile){ctx.strokeStyle="rgba(255,0,255,.9)";ctx.lineWidth=1/DP;ctx.strokeRect(L,T,R-L,B-T);}
+    }else{
+      ctx.translate(Math.round(sx),Math.round(sy));
+      ctx.rotate(rot*Math.PI/180);
+      if(ins.flipX) ctx.scale(-1,1);
+      if(e.loaded){
+        const dw=Math.ceil(iw)+bl*2, dh=Math.ceil(ih)+bl*2;
+        ctx.drawImage(e.img,srcx,srcy,fw,fh,-Math.round(iw/2)-bl,-Math.round(ih/2)-bl,dw,dh);
+      }else{ctx.fillStyle="#333";ctx.fillRect(-iw/2,-ih/2,iw,ih);}
+    }
+    ctx.restore();
+    // 选中描边 + 右下角缩放手柄(拖它改大小)
+    if(ins.id===sel){
+      ctx.save();ctx.translate(sx,sy);ctx.rotate((ins.rot||0)*Math.PI/180);
+      ctx.strokeStyle="#ffd24a";ctx.lineWidth=2;ctx.setLineDash([6,4]);
+      ctx.strokeRect(-iw/2,-ih/2,iw,ih);
+      ctx.setLineDash([]);ctx.fillStyle="#ffd24a";ctx.strokeStyle="#04222a";
+      ctx.beginPath();ctx.arc(iw/2,ih/2,11,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // 大气雾（垂直渐变，营造纵深朦胧）
+  if(scene.background.fogA>0){
+    const fg=ctx.createLinearGradient(0,0,0,h);
+    const fa=scene.background.fogA;
+    fg.addColorStop(0,hexA(scene.background.fog,0));
+    fg.addColorStop(0.55,hexA(scene.background.fog,fa));
+    fg.addColorStop(1,hexA(scene.background.fog,fa*0.55));
+    ctx.fillStyle=fg;ctx.fillRect(0,0,w,h);
+  }
+
+  // 发光孢子（叠加发光）
+  const N=scene.background.fireflies|0;
+  ctx.globalCompositeOperation="lighter";
+  for(let i=0;i<N;i++){
+    const fx=(Math.sin(i*12.9+t*0.13)*0.5+0.5)*w;
+    const fy=(Math.cos(i*7.7+t*0.1)*0.5+0.5)*h;
+    const a=0.25+0.35*Math.sin(t*1.8+i);
+    const r=1.4+1.2*(0.5+0.5*Math.sin(i));
+    const gl=ctx.createRadialGradient(fx,fy,0,fx,fy,r*5);
+    gl.addColorStop(0,`rgba(200,255,210,${a})`);
+    gl.addColorStop(1,"rgba(200,255,210,0)");
+    ctx.fillStyle=gl;ctx.beginPath();ctx.arc(fx,fy,r*5,0,7);ctx.fill();
+  }
+  ctx.globalCompositeOperation="source-over";
+  ctx.globalAlpha=1;
+
+  // 标记
+  for(const m of scene.markers){
+    const [sx,sy]=worldToScreen(m.x,m.y,1);
+    ctx.fillStyle=MARK_COLOR[m.type]||"#fff";
+    ctx.beginPath();ctx.arc(sx,sy,12,0,7);ctx.fill();
+    ctx.fillStyle="#04222a";ctx.font="bold 13px sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(MARK_LABEL[m.type]||"?",sx,sy);
+    if(m===selMarker){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(sx,sy,15,0,7);ctx.stroke();}
+  }
+
+  // 世界边界
+  ctx.strokeStyle="rgba(255,255,255,.08)";ctx.lineWidth=1;
+  const [bx0,by0]=worldToScreen(0,0,1);
+  const [bx1,by1]=worldToScreen(scene.world.width,scene.world.height,1);
+  ctx.strokeRect(bx0,by0,bx1-bx0,by1-by0);
+
+  // 主视角可视区参考（play 模式不画——那时整屏≈玩家所见）
+  if(mode!=="play"){
+    const vTop=scene.view.groundY-scene.view.h, vBot=scene.view.groundY;
+    const syTop=(vTop-cam.y)*cam.zoom, syBot=(vBot-cam.y)*cam.zoom;
+    ctx.fillStyle="rgba(0,0,0,.34)";
+    if(syTop>0)ctx.fillRect(0,0,w,Math.min(syTop,h));
+    if(syBot<h)ctx.fillRect(0,Math.max(0,syBot),w,h-Math.max(0,syBot));
+    // 画面上下边参考(低调青色虚线;不代表硬地面)
+    ctx.strokeStyle="rgba(92,192,204,.7)";ctx.lineWidth=1.5;ctx.setLineDash([10,6]);
+    ctx.beginPath();ctx.moveTo(0,syTop);ctx.lineTo(w,syTop);
+    ctx.moveTo(0,syBot);ctx.lineTo(w,syBot);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="rgba(140,220,230,.8)";ctx.font="11px sans-serif";ctx.textAlign="left";
+    ctx.textBaseline="top";ctx.fillText("▲ 画面顶边",8,Math.max(2,syTop+4));
+    ctx.textBaseline="bottom";ctx.fillText("▼ 画面底边",8,Math.min(h-2,syBot-4));
+  }
+
+  // 自由摆放:也显示世界格(只看不吸附)
+  if(placeMode==="free" && mode!=="play"){
+    const s=gridStepWorld(), p=parallaxOf(curLayer), cw=s*cam.zoom;
+    if(cw>8){
+      ctx.strokeStyle="rgba(255,255,255,.07)";ctx.lineWidth=1;
+      const wxL=cam.x*p; let col0=Math.floor(wxL/s);
+      for(let col=col0; col*s<wxL+w/cam.zoom+s; col++){const sx=(col*s-cam.x*p)*cam.zoom;ctx.beginPath();ctx.moveTo(sx,0);ctx.lineTo(sx,h);ctx.stroke();}
+      const gy=scene.view.groundY;
+      for(let row=-8; row*s<(h/cam.zoom); row++){const sy=((gy-row*s)-cam.y*p)*cam.zoom;if(sy<-cw||sy>h+cw)continue;ctx.beginPath();ctx.moveTo(0,sy);ctx.lineTo(w,sy);ctx.stroke();}
+    }
+  }
+  // 瓦片网格 + 落点高亮(进瓦片模式即显示,不必先选刷子)
+  if(placeMode==="tile" && mode!=="play"){
+    const s=gridStepWorld(); const c={w:s,h:s}; const p=parallaxOf(curLayer);
+    const cw=c.w*cam.zoom, ch=c.h*cam.zoom;
+    if(cw>6 && ch>6){
+      ctx.strokeStyle="rgba(255,210,74,.28)";ctx.lineWidth=1;
+      // 竖线
+      const wxL=cam.x*p, wxR=wxL+w/cam.zoom;
+      let col0=Math.floor(wxL/c.w);
+      for(let col=col0; col*c.w<wxR+c.w; col++){
+        const sx=(col*c.w-cam.x*p)*cam.zoom;
+        ctx.beginPath();ctx.moveTo(sx,0);ctx.lineTo(sx,h);ctx.stroke();
+      }
+      // 横线(从地面线向上下)
+      const gy=scene.view.groundY;
+      for(let row=-6; row*c.h<(h/cam.zoom); row++){
+        const sy=((gy-row*c.h)-cam.y*p)*cam.zoom;
+        if(sy<-ch||sy>h+ch)continue;
+        ctx.beginPath();ctx.moveTo(0,sy);ctx.lineTo(w,sy);ctx.stroke();
+      }
+      // 地面线高亮
+      const syG=(gy-cam.y*p)*cam.zoom;
+      ctx.strokeStyle="rgba(255,210,74,.6)";ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(0,syG);ctx.lineTo(w,syG);ctx.stroke();
+      // 鼠标落点(画瓦片真实footprint,而非格子,便于看大块怎么落)
+      if(hoverCell && brush){
+        const tw=(hoverCell.tw||c.w)*cam.zoom, th=(hoverCell.th||c.h)*cam.zoom;
+        const sxC=(hoverCell.x-(hoverCell.tw||c.w)/2-cam.x*p)*cam.zoom;
+        const syC=(hoverCell.y-(hoverCell.th||c.h)/2-cam.y*p)*cam.zoom;
+        ctx.strokeStyle=eraseMode?"rgba(255,90,90,.9)":"rgba(92,192,204,.95)";
+        ctx.lineWidth=2;ctx.strokeRect(sxC,syC,tw,th);
+      }
+    }
+  }
+
+  // 取块框选高亮
+  if(placeMode==="tile" && grabSel && mode!=="play"){
+    const p=grabSel.p, zx=cam.zoom;
+    const gx=(grabSel.wl-cam.x*p)*zx, gy=(grabSel.wt-cam.y*p)*zx;
+    ctx.fillStyle="rgba(92,192,204,.28)";ctx.fillRect(gx,gy,grabSel.ww*zx,grabSel.wh*zx);
+    ctx.strokeStyle="#5cc0cc";ctx.lineWidth=2;ctx.strokeRect(gx,gy,grabSel.ww*zx,grabSel.wh*zx);
+  }
+  // 智能吸附对齐线
+  if(snapGuides && mode!=="play"){
+    const p=parallaxOf(curLayer);
+    ctx.strokeStyle="rgba(92,192,204,.95)";ctx.lineWidth=1;ctx.setLineDash([4,4]);
+    for(const [ax,val] of snapGuides){
+      if(ax==="x"){const sx=(val-cam.x*p)*cam.zoom;ctx.beginPath();ctx.moveTo(sx,0);ctx.lineTo(sx,h);ctx.stroke();}
+      else{const sy=(val-cam.y*p)*cam.zoom;ctx.beginPath();ctx.moveTo(0,sy);ctx.lineTo(w,sy);ctx.stroke();}
+    }
+    ctx.setLineDash([]);
+  }
+  // 选移:已选描边 + 框选矩形(自由/瓦片都画)
+  if(mode!=="play"){
+    for(const i of selTiles){ const d=srcDims(i),p=parallaxOf(i.layer);
+      const [cx,cy]=worldToScreen(i.x,i.y,p), iw=d.fw*i.scale*cam.zoom, ih=d.fh*i.scale*cam.zoom;
+      ctx.strokeStyle="#ffd24a";ctx.lineWidth=2;ctx.strokeRect(cx-iw/2,cy-ih/2,iw,ih);
+      ctx.fillStyle="rgba(255,210,74,.15)";ctx.fillRect(cx-iw/2,cy-ih/2,iw,ih); }
+    if(selBox){const x=Math.min(selBox.x0,selBox.x1),y=Math.min(selBox.y0,selBox.y1);
+      ctx.strokeStyle="#ffd24a";ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
+      ctx.strokeRect(x,y,Math.abs(selBox.x1-selBox.x0),Math.abs(selBox.y1-selBox.y0));ctx.setLineDash([]);}
+  }
+
+  requestAnimationFrame(draw);
+}
+let hoverCell=null;
+requestAnimationFrame(draw);
+
+//==================== 命中测试 ====================
+function hitInstance(sx,sy){
+  const order=[...scene.instances].sort((a,b)=>
+    layerIndex(a.layer)-layerIndex(b.layer) || (a.z||0)-(b.z||0));
+  for(let i=order.length-1;i>=0;i--){
+    const ins=order[i];const p=parallaxOf(ins.layer);
+    const d=srcDims(ins); if(d.e&&!d.e.loaded&&!ins.anim) continue;
+    const fw=d.fw, fh=d.fh;
+    const [cx,cy]=worldToScreen(ins.x,ins.y,p);
+    const ang=-(ins.rot||0)*Math.PI/180;
+    let dx=sx-cx,dy=sy-cy;
+    const rx=dx*Math.cos(ang)-dy*Math.sin(ang);
+    const ry=dx*Math.sin(ang)+dy*Math.cos(ang);
+    const iw=fw*ins.scale*cam.zoom/2;
+    const ih=fh*ins.scale*cam.zoom/2;
+    if(Math.abs(rx)<=iw&&Math.abs(ry)<=ih) return ins;
+  }
+  return null;
+}
+let selMarker=null;
+// 当前层(可选)下、点下方最顶的零件 —— 给"擦除任意块/右键删"用
+function topInstanceAt(sx,sy,onlyCurLayer){
+  const order=[...scene.instances].sort((a,b)=>
+    layerIndex(a.layer)-layerIndex(b.layer) || (a.z||0)-(b.z||0));
+  for(let i=order.length-1;i>=0;i--){
+    const ins=order[i];
+    if(onlyCurLayer && ins.layer!==curLayer) continue;
+    const p=parallaxOf(ins.layer);
+    const d=srcDims(ins); if(d.e&&!d.e.loaded&&!ins.anim) continue;
+    const [cx,cy]=worldToScreen(ins.x,ins.y,p);
+    const ang=-(ins.rot||0)*Math.PI/180, dx=sx-cx, dy=sy-cy;
+    const rx=dx*Math.cos(ang)-dy*Math.sin(ang), ry=dx*Math.sin(ang)+dy*Math.cos(ang);
+    if(Math.abs(rx)<=d.fw*ins.scale*cam.zoom/2 && Math.abs(ry)<=d.fh*ins.scale*cam.zoom/2) return ins;
+  }
+  return null;
+}
+function hitMarker(sx,sy){
+  for(let i=scene.markers.length-1;i>=0;i--){
+    const m=scene.markers[i];const [mx,my]=worldToScreen(m.x,m.y,1);
+    if(Math.hypot(sx-mx,sy-my)<16) return m;
+  }
+  return null;
+}
+
+//==================== 自由摆放:智能吸附对齐 ====================
+let snapGuides=null;   // 拖动时画的对齐参考线 [['x'|'y', 世界坐标],...]
+function snapMove(o,nx,ny){
+  const d=srcDims(o), hw=d.fw*o.scale/2, hh=d.fh*o.scale/2, thr=10/cam.zoom;
+  const tX=[], tY=[];                                  // 其它同层零件的 左/右/中 与 上/下/中
+  for(const i of scene.instances){ if(i===o||i.layer!==o.layer) continue;
+    const dd=srcDims(i), a=dd.fw*i.scale/2, b=dd.fh*i.scale/2;
+    tX.push(i.x-a,i.x+a,i.x); tY.push(i.y-b,i.y+b,i.y);
+  }
+  let bestX=null,gx=0; for(const off of [-hw,hw,0]){const edge=nx+off;
+    for(const t of tX){const diff=t-edge; if(Math.abs(diff)<thr&&(bestX===null||Math.abs(diff)<Math.abs(bestX))){bestX=diff;gx=t;}}}
+  let bestY=null,gy=0; for(const off of [-hh,hh,0]){const edge=ny+off;
+    for(const t of tY){const diff=t-edge; if(Math.abs(diff)<thr&&(bestY===null||Math.abs(diff)<Math.abs(bestY))){bestY=diff;gy=t;}}}
+  const guides=[];
+  if(bestX!==null){nx+=bestX; guides.push(['x',gx]);}
+  if(bestY!==null){ny+=bestY; guides.push(['y',gy]);}
+  return {x:nx,y:ny,guides};
+}
+
+//==================== 撤销(Ctrl+Z) ====================
+let undoStack=[];
+function snapshot(){return {ins:JSON.parse(JSON.stringify(scene.instances)), mk:JSON.parse(JSON.stringify(scene.markers))};}
+function pushUndo(){undoStack.push(snapshot()); if(undoStack.length>80)undoStack.shift();}
+function undo(){
+  if(!undoStack.length){showHint("没有可撤销的了");return;}
+  const s=undoStack.pop(); scene.instances=s.ins; scene.markers=s.mk;
+  sel=null;selMarker=null;selTiles=[];grabSel=null;updateActions();showHint("已撤销");
+}
+// 把某瓦片中心对齐到世界网格后的坐标(切回按格移动时用,消除像素错位)
+function snapCenterX(i,cxCand){const tw=srcDims(i).fw*i.scale,cw=gridStepWorld();const left=cxCand-tw/2;return Math.round(left/cw)*cw+tw/2;}
+function snapCenterY(i,cyCand){const th=srcDims(i).fh*i.scale,ch=gridStepWorld(),gy=scene.view.groundY;const bottom=cyCand+th/2;return gy-Math.round((gy-bottom)/ch)*ch-th/2;}
+// 屏幕点吸附到所在世界格中心(屏幕坐标),用于按格擦除
+function cellCenterScreen(sx,sy){
+  const p=parallaxOf(curLayer),cw=gridStepWorld(),ch=cw,gy=scene.view.groundY;
+  const [wx,wy]=screenToWorld(sx,sy,p);
+  const col=Math.floor(wx/cw),row=Math.floor((gy-wy)/ch);
+  return worldToScreen((col+0.5)*cw, gy-row*ch-ch/2, p);
+}
+
+//==================== 指针交互 ====================
+const ptrs=new Map();
+let drag=null;        // {type:'pan'|'move'|'pending', ...}
+let pinch=null;
+let lpTimer=null;     // 长按计时
+const LONGPRESS=300;  // ms，长按拿起
+const MOVE_TOL=10;    // px，超过即判定为划动(平移)而非长按
+
+cv.addEventListener("contextmenu",e=>e.preventDefault());   // 右键擦除,不弹菜单
+cv.addEventListener("mousedown",e=>{if(e.button===1)e.preventDefault();}); // 中键:禁用自动滚动
+cv.addEventListener("pointerdown",e=>{
+  cv.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2){ // 进入缩放
+    clearTimeout(lpTimer);
+    const pts=[...ptrs.values()];
+    pinch={d:dist(pts[0],pts[1]),zoom:cam.zoom,
+      cx:(pts[0].x+pts[1].x)/2,cy:(pts[0].y+pts[1].y)/2,camx:cam.x,camy:cam.y};
+    drag=null;return;
+  }
+  const sx=e.clientX,sy=e.clientY;
+  if(e.button===1){ drag={type:"pan",camx:cam.x,camy:cam.y,sx,sy}; return; } // 中键拖=平移(各模式通用)
+  if(mode==="marker"){
+    const [wx,wy]=screenToWorld(sx,sy,1);
+    pushUndo(); scene.markers.push({type:markType,x:Math.round(wx),y:Math.round(wy)});
+    return;
+  }
+  // 瓦片·选移模式：框选已放瓦片 → 拖动整体移动
+  if(placeMode==="tile" && mode==="edit" && tileAct==="select" && e.button!==2){
+    const hit=topInstanceAt(sx,sy,true);
+    if(hit && selTiles.includes(hit)){               // 点中已选 → 整体移动
+      drag={type:"selmove",sx,sy,orig:selTiles.map(i=>({i,x:i.x,y:i.y}))}; return;  // undo 在首次移动时记
+    }
+    drag={type:"selbox",sx0:sx,sy0:sy}; selBox={x0:sx,y0:sy,x1:sx,y1:sy}; selTiles=[]; return;
+  }
+  // 瓦片·取块模式：在画布素材上框选格子取块
+  if(placeMode==="tile" && mode==="edit" && tileAct==="grab" && e.button!==2){
+    const ins=topInstanceAt(sx,sy,true);
+    if(!ins){showHint("先把素材拖到画布,再在它上面框选格子取块");return;}
+    drag={type:"grab",inst:ins,sx0:sx,sy0:sy}; updateGrabSel(ins,sx,sy,sx,sy); return;
+  }
+  // 瓦片模式：单指 = 铺/擦；(双指走上面的缩放分支)
+  if(placeMode==="tile" && mode==="edit"){
+    if(!brush){showHint("先把素材拖到画布(自动选中),或切「✋取」框选取块");return;}
+    const erasing=eraseMode||e.button===2;           // 右键=擦除
+    pushUndo(); painting=true; lastCell=null; stampTile(sx,sy,erasing); drag={type:"tile",erase:erasing}; return;
+  }
+  // 自由摆放:右键 = 删除当前层点下方的零件
+  if(e.button===2){
+    const t=topInstanceAt(sx,sy,true);
+    if(t){pushUndo();scene.instances=scene.instances.filter(i=>i!==t);sel=null;selMarker=null;updateActions();showHint("已删除");}
+    else showHint("右键删本层零件:这里没有");
+    return;
+  }
+  // 先看是不是点在"缩放手柄"上(选中物件右下角)
+  const hb=handleScreen();
+  if(hb && Math.hypot(sx-hb[0],sy-hb[1])<28){
+    const ins=curIns();
+    const sd=srcDims(ins);
+    const bottom=ins.y+sd.fh*ins.scale/2;          // 记录底边世界坐标(缩放时保持不动)
+    drag={type:"resize",ins,fh:sd.fh,bottom,cx:hb[2],cy:hb[3],startScale:ins.scale,startDist:Math.max(10,Math.hypot(sx-hb[2],sy-hb[3]))};
+    return;
+  }
+  // 点中物件/标记 = 直接选中(还能马上拖动)；点空白 = 取消选中并可平移
+  const m=hitMarker(sx,sy);
+  const ins=m?null:hitInstance(sx,sy);
+  // 只能编辑"当前层"的零件：点到别层的零件 → 提示先切层，不误拖
+  if(ins && ins.layer!==curLayer){
+    showHint("这个在「"+(LAYER_DEF.find(l=>l.id===ins.layer)||{}).name+"」层，先点上方该层标签再选/拖");
+    drag={type:"pan",camx:cam.x,camy:cam.y,sx,sy};
+    sel=null;selMarker=null;updateActions();
+    return;
+  }
+  if(ins && selTiles.includes(ins)){                 // 点中已框选的成员 → 整组移动
+    drag={type:"selmove",sx,sy,orig:selTiles.map(i=>({i,x:i.x,y:i.y}))}; return;
+  }
+  if(m||ins){
+    if(ins){sel=ins.id;selMarker=null;selTiles=[];}else{selMarker=m;sel=null;selTiles=[];}
+    updateActions();
+    drag={type:"move",tgt:{kind:m?"marker":"ins",obj:m||ins},ox:(m?m.x:ins.x),oy:(m?m.y:ins.y),sx,sy};
+  }else{
+    // 空白单指拖 = 框选多个(平移用双指/中键)
+    drag={type:"selbox",sx0:sx,sy0:sy}; selBox={x0:sx,y0:sy,x1:sx,y1:sy};
+    sel=null;selMarker=null;selTiles=[];updateActions();
+  }
+});
+cv.addEventListener("pointermove",e=>{
+  if(!ptrs.has(e.pointerId))return;
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(placeMode==="tile"&&brush&&mode==="edit"&&tileAct==="paint") hoverCell=cellAt(e.clientX,e.clientY); else hoverCell=null;
+  if(drag&&drag.type==="grab"){ updateGrabSel(drag.inst,drag.sx0,drag.sy0,e.clientX,e.clientY); return; }
+  if(drag&&drag.type==="selbox"){ selBox={x0:drag.sx0,y0:drag.sy0,x1:e.clientX,y1:e.clientY}; return; }
+  if(drag&&drag.type==="selmove"){
+    if(!drag.undone){pushUndo();drag.undone=true;}
+    const dwx=(e.clientX-drag.sx)/cam.zoom, dwy=(e.clientY-drag.sy)/cam.zoom;
+    const snap=(placeMode==="tile"&&moveSnap);       // 自由摆放始终像素移动
+    drag.orig.forEach(o=>{
+      if(snap){ o.i.x=snapCenterX(o.i,o.x+dwx); o.i.y=snapCenterY(o.i,o.y+dwy); }
+      else{ o.i.x=Math.round(o.x+dwx); o.i.y=Math.round(o.y+dwy); }
+    }); return;
+  }
+  if(painting&&drag&&drag.type==="tile"&&ptrs.size<2){ stampTile(e.clientX,e.clientY,drag.erase); return; }
+  if(pinch&&ptrs.size>=2){
+    const pts=[...ptrs.values()];
+    const nd=dist(pts[0],pts[1]);
+    const nz=Math.max(0.12,Math.min(3,pinch.zoom*nd/pinch.d));
+    const [wxa,wya]=[pinch.cx/pinch.zoom+pinch.camx, pinch.cy/pinch.zoom+pinch.camy];
+    cam.zoom=nz;
+    cam.x=wxa-pinch.cx/nz; cam.y=wya-pinch.cy/nz;
+    return;
+  }
+  if(!drag)return;
+  if(drag.type==="pending"){
+    // 还没长按就划动 → 当作平移，取消"拿起"
+    if(Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)>MOVE_TOL){
+      clearTimeout(lpTimer);
+      drag={type:"pan",camx:cam.x,camy:cam.y,sx:drag.sx,sy:drag.sy};
+    }else return;
+  }
+  if(drag.type==="pan"){
+    cam.x=drag.camx-(e.clientX-drag.sx)/cam.zoom;
+    cam.y=drag.camy-(e.clientY-drag.sy)/cam.zoom;
+  }else if(drag.type==="move"){
+    if(!drag.undone){pushUndo();drag.undone=true;}
+    const o=drag.tgt.obj;
+    let nx=drag.ox+(e.clientX-drag.sx)/cam.zoom, ny=drag.oy+(e.clientY-drag.sy)/cam.zoom;
+    if(placeMode==="free" && drag.tgt.kind==="ins"){const s=snapMove(o,nx,ny);nx=s.x;ny=s.y;snapGuides=s.guides;}
+    o.x=Math.round(nx);o.y=Math.round(ny);
+  }else if(drag.type==="resize"){
+    if(!drag.undone){pushUndo();drag.undone=true;}
+    const d=Math.hypot(e.clientX-drag.cx,e.clientY-drag.cy);
+    drag.ins.scale=Math.max(0.05,Math.min(12, +(drag.startScale*d/drag.startDist).toFixed(3)));
+    drag.ins.y=Math.round(drag.bottom-drag.fh*drag.ins.scale/2);   // 底边固定,向上长
+  }
+});
+function endPtr(e){
+  clearTimeout(lpTimer);
+  snapGuides=null;
+  if(drag&&drag.type==="grab"){ finalizeGrab(); ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
+  if(drag&&drag.type==="selbox"){ finalizeSelBox(); ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
+  if(drag&&drag.type==="selmove"){ ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
+  if(drag&&drag.type==="tile"){painting=false;lastCell=null;ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;return;}
+  // 轻点(未长按未划动) = 选中
+  if(drag&&drag.type==="pending"){
+    if(drag.tgt.kind==="ins"){sel=drag.tgt.obj.id;selMarker=null;}
+    else{selMarker=drag.tgt.obj;sel=null;}
+    updateActions();
+  }
+  ptrs.delete(e.pointerId);
+  if(ptrs.size<2)pinch=null;
+  if(ptrs.size===0)drag=null;
+}
+cv.addEventListener("pointerup",endPtr);
+cv.addEventListener("pointercancel",endPtr);
+// Del/方向键:操作选中的瓦片
+addEventListener("keydown",e=>{
+  const ae=document.activeElement; if(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"))return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){undo();e.preventDefault();return;}
+  if(!selTiles.length)return;
+  if(e.key==="Delete"||e.key==="Backspace"){pushUndo();scene.instances=scene.instances.filter(i=>!selTiles.includes(i));selTiles=[];e.preventDefault();}
+  else if(e.key.startsWith("Arrow")){
+    const g=moveSnap?gridStepWorld():1;
+    const dx=(e.key==="ArrowLeft"?-g:e.key==="ArrowRight"?g:0), dy=(e.key==="ArrowUp"?-g:e.key==="ArrowDown"?g:0);
+    if(dx||dy){pushUndo();selTiles.forEach(i=>{ if(moveSnap){i.x=snapCenterX(i,i.x+dx);i.y=snapCenterY(i,i.y+dy);} else {i.x+=dx;i.y+=dy;} });e.preventDefault();}
+  }
+});
+// 桌面滚轮缩放
+cv.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.1:0.9;
+  const nz=Math.max(0.12,Math.min(3,cam.zoom*f));
+  const [wx,wy]=[e.clientX/cam.zoom+cam.x,e.clientY/cam.zoom+cam.y];
+  cam.zoom=nz;cam.x=wx-e.clientX/nz;cam.y=wy-e.clientY/nz;
+},{passive:false});
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+// 一键铺满可视区：大小=玩家"刚好一屏"(与当前编辑缩放无关)，竖直居中可视区
+function fillToView(ins){
+  const d=srcDims(ins); if(d.e&&!d.e.loaded&&!ins.anim){showHint("图还没加载好，再点一次");return;}
+  const p=parallaxOf(ins.layer);
+  // 玩家可视区(世界单位)：高=view.h，宽=高×屏幕比例(至少16:9)
+  const aspect=Math.max(16/9, innerWidth/innerHeight);
+  const vw=scene.view.h*aspect, vh=scene.view.h;
+  // cover：图世界尺寸盖住该矩形，留 2% 余量。注意:不含 zoom → 预览/编辑一致
+  ins.scale=+(1.02*Math.max(vw/d.fw, vh/d.fh)).toFixed(3);
+  // 预览(主视角)相机参数，保证预览时正好竖直居中可视区
+  const pcy=scene.view.groundY-scene.view.h;     // 主视角相机Y(可视区顶)
+  ins.y=Math.round(vh/2 + pcy*p);                // 让图中心落在可视区中心
+  ins.x=Math.round(cam.x*p + (innerWidth/2)/cam.zoom); // 横向对到你当前在看的位置
+  showHint("已铺满可视区(=玩家一屏)；想让远景一路都有，换「瓦片铺」横向平铺这张背景");
+}
+
+//==================== 瓦片格子 ====================
+// 基准网格(源px)：所有块都吸附到这套固定网格线
+let gridBase=32;
+function gridStepWorld(){ return Math.max(1,Math.round(gridBase*tileScale)); } // 网格步长(世界px,与刷子无关)
+function gridCell(){ // 吸附/网格显示用的格子(世界单位,取整)
+  if(!brush) return null;
+  const s=gridStepWorld();return {w:s,h:s,base:true};
+}
+// 屏幕点 -> 落点。瓦片左下角吸附到网格交点(底边按地面线分行)，向上/右铺其本身大小
+function cellAt(sx,sy){
+  const c=gridCell(); if(!c) return null;
+  const p=parallaxOf(curLayer);
+  const [wx,wy]=screenToWorld(sx,sy,p);
+  const col=Math.floor(wx/c.w);
+  const row=Math.floor((scene.view.groundY-wy)/c.h);     // 0=贴地面线那行
+  const sc=+tileScale.toFixed(3);
+  const tw=brush.w*sc, th=brush.h*sc;                    // 用实际(未取整)尺寸,让左/下边精确落在网格线上
+  const leftX=col*c.w, bottomY=scene.view.groundY-row*c.h; // 网格交点=瓦片左下角
+  return {col,row, x:leftX+tw/2, y:bottomY-th/2, tw, th, w:c.w, h:c.h};
+}
+// 在画布素材上框选 → 吸附到"画布世界网格"(那套黄格),取网格块覆盖到的素材部分
+function updateGrabSel(ins,asx,asy,bsx,bsy){
+  const d=srcDims(ins), p=parallaxOf(ins.layer), sc=ins.scale, fw=d.fw, fh=d.fh;
+  const cw=gridStepWorld(), ch=cw, gy=scene.view.groundY;
+  const left=ins.x-fw*sc/2, top=ins.y-fh*sc/2, right=left+fw*sc, bot=top+fh*sc;
+  const [wx0,wy0]=screenToWorld(asx,asy,p), [wx1,wy1]=screenToWorld(bsx,bsy,p);
+  // 横向吸附到世界竖线(x=col*cw)
+  let X0=Math.floor(Math.min(wx0,wx1)/cw)*cw, X1=Math.ceil(Math.max(wx0,wx1)/cw)*cw;
+  // 纵向吸附到世界横线(y=gy-row*ch)
+  const uMin=Math.floor((gy-Math.max(wy0,wy1))/ch), uMax=Math.ceil((gy-Math.min(wy0,wy1))/ch);
+  let Yt=gy-uMax*ch, Yb=gy-uMin*ch;
+  // 裁到素材范围内
+  X0=Math.max(left,Math.min(right,X0)); X1=Math.max(left,Math.min(right,X1));
+  Yt=Math.max(top,Math.min(bot,Yt));   Yb=Math.max(top,Math.min(bot,Yb));
+  if(X1-X0<1||Yb-Yt<1){grabSel=null;return;}
+  grabSel={ins, sx:(X0-left)/sc, sy:(Yt-top)/sc, w:(X1-X0)/sc, h:(Yb-Yt)/sc,
+    wl:X0, wt:Yt, ww:X1-X0, wh:Yb-Yt, p};
+}
+function finalizeGrab(){
+  if(!grabSel||grabSel.w<2||grabSel.h<2){grabSel=null;return;}
+  const ins=grabSel.ins, d=srcDims(ins);
+  const cx=Math.round(d.sx+grabSel.sx), cy=Math.round(d.sy+grabSel.sy), cw=Math.round(grabSel.w), ch=Math.round(grabSel.h);
+  brush={asset:ins.asset, crop:[cx,cy,cw,ch], w:cw, h:ch};
+  updateBrushChip(); pushRecent(brush);
+  tileAct="paint"; $("btnAct").textContent="🖌 铺"; $("btnAct").classList.remove("p");  // 取完自动切回铺
+  showHint("取了 "+grabSel.w+"×"+grabSel.h+"：现在左键铺·右键擦");
+  grabSel=null;
+}
+// 框选结束:选中本层中心落在框内的瓦片
+function finalizeSelBox(){
+  if(!selBox){selTiles=[];return;}
+  const x0=Math.min(selBox.x0,selBox.x1),x1=Math.max(selBox.x0,selBox.x1);
+  const y0=Math.min(selBox.y0,selBox.y1),y1=Math.max(selBox.y0,selBox.y1);
+  selTiles=scene.instances.filter(i=>i.layer===curLayer && (()=>{
+    const p=parallaxOf(i.layer),[cx,cy]=worldToScreen(i.x,i.y,p);
+    return cx>=x0&&cx<=x1&&cy>=y0&&cy<=y1;
+  })());
+  selBox=null;
+  const snapTxt=(placeMode==="tile"&&moveSnap)?"按格":"像素";
+  showHint(selTiles.length?("选中 "+selTiles.length+" 个：拖动整体移动（"+snapTxt+"）·Del删除"):"框里没有东西");
+}
+function findTileAt(cell){
+  // 基准网格下按"半个瓦片"范围判重,避免细网格拖动堆叠大量重叠块
+  const tx=gridBase>0?Math.max(2,cell.tw*0.5):2, ty=gridBase>0?Math.max(2,cell.th*0.5):2;
+  return scene.instances.find(i=>i.layer===curLayer && i.asset===brush.asset &&
+    JSON.stringify(i.crop||null)===JSON.stringify(brush.crop||null) &&
+    Math.abs(i.x-cell.x)<tx && Math.abs(i.y-cell.y)<ty);
+}
+// 严格按世界格:删"覆盖此格中心、且本层、且是瓦片"的最上面那块
+function eraseAtCell(sx,sy){
+  const p=parallaxOf(curLayer),cw=gridStepWorld(),gy=scene.view.groundY;
+  const [wx,wy]=screenToWorld(sx,sy,p);
+  const col=Math.floor(wx/cw), row=Math.floor((gy-wy)/cw);
+  const ccx=(col+0.5)*cw, ccy=gy-row*cw-cw/2;          // 该格中心(世界)
+  const order=[...scene.instances].sort((a,b)=>layerIndex(a.layer)-layerIndex(b.layer)||(a.z||0)-(b.z||0));
+  for(let i=order.length-1;i>=0;i--){
+    const ins=order[i]; if(ins.layer!==curLayer||!ins.tile)continue;
+    const d=srcDims(ins),hw=d.fw*ins.scale/2,hh=d.fh*ins.scale/2;
+    if(ccx>=ins.x-hw && ccx<ins.x+hw && ccy>=ins.y-hh && ccy<ins.y+hh) return ins;
+  }
+  return null;
+}
+function stampTile(sx,sy,erase){
+  if(erase===undefined) erase=eraseMode;
+  if(erase){                                           // 擦除:以世界格为准,只删该格里的瓦片
+    const t=eraseAtCell(sx,sy);
+    if(t) scene.instances=scene.instances.filter(i=>i!==t);
+    return;
+  }
+  const cell=cellAt(sx,sy); if(!cell) return;
+  const key=cell.col+","+cell.row;
+  if(lastCell===key) return; lastCell=key;
+  const exist=findTileAt(cell);
+  if(exist) return;                                    // 同格已有,不重复
+  scene.instances.push({id:uid(),layer:curLayer,asset:brush.asset||null,src:brush.src||null,
+    crop:brush.crop?brush.crop.slice():null,tile:true,
+    x:cell.x,y:cell.y,scale:+tileScale.toFixed(3),rot:0,flipX:false,z:0,opacity:1});
+}
+
+//==================== 选中操作 ====================
+function curIns(){return scene.instances.find(i=>i.id===sel);}
+// 选中物件右下角的缩放手柄屏幕坐标 [手柄x,手柄y, 中心x,中心y]
+function handleScreen(){
+  const ins=curIns(); if(!ins)return null;
+  const p=parallaxOf(ins.layer);
+  const d=srcDims(ins); if(d.e&&!d.e.loaded&&!ins.anim)return null;
+  const fw=d.fw, fh=d.fh;
+  const [cx,cy]=worldToScreen(ins.x,ins.y,p);
+  const iw=fw*ins.scale*cam.zoom/2, ih=fh*ins.scale*cam.zoom/2;
+  return [cx+iw,cy+ih,cx,cy];
+}
+function updateActions(){
+  $("actions").classList.toggle("show",!!sel||!!selMarker);
+  $("palette").classList.toggle("hidden",!!sel||!!selMarker||mode!=="edit");
+}
+$("actions").addEventListener("click",e=>{
+  const a=e.target.dataset.a;if(!a)return;
+  if(a!=="done")pushUndo();
+  if(selMarker){
+    if(a==="del"){scene.markers=scene.markers.filter(m=>m!==selMarker);selMarker=null;}
+    if(a==="done"){selMarker=null;}
+    updateActions();return;
+  }
+  const ins=curIns();if(!ins)return;
+  if(a==="scaleUp")ins.scale=Math.min(8,ins.scale*1.12);
+  if(a==="scaleDn")ins.scale=Math.max(0.05,ins.scale/1.12);
+  if(a==="rotL")ins.rot=(ins.rot||0)-5;
+  if(a==="rotR")ins.rot=(ins.rot||0)+5;
+  if(a==="flip")ins.flipX=!ins.flipX;
+  if(a==="fill")fillToView(ins);
+  if(a==="layer"){const i=layerIndex(ins.layer);ins.layer=LAYER_DEF[(i+1)%LAYER_DEF.length].id;showHint("图层："+LAYER_DEF.find(l=>l.id===ins.layer).name);}
+  if(a==="front")ins.z=Math.max(0,...scene.instances.filter(i=>i.layer===ins.layer).map(i=>i.z||0))+1;
+  if(a==="back")ins.z=Math.min(0,...scene.instances.filter(i=>i.layer===ins.layer).map(i=>i.z||0))-1;
+  if(a==="dup"){const c={...ins,id:uid(),x:ins.x+30,y:ins.y+30};scene.instances.push(c);sel=c.id;}
+  if(a==="del"){scene.instances=scene.instances.filter(i=>i.id!==sel);sel=null;}
+  if(a==="done"){sel=null;}
+  updateActions();
+});
+
+//==================== 图层标签 ====================
+function buildLayers(){
+  const el=$("layers");el.innerHTML="";
+  LAYER_DEF.forEach(l=>{
+    const d=document.createElement("div");
+    d.className="lt"+(l.id===curLayer?" active":"");
+    d.innerHTML=`${l.name}<small>×${PARALLAX[l.id]}</small>`;
+    d.onclick=()=>{curLayer=l.id;sel=null;selMarker=null;selTiles=[];grabSel=null;updateActions();buildLayers();showHint("当前层："+l.name+"（只能选/拖这一层）");};
+    el.appendChild(d);
+  });
+}
+
+//==================== 调色板（静态零件 + 动画） ====================
+async function loadManifest(){
+  PAL=[];
+  try{
+    manifest=await (await fetch(ASSET_BASE+"manifest.json")).json();
+    manifest.categories.forEach(c=>PAL.push({
+      name:c.name.replace(/_/g," "), key:c.name, anim:false,
+      items:c.pieces.map(p=>({file:p.file,w:p.w,h:p.h,kind:p.kind||"object",tileX:!!p.tileX}))}));
+  }catch(err){showHint("素材清单加载失败");}
+  try{
+    const ar=await (await fetch(ANIM_BASE+"manifest.json")).json();
+    const RN={plant:"🌿动画·植物",enemy:"👾动画·敌人",player:"🧙动画·主角"};
+    const groups={};
+    ar.animations.forEach(c=>{ANIM[c.name]=c;(groups[c.role]=groups[c.role]||[]).push(c.name);});
+    ["player","enemy","plant"].forEach(role=>{
+      if(groups[role])PAL.push({name:RN[role],key:"anim_"+role,anim:true,
+        items:groups[role].map(clip=>({clip}))});
+    });
+  }catch(e){/* 动画可选 */}
+  if(!PAL.length){
+    const c=$("cats"); if(c) c.innerHTML='<span style="color:#9a958a;font-size:12px;padding:6px">暂无素材：请确认素材包 manifest.json 已部署。</span>';
+    return;
+  }
+  palCat=PAL[0].key;buildCats();buildPieces();
+}
+function curCat(){return PAL.find(c=>c.key===palCat);}
+function buildCats(){
+  const el=$("cats");el.innerHTML="";
+  PAL.forEach(c=>{
+    const d=document.createElement("div");
+    d.className="cat"+(c.key===palCat?" active":"");
+    d.textContent=c.name;
+    d.onclick=()=>{palCat=c.key;buildCats();buildPieces();};
+    el.appendChild(d);
+  });
+}
+function buildPieces(){
+  const el=$("pieces");el.innerHTML="";
+  const cat=curCat();if(!cat)return;
+  cat.items.forEach(it=>{
+    const d=document.createElement("div");d.className="pc";
+    if(cat.anim){
+      const c=ANIM[it.clip];const rows=Math.ceil(c.count/c.cols);
+      const box=document.createElement("div");
+      box.style.cssText="width:100%;height:100%;background-repeat:no-repeat;background-position:0 0;";
+      box.style.backgroundImage=`url(${ANIM_BASE+c.file})`;
+      box.style.backgroundSize=`${c.cols*100}% ${rows*100}%`;
+      d.appendChild(box);
+      d.onclick=()=>addAnim(it.clip);
+    }else{
+      const im=document.createElement("img");im.src=ASSET_BASE+it.file;im.loading="lazy";
+      d.appendChild(im);
+      if(it.kind==="tile"){d.classList.add("tilekind");const tg=document.createElement("span");tg.className="tag";tg.textContent="瓦片";d.appendChild(tg);}
+      d.onclick=()=>{ if(placeMode!=="tile") addPiece(it); };   // 自由摆放:点=放
+      bindPieceDrag(d,it);                                       // 瓦片模式:拖到画布=直接铺一块
+    }
+    el.appendChild(d);
+    return;
+  });
+  return;
+}
+// 瓦片模式:把底部素材拖到画布 → 落点直接铺一块;轻点=只是选成当前刷子
+function bindPieceDrag(el,it){
+  el.addEventListener("pointerdown",e=>{
+    if(placeMode!=="tile")return;
+    e.preventDefault();
+    const start={x:e.clientX,y:e.clientY}; let moved=false,ghost=null;
+    const move=ev=>{
+      if(!moved&&Math.hypot(ev.clientX-start.x,ev.clientY-start.y)>8){moved=true;
+        ghost=document.createElement("img");ghost.src=ASSET_BASE+it.file;
+        ghost.style.cssText="position:fixed;pointer-events:none;opacity:.85;width:54px;height:54px;z-index:99;image-rendering:pixelated;";
+        document.body.appendChild(ghost);}
+      if(ghost){ghost.style.left=(ev.clientX-27)+"px";ghost.style.top=(ev.clientY-27)+"px";}
+    };
+    const up=ev=>{
+      window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",up);
+      if(ghost)ghost.remove();
+      setBrushFromPiece(it);                                       // 选成当前刷子
+      const palTop=$("palette").getBoundingClientRect().top;
+      if(moved && ev.clientY<palTop-4){ pushUndo(); lastCell=null; stampTile(ev.clientX,ev.clientY,false); } // 拖到画布:直接铺一块
+    };
+    window.addEventListener("pointermove",move);window.addEventListener("pointerup",up);
+  });
+}
+function placeAt(){return screenToWorld(innerWidth/2,innerHeight/2,parallaxOf(curLayer));}
+function addPiece(p){
+  pushUndo();
+  const [wx]=placeAt();
+  const isBg=curCat() && /背景|Background/i.test(curCat().name);
+  const layer=curLayer;                             // 尊重你当前选的层(不再强制远景)
+  const sc0=isBg?1:+Math.min(1.6,(innerHeight*0.5/cam.zoom)/Math.max(p.w,p.h)).toFixed(3);
+  const wy=scene.view.groundY-(p.h*sc0)/2;          // 暂落地面线
+  const o={id:uid(),layer,asset:p.file,x:Math.round(wx),y:Math.round(wy),scale:sc0,rot:0,flipX:false,z:0};
+  scene.instances.push(o); sel=o.id; selMarker=null; updateActions();
+  const lname=(LAYER_DEF.find(l=>l.id===layer)||{}).name||layer;
+  if(isBg){ fillToView(o); showHint("背景已铺满可视区（"+lname+"层）；拖动微调，或再点「铺满可视区」"); }
+  else showHint("已放到地面线（"+lname+"层）；左右拖摆位置，拖金点缩放，或点「铺满可视区」");
+}
+function addAnim(clip){
+  const c=ANIM[clip];const [wx,wy]=placeAt();
+  const target=innerHeight*0.42/cam.zoom;
+  const sc=Math.min(2,target/Math.max(c.fw,c.fh));
+  scene.instances.push({id:uid(),layer:curLayer,anim:clip,fps:c.fps,
+    x:Math.round(wx),y:Math.round(wy),scale:+sc.toFixed(3),rot:0,flipX:false,z:0});
+  showHint("已放入会动的「"+clip+"」");
+}
+
+//==================== 模式切换：自由 / 瓦片 ====================
+function setMode(m){
+  placeMode=m;
+  document.querySelectorAll("#modesw button").forEach(b=>b.classList.toggle("on",b.dataset.m===m));
+  $("tilebar").classList.toggle("show",m==="tile");
+  if(m==="tile"){sel=null;selMarker=null;updateActions();
+    if(loadLib().length){$("libDock").classList.add("show");renderLib();}
+    showHint("瓦片：拖素材到画布铺 · 切「✋取」框选取块 · 切「⬚选」框选移动");}
+  else{hoverCell=null;selTiles=[];grabSel=null;$("libDock").classList.remove("show");showHint("自由摆放：点素材落地·拖物件摆位·空白拖=框选多个·双指/中键=平移");}
+}
+document.querySelectorAll("#modesw button").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+function setBrushFromPiece(it){
+  brush={asset:it.file,crop:null,w:it.w,h:it.h};
+  updateBrushChip(); pushRecent(brush);
+  showHint("已选「"+it.file.replace(".png","")+"」：左键铺·右键擦（拖到画布可直接落一块）");
+}
+function updateBrushChip(){
+  const chip=$("brushChip");
+  if(!brush){chip.innerHTML='<span style="color:var(--muted)">未选瓦片</span>';return;}
+  chip.innerHTML="";
+  const im=document.createElement("img");im.src=imgUrlOf(brush);chip.appendChild(im);
+  const t=document.createElement("span");t.textContent=brush.src?"像素块":brush.crop?"取块":(brush.asset||"").replace(".png","");chip.appendChild(t);
+}
+$("tilebar").addEventListener("click",e=>{
+  const t=e.target.dataset.t;if(!t)return;
+  if(t==="scaleUp"){tileScale=Math.min(8,+(tileScale*1.12).toFixed(3));}
+  if(t==="scaleDn"){tileScale=Math.max(0.1,+(tileScale/1.12).toFixed(3));}
+  if(t==="erase"){eraseMode=!eraseMode;$("btnErase").classList.toggle("p",eraseMode);
+    showHint(eraseMode?"擦除：单指划掉本层同种瓦片":"恢复铺设");}
+  if(t==="act"){ // 铺 → 取 → 选 三态
+    tileAct = tileAct==="paint"?"grab" : tileAct==="grab"?"select" : "paint";
+    grabSel=null; selTiles=[]; selBox=null;
+    const L={paint:"🖌 铺",grab:"✋ 取",select:"⬚ 选"}; $("btnAct").textContent=L[tileAct];
+    $("btnAct").classList.toggle("p",tileAct!=="paint");
+    $("btnSnap").style.display = tileAct==="select"?"":"none";
+    showHint(tileAct==="grab"?"取块：在画布素材上框选格子，松手=取这块":
+             tileAct==="select"?"选移：框选已放的瓦片→拖动整体移动（按格/像素切换）":"铺设：左键铺·右键擦"); }
+  if(t==="snap"){ moveSnap=!moveSnap; $("btnSnap").textContent=moveSnap?"按格移":"像素移"; $("btnSnap").classList.toggle("p",!moveSnap);
+    showHint(moveSnap?"移动吸附到网格":"移动按像素微调"); }
+  if(t==="grid"){cycleGrid();}
+  if(t==="dbg"){dbgTiles=!dbgTiles;$("btnDbg").classList.toggle("p",dbgTiles);showHint(dbgTiles?"描边:每块瓦片画出精确像素边框(品红)":"关闭描边");}
+  if(t==="dump"){dumpSel();}
+  if(t==="px"){ if(selTiles.length>=1)openPx(selTiles[0]); else showHint("先切「⬚选」选中一块,再点🔍像素"); }
+  $("tileScaleV").textContent=tileScale.toFixed(2)+"×";
+});
+// 导出选中瓦片的精确坐标(排查错位用)
+function dumpSel(){
+  if(!selTiles.length){showHint("先切「⬚选」框选要导出的瓦片,再点导出");return;}
+  const env={gridBase,tileScale,gridStepWorld:gridStepWorld(),groundY:scene.view.groundY,
+    cam:{x:cam.x,y:cam.y,zoom:cam.zoom},DPR,layer:curLayer};
+  const tiles=selTiles.map(i=>{
+    const d=srcDims(i),p=parallaxOf(i.layer),hw=d.fw*i.scale/2,DP=DPR;
+    const leftWorld=i.x-hw;
+    const screenL=Math.round((leftWorld-cam.x*p)*cam.zoom*DP)/DP;
+    return {asset:i.asset,crop:i.crop,x:i.x,y:i.y,scale:i.scale,fw:d.fw,fh:d.fh,sx:d.sx,
+      leftWorld:+leftWorld.toFixed(4),screenL:+screenL.toFixed(4)};
+  }).sort((a,b)=>a.x-b.x||a.y-b.y);
+  const out={env,tiles};
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="tiles_debug.json";a.click();
+  showHint("已导出 "+tiles.length+" 块的坐标数据");
+}
+//==================== 像素放大器 ====================
+let pxState=null; // {ins,buf,bctx,fw,fh,scale,tool,brushSize,sel,drag,undo:[]}
+function openPx(ins){
+  const d=srcDims(ins), e=getImg(d.url);
+  const go=()=>{
+    const fw=d.fw, fh=d.fh;
+    const buf=document.createElement("canvas"); buf.width=fw; buf.height=fh;
+    const bctx=buf.getContext("2d"); bctx.imageSmoothingEnabled=false;
+    bctx.drawImage(e.img,d.sx,d.sy,fw,fh,0,0,fw,fh);
+    const maxDisp=Math.min(640,innerWidth-40);
+    const scale=Math.max(10,Math.min(40,Math.floor(maxDisp/Math.max(fw,fh))));  // 像素够大看得清
+    pushUndo();                                                 // 进编辑前存档,主Ctrl+Z可整体回退
+    pxState={ins,buf,bctx,fw,fh,scale,tool:"erase",color:[255,255,255,255],drag:null,undo:[]};
+    pxSetTool("erase"); $("pxSwatch").style.background="#fff";
+    pxApplyScale(); openPanel("pxPanel");
+  };
+  if(e.loaded)go(); else e.img.addEventListener("load",go,{once:true});
+}
+function pxApplyScale(){
+  const cv2=$("pxCv"); cv2.width=pxState.fw*pxState.scale; cv2.height=pxState.fh*pxState.scale;
+  $("pxZoomV").textContent=pxState.scale+"×";
+  renderPx();
+}
+function pxCommit(){ if(!pxState)return; pxState.ins.src=pxState.buf.toDataURL("image/png"); pxState.ins.crop=null; saveLocal(); } // 实时写回这块
+function renderPx(){
+  if(!pxState)return;
+  const {buf,scale,fw,fh}=pxState, cv2=$("pxCv"), c=cv2.getContext("2d");
+  c.imageSmoothingEnabled=false; c.clearRect(0,0,cv2.width,cv2.height);
+  for(let y=0;y<fh;y++)for(let x=0;x<fw;x++){c.fillStyle=((x+y)&1)?"#1a1e23":"#23282e";c.fillRect(x*scale,y*scale,scale,scale);} // 透明棋盘
+  c.drawImage(buf,0,0,fw,fh,0,0,fw*scale,fh*scale);
+  if(scale>=6){c.strokeStyle="rgba(255,255,255,.08)";c.lineWidth=1;
+    for(let x=0;x<=fw;x++){c.beginPath();c.moveTo(x*scale,0);c.lineTo(x*scale,fh*scale);c.stroke();}
+    for(let y=0;y<=fh;y++){c.beginPath();c.moveTo(0,y*scale);c.lineTo(fw*scale,y*scale);c.stroke();}}
+}
+function pxPix(ev){const cv2=$("pxCv"),r=cv2.getBoundingClientRect();
+  return [Math.floor((ev.clientX-r.left)*cv2.width/r.width/pxState.scale),
+          Math.floor((ev.clientY-r.top)*cv2.height/r.height/pxState.scale)];}
+function pxSnap(){pxState.undo.push(pxState.bctx.getImageData(0,0,pxState.fw,pxState.fh));if(pxState.undo.length>60)pxState.undo.shift();}
+function pxIn(x,y){return x>=0&&y>=0&&x<pxState.fw&&y<pxState.fh;}
+function pxEraseAt(x,y){if(pxIn(x,y))pxState.bctx.clearRect(x,y,1,1);}
+function pxPaintAt(x,y){if(!pxIn(x,y))return;const c=pxState.color;pxState.bctx.clearRect(x,y,1,1);
+  pxState.bctx.fillStyle="rgba("+c[0]+","+c[1]+","+c[2]+","+(c[3]/255)+")";pxState.bctx.fillRect(x,y,1,1);}
+function pxPickAt(x,y){if(!pxIn(x,y))return;const d=pxState.bctx.getImageData(x,y,1,1).data;
+  pxState.color=[d[0],d[1],d[2],d[3]];
+  $("pxSwatch").style.background=d[3]<8?"transparent":"rgb("+d[0]+","+d[1]+","+d[2]+")";
+  $("pxInfo").textContent=d[3]<8?"取到透明像素(刷=擦透明)":"取色 rgb("+d[0]+","+d[1]+","+d[2]+")"; }
+function pxSetTool(t){pxState.tool=t;["erase","pick","paint"].forEach(k=>$("px"+k.charAt(0).toUpperCase()+k.slice(1)).classList.toggle("p",k===t));}
+(function bindPx(){const cv2=$("pxCv");
+  const wrap=()=>cv2.parentElement;
+  cv2.addEventListener("contextmenu",e=>e.preventDefault());
+  cv2.addEventListener("pointerdown",ev=>{if(!pxState)return;
+    if(ev.button!==0){ // 中键/右键 = 拖拽平移放大视图,不操作
+      cv2.setPointerCapture(ev.pointerId);
+      pxState.drag={pan:true,sx:ev.clientX,sy:ev.clientY,sl:wrap().scrollLeft,st:wrap().scrollTop};
+      ev.preventDefault();return;
+    }
+    cv2.setPointerCapture(ev.pointerId);ev.preventDefault();
+    const[x,y]=pxPix(ev);
+    if(pxState.tool==="pick"){pxPickAt(x,y);return;}
+    pxSnap(); pxState.drag={op:pxState.tool};
+    if(pxState.tool==="erase")pxEraseAt(x,y); else pxPaintAt(x,y);
+    renderPx();});
+  cv2.addEventListener("pointermove",ev=>{if(!pxState||!pxState.drag)return;
+    if(pxState.drag.pan){const w=wrap();w.scrollLeft=pxState.drag.sl-(ev.clientX-pxState.drag.sx);w.scrollTop=pxState.drag.st-(ev.clientY-pxState.drag.sy);return;}
+    const[x,y]=pxPix(ev);
+    if(pxState.drag.op==="erase")pxEraseAt(x,y); else pxPaintAt(x,y);
+    renderPx();});
+  cv2.addEventListener("pointerup",()=>{if(!pxState)return;const op=pxState.drag&&pxState.drag.op;pxState.drag=null;if(op)pxCommit();}); // 松手即写回这块
+  cv2.addEventListener("wheel",ev=>{if(!pxState)return;ev.preventDefault();
+    const old=pxState.scale; pxState.scale=Math.max(2,Math.min(60,old+(ev.deltaY<0?2:-2)));
+    if(pxState.scale===old)return;
+    const r=cv2.getBoundingClientRect();
+    const px=(ev.clientX-r.left)*cv2.width/r.width/old, py=(ev.clientY-r.top)*cv2.height/r.height/old; // 光标下的像素
+    pxApplyScale();
+    const w=wrap(), wr=w.getBoundingClientRect();
+    w.scrollLeft=px*pxState.scale-(ev.clientX-wr.left); w.scrollTop=py*pxState.scale-(ev.clientY-wr.top); // 朝光标缩放
+  },{passive:false});
+})();
+$("pxErase").onclick=()=>pxSetTool("erase");
+$("pxPick").onclick=()=>pxSetTool("pick");
+$("pxPaint").onclick=()=>pxSetTool("paint");
+$("pxUndo").onclick=()=>{if(pxState&&pxState.undo.length){pxState.bctx.putImageData(pxState.undo.pop(),0,0);renderPx();pxCommit();}};
+$("pxZoomIn").onclick=()=>{if(!pxState)return;pxState.scale=Math.min(60,pxState.scale+2);pxApplyScale();};
+$("pxZoomOut").onclick=()=>{if(!pxState)return;pxState.scale=Math.max(2,pxState.scale-2);pxApplyScale();};
+$("pxClose").onclick=closePanels;
+
+const GRID_STEPS=[16,24,32,48,64];
+function cycleGrid(){
+  const i=GRID_STEPS.indexOf(gridBase);
+  gridBase=GRID_STEPS[(i+1)%GRID_STEPS.length];
+  $("btnGrid").textContent="网格:"+gridBase+"px";
+  showHint("网格 "+gridBase+"px：所有块吸附到同一套线");
+}
+
+//==================== 取块（按固定网格,点格子=拿来铺） ====================
+let cropState=null; // {file,img,scale,sel:[x,y,w,h]|null,drag}
+function openCropPanel(){            // ✂取块按钮:先选一张素材
+  const cats=$("cropCats");cats.innerHTML="";
+  PAL.filter(c=>!c.anim).forEach(c=>c.items.forEach(it=>{
+    const b=document.createElement("div");b.className="cat";b.textContent=it.file.replace(".png","");
+    b.onclick=()=>loadCropImg(it.file);cats.appendChild(b);
+  }));
+  cropState=null;$("cropInfo").textContent="选一张素材，再点格子拿来铺";
+  const cv2=$("cropCv");cv2.getContext("2d").clearRect(0,0,cv2.width,cv2.height);
+  syncCropGridBtns();openPanel("cropPanel");
+}
+function openCropForSheet(file){     // 点底部素材:直接打开它,按网格取块
+  syncCropGridBtns();openPanel("cropPanel");loadCropImg(file);
+}
+function loadCropImg(file){
+  const e=getImg(ASSET_BASE+file);
+  const draw=()=>{
+    const cv2=$("cropCv");
+    const maxW=Math.min(360,innerWidth-64);
+    const sc=Math.min(maxW/e.img.naturalWidth, 360/e.img.naturalHeight, 6);
+    cv2.width=Math.round(e.img.naturalWidth*sc);cv2.height=Math.round(e.img.naturalHeight*sc);
+    cropState={file,img:e.img,scale:sc,sel:null,drag:null};
+    renderCrop();
+    $("cropInfo").textContent="点一格=拿来铺；拖几格=拿一整块";
+  };
+  if(e.loaded)draw(); else e.img.addEventListener("load",draw,{once:true});
+}
+function syncCropGridBtns(){
+  document.querySelectorAll("#cropGridRow [data-g]").forEach(b=>b.classList.toggle("p",+b.dataset.g===gridBase));
+}
+function renderCrop(){
+  if(!cropState)return;
+  const cv2=$("cropCv"),c=cv2.getContext("2d"),sc=cropState.scale,g=gridBase;
+  c.imageSmoothingEnabled=false;c.clearRect(0,0,cv2.width,cv2.height);
+  c.drawImage(cropState.img,0,0,cv2.width,cv2.height);
+  c.strokeStyle="rgba(255,210,74,.7)";c.lineWidth=1;
+  for(let x=0;x<=cropState.img.naturalWidth;x+=g){const sx=x*sc;c.beginPath();c.moveTo(sx,0);c.lineTo(sx,cv2.height);c.stroke();}
+  for(let y=0;y<=cropState.img.naturalHeight;y+=g){const sy=y*sc;c.beginPath();c.moveTo(0,sy);c.lineTo(cv2.width,sy);c.stroke();}
+  if(cropState.sel){const[x,y,w,h]=cropState.sel.map(v=>v*sc);
+    c.fillStyle="rgba(92,192,204,.3)";c.fillRect(x,y,w,h);
+    c.strokeStyle="#5cc0cc";c.lineWidth=2;c.strokeRect(x,y,w,h);}
+}
+function cropCellSel(ax,ay,bx,by){   // 按固定网格吸附成整格
+  const g=gridBase,iw=cropState.img.naturalWidth,ih=cropState.img.naturalHeight;
+  const c0=Math.floor(Math.min(ax,bx)/g),c1=Math.floor(Math.max(ax,bx)/g);
+  const r0=Math.floor(Math.min(ay,by)/g),r1=Math.floor(Math.max(ay,by)/g);
+  const x=c0*g,y=r0*g,w=Math.min(iw,(c1+1)*g)-x,h=Math.min(ih,(r1+1)*g)-y;
+  return [x,y,w,h];
+}
+(function bindCrop(){
+  const cv2=$("cropCv");
+  const toImg=(ev)=>{const r=cv2.getBoundingClientRect();
+    return [Math.max(0,Math.min(cv2.width,(ev.clientX-r.left)*cv2.width/r.width))/cropState.scale,
+            Math.max(0,Math.min(cv2.height,(ev.clientY-r.top)*cv2.height/r.height))/cropState.scale];};
+  cv2.addEventListener("pointerdown",ev=>{if(!cropState)return;cv2.setPointerCapture(ev.pointerId);
+    const[x,y]=toImg(ev);cropState.drag={x,y};cropState.sel=cropCellSel(x,y,x,y);renderCrop();});
+  cv2.addEventListener("pointermove",ev=>{if(!cropState||!cropState.drag)return;
+    const[x,y]=toImg(ev);const d=cropState.drag;cropState.sel=cropCellSel(d.x,d.y,x,y);renderCrop();});
+  cv2.addEventListener("pointerup",()=>{    // 松手=拿这块去铺
+    if(!cropState||!cropState.drag)return;cropState.drag=null;
+    const b=cropBrush();if(b){brush=b;updateBrushChip();if(placeMode!=="tile")setMode("tile");closePanels();
+      showHint("已取 "+b.w+"×"+b.h+"：左键铺 · 右键擦");}});
+})();
+$("cropGridRow").addEventListener("click",e=>{
+  const g=e.target.dataset.g;if(!g)return;gridBase=+g;$("btnGrid").textContent="网格:"+gridBase+"px";
+  syncCropGridBtns();renderCrop();
+});
+function cropBrush(){
+  if(!cropState||!cropState.sel||cropState.sel[2]<2||cropState.sel[3]<2)return null;
+  const s=cropState.sel.map(Math.round);
+  return {asset:cropState.file,crop:s,w:s[2],h:s[3]};
+}
+// 把整张图按网格的所有格子,逐个存进刷库
+$("cropSaveAll").onclick=()=>{
+  if(!cropState){showHint("先选一张素材");return;}
+  const g=gridBase,iw=cropState.img.naturalWidth,ih=cropState.img.naturalHeight,lib=loadLib();let n=0;
+  for(let y=0;y<ih;y+=g)for(let x=0;x<iw;x+=g){
+    const w=Math.min(g,iw-x),h=Math.min(g,ih-y); if(w<2||h<2)continue;
+    if(lib.some(z=>z.asset===cropState.file && JSON.stringify(z.crop||null)===JSON.stringify([x,y,w,h])))continue;
+    lib.push({id:uid(),name:"块"+w+"×"+h,asset:cropState.file,crop:[x,y,w,h],w,h});n++;
+  }
+  saveLib(lib);showHint("已存入 "+n+" 个格子到刷库");$("libDock").classList.add("show");renderLib();
+};
+$("cropCancel").onclick=closePanels;
+
+//==================== 最近取块（自动记录最近30个,右侧竖排） ====================
+const LIB_KEY="aiengine.recentBrushes.v1";
+function loadLib(){try{return JSON.parse(localStorage.getItem(LIB_KEY)||"[]");}catch(e){return [];}}
+function saveLib(a){try{localStorage.setItem(LIB_KEY,JSON.stringify(a));}catch(e){}}
+function sameCrop(a,b){return JSON.stringify(a||null)===JSON.stringify(b||null);}
+// 每次取块/选刷子自动记入最近(去重移到最前,封顶30)
+function pushRecent(b){
+  if(!b)return;
+  let lib=loadLib().filter(x=>!((x.src||null)===(b.src||null) && x.asset===b.asset && sameCrop(x.crop,b.crop)));
+  const name=b.crop?("块"+b.crop[2]+"×"+b.crop[3]):b.asset.replace(".png","");
+  lib.unshift({id:uid(),name,asset:b.asset||null,src:b.src||null,crop:b.crop||null,w:b.w,h:b.h});
+  if(lib.length>30)lib=lib.slice(0,30);
+  saveLib(lib);
+  if(placeMode==="tile")$("libDock").classList.add("show");
+  renderLib();
+}
+function drawBrushThumb(cvT,b){
+  const e=getImg(imgUrlOf(b));
+  const paint=()=>{const c=cvT.getContext("2d");c.imageSmoothingEnabled=false;c.clearRect(0,0,64,64);
+    const useCrop=b.crop&&!b.src;
+    const sx=useCrop?b.crop[0]:0, sy=useCrop?b.crop[1]:0;
+    const sw=useCrop?b.crop[2]:e.img.naturalWidth, sh=useCrop?b.crop[3]:e.img.naturalHeight;
+    const sc=Math.min(60/sw,60/sh), dw=sw*sc, dh=sh*sc;
+    c.drawImage(e.img,sx,sy,sw,sh,(64-dw)/2,(64-dh)/2,dw,dh);};
+  if(e.loaded)paint(); else e.img.addEventListener("load",paint,{once:true});
+}
+function renderLib(){
+  const list=$("libList");list.innerHTML="";
+  const lib=loadLib();
+  if(!lib.length){list.innerHTML='<span style="color:var(--muted);font-size:11px;padding:4px">还没取过块。切「✋取」框选画布素材即可。</span>';return;}
+  lib.forEach(b=>{
+    const card=document.createElement("div");card.className="libcard"+
+      (brush&&brush.asset===b.asset&&sameCrop(brush.crop,b.crop)?" cur":"");
+    const cvT=document.createElement("canvas");cvT.width=64;cvT.height=64;
+    drawBrushThumb(cvT,b);
+    cvT.onclick=()=>{brush={asset:b.asset||null,src:b.src||null,crop:b.crop?b.crop.slice():null,w:b.w,h:b.h};
+      updateBrushChip();if(placeMode!=="tile")setMode("tile");renderLib();showHint("已选刷子："+b.name);};
+    const del=document.createElement("button");del.className="delx";del.textContent="✕";
+    del.onclick=(e)=>{e.stopPropagation();saveLib(loadLib().filter(x=>x.id!==b.id));renderLib();};
+    const nm=document.createElement("div");nm.className="nm";nm.textContent=b.name;
+    card.appendChild(cvT);card.appendChild(del);card.appendChild(nm);list.appendChild(card);
+  });
+}
+$("libDockClose").onclick=()=>$("libDock").classList.remove("show");
+$("libClear").onclick=()=>{if(confirm("清空最近取块？")){saveLib([]);renderLib();showHint("已清空");}};
+// 拖左边手柄改变刷库宽度
+(function(){const grip=$("libGrip");if(!grip)return;let dr=null;
+  grip.addEventListener("pointerdown",e=>{grip.setPointerCapture(e.pointerId);dr=e.clientX;e.preventDefault();});
+  grip.addEventListener("pointermove",e=>{if(dr==null)return;
+    const wpx=Math.max(72,Math.min(innerWidth*0.7, innerWidth-e.clientX));
+    $("libDock").style.width=Math.round(wpx)+"px";});
+  grip.addEventListener("pointerup",()=>{dr=null;});
+})();
+
+//==================== 顶栏菜单 ====================
+$("btnMenu").onclick=()=>$("menu").classList.toggle("show");
+function closeMenu(){$("menu").classList.remove("show");}
+// 主视角：把镜头摆成玩家真实视角（可视区刚好充满屏幕）
+function resetToPlayView(){
+  const vh=scene.view.h, top=scene.view.groundY-vh;
+  cam.zoom=innerHeight/vh;
+  cam.y=top;                       // 可视区顶贴屏幕顶
+  const sp=scene.markers.find(m=>m.type==="spawn");
+  const cx=sp?sp.x:innerWidth/(2*cam.zoom);
+  cam.x=cx-innerWidth/(2*cam.zoom); // 出生点居中
+  showHint("主视角：屏幕内 ≈ 玩家所见");
+}
+$("btnHome").onclick=resetToPlayView;
+$("btnMarker").onclick=()=>{openPanel("markPanel");};
+$("btnPlay").onclick=()=>{
+  mode=mode==="play"?"edit":"play";
+  $("btnPlay").textContent=mode==="play"?"■ 停止":"▶ 预览";
+  if(mode==="play"){sel=null;selMarker=null;updateActions();$("palette").classList.add("hidden");resetToPlayView();playScroll();}
+  else{$("palette").classList.remove("hidden");}
+};
+let playRAF=null;
+function playScroll(){
+  // 简单自动横向滚动，展示视差
+  cancelAnimationFrame(playRAF);
+  function step(){
+    if(mode!=="play")return;
+    cam.x+=2/cam.zoom;
+    if(cam.x>scene.world.width)cam.x=-innerWidth/cam.zoom;
+    playRAF=requestAnimationFrame(step);
+  }
+  step();
+}
+
+//==================== 面板 ====================
+function openPanel(id){$("scrim").classList.add("show");$(id).classList.add("show");closeMenu();}
+function closePanels(){$("scrim").classList.remove("show");document.querySelectorAll(".panel").forEach(p=>p.classList.remove("show"));}
+$("scrim").onclick=closePanels;
+
+// 新建
+$("mNew").onclick=()=>{if(confirm("清空当前场景？")){scene=blankScene();sel=null;selMarker=null;cam={x:0,y:0,zoom:0.5};updateActions();}closeMenu();};
+// 背景
+$("mBg").onclick=()=>{syncBgPanel();openPanel("bgPanel");};
+function syncBgPanel(){
+  $("vH").max=scene.world.height;$("vH").value=scene.view.h;$("vHV").textContent=scene.view.h;
+  $("vG").max=scene.world.height;$("vG").value=scene.view.groundY;$("vGV").textContent=scene.view.groundY;
+  $("bgTop").value=scene.background.top;$("bgTopV").textContent=scene.background.top;
+  $("bgBot").value=scene.background.bottom;$("bgBotV").textContent=scene.background.bottom;
+  $("bgFog").value=scene.background.fog;
+  $("bgFogA").value=Math.round(scene.background.fogA*100);$("bgFogAV").textContent=Math.round(scene.background.fogA*100)+"%";
+  $("bgFire").value=scene.background.fireflies;$("bgFireV").textContent=scene.background.fireflies;
+}
+$("vH").oninput=e=>{scene.view.h=+e.target.value;$("vHV").textContent=e.target.value;};
+$("vG").oninput=e=>{scene.view.groundY=+e.target.value;$("vGV").textContent=e.target.value;};
+$("bgTop").oninput=e=>{scene.background.top=e.target.value;$("bgTopV").textContent=e.target.value;};
+$("bgBot").oninput=e=>{scene.background.bottom=e.target.value;$("bgBotV").textContent=e.target.value;};
+$("bgFog").oninput=e=>{scene.background.fog=e.target.value;};
+$("bgFogA").oninput=e=>{scene.background.fogA=e.target.value/100;$("bgFogAV").textContent=e.target.value+"%";};
+$("bgFire").oninput=e=>{scene.background.fireflies=+e.target.value;$("bgFireV").textContent=e.target.value;};
+$("bgClose").onclick=closePanels;
+
+// 标记
+$("markClose").onclick=()=>{markType=$("markType").value;mode="marker";closePanels();$("btnMarker").classList.add("p");showHint("点画布放「"+markType+"」，再点标记键退出");};
+$("btnMarker").onclick=()=>{
+  if(mode==="marker"){mode="edit";$("btnMarker").classList.remove("p");showHint("退出标记模式");}
+  else openPanel("markPanel");
+};
+
+// 导出 JSON
+$("mExport").onclick=()=>{
+  const blob=new Blob([JSON.stringify(scene,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download=(scene.name||"scene")+".json";a.click();closeMenu();
+};
+// 导入 JSON
+$("mImport").onclick=()=>{$("fileIn").click();closeMenu();};
+$("fileIn").onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{scene=normalizeScene(JSON.parse(await f.text()));sel=null;selMarker=null;selTiles=[];saveLocal();resetToPlayView();showHint("已导入："+scene.name);}
+  catch(err){showHint("JSON 解析失败");}
+};
+function normalizeScene(s){
+  const b=blankScene();
+  const world={...b.world,...(s.world||{})};
+  const view=s.view||{h:Math.round(world.height*0.72),groundY:world.height-100};
+  return {...b,...s,background:{...b.background,...(s.background||{})},
+    world, view,
+    instances:(s.instances||[]).map(i=>({id:i.id||uid(),layer:i.layer||"play",
+      asset:i.asset,src:i.src||null,anim:i.anim,fps:i.fps,crop:i.crop||null,tile:!!i.tile,opacity:(i.opacity==null?1:i.opacity),
+      x:i.x||0,y:i.y||0,scale:i.scale||1,rot:i.rot||0,flipX:!!i.flipX,z:i.z||0})),
+    markers:s.markers||[]};
+}
+//==================== 自动保存到本机(刷新不丢) ====================
+const AUTOSAVE_KEY="aiengine.composer.autosave.v1";
+function saveLocal(){try{localStorage.setItem(AUTOSAVE_KEY,JSON.stringify(scene));}catch(e){}}
+function restoreLocal(){
+  try{const s=localStorage.getItem(AUTOSAVE_KEY); if(!s)return false;
+    const o=JSON.parse(s);
+    if(o&&((o.instances&&o.instances.length)||(o.markers&&o.markers.length))){scene=normalizeScene(o);return true;}
+  }catch(e){}
+  return false;
+}
+addEventListener("beforeunload",saveLocal);
+addEventListener("visibilitychange",()=>{if(document.hidden)saveLocal();});
+setInterval(saveLocal,4000);
+// 导出 PNG（当前视图）
+$("mPng").onclick=()=>{
+  cv.toBlob(b=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);
+    a.download=(scene.name||"scene")+".png";a.click();});closeMenu();
+};
+
+//==================== 存/取仓库（复用上传页 token + Git Data API） ====================
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function gh(token,path,opts={}){
+  let last;
+  for(let a=0;a<5;a++){
+    let res;
+    try{res=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}${path}`,{
+      method:opts.method||"GET",
+      headers:{Authorization:"Bearer "+token,Accept:"application/vnd.github+json","Content-Type":"application/json"},
+      body:opts.body?JSON.stringify(opts.body):undefined});
+    }catch(e){last=e;await sleep(600*2**a);continue;}
+    if(res.ok)return res.json();
+    const body=await res.text();const err=new Error(`HTTP ${res.status} — ${body}`);
+    if(res.status>=500||res.status===429||res.status===409){last=err;await sleep(600*2**a);continue;}
+    throw err;
+  }
+  throw last;
+}
+function b64utf8(str){return btoa(unescape(encodeURIComponent(str)));}
+
+$("mSave").onclick=()=>{
+  $("saveName").value=scene.name==="untitled"?"":scene.name;
+  $("saveTok").value=localStorage.getItem("gh_token")||"";
+  $("saveLog").textContent="";openPanel("savePanel");
+};
+$("saveCancel").onclick=closePanels;
+$("saveGo").onclick=async()=>{
+  const name=($("saveName").value.trim()||"scene").replace(/[^\w\-]+/g,"_");
+  const token=$("saveTok").value.trim();
+  if(!token){$("saveLog").textContent="请填 GitHub 令牌";return;}
+  localStorage.setItem("gh_token",token);
+  scene.name=name;
+  const path=`scenes/${name}.json`;
+  const log=$("saveLog");log.textContent="提交中…";
+  try{
+    const ref=await gh(token,`/git/ref/heads/${BRANCH}`);
+    const parent=ref.object.sha;
+    const base=await gh(token,`/git/commits/${parent}`);
+    const blob=await gh(token,"/git/blobs",{method:"POST",
+      body:{content:b64utf8(JSON.stringify(scene,null,2)),encoding:"base64"}});
+    const tree=await gh(token,"/git/trees",{method:"POST",
+      body:{base_tree:base.tree.sha,tree:[{path,mode:"100644",type:"blob",sha:blob.sha}]}});
+    const commit=await gh(token,"/git/commits",{method:"POST",
+      body:{message:`scene: ${name}`,tree:tree.sha,parents:[parent]}});
+    await gh(token,`/git/refs/heads/${BRANCH}`,{method:"PATCH",body:{sha:commit.sha}});
+    log.textContent="✓ 已提交 "+path+"\n回聊天告诉 Claude 场景名："+name;
+  }catch(e){log.textContent="失败："+e.message;}
+};
+
+$("mLoad").onclick=async()=>{
+  openPanel("loadPanel");const list=$("loadList");list.textContent="读取中…";
+  try{
+    // 同源读取场景索引（构建时生成），无需令牌
+    const r=await fetch(SCENE_BASE+"index.json?_="+Date.now());
+    if(!r.ok)throw new Error("index "+r.status);
+    const names=await r.json();
+    if(!names.length){list.textContent="scenes/ 里还没有场景";return;}
+    list.innerHTML="";
+    names.forEach(name=>{
+      const b=document.createElement("button");b.className="btn";b.style.width="100%";b.style.margin="4px 0";
+      b.textContent="📄 "+name;
+      b.onclick=async()=>{
+        const sr=await fetch(SCENE_BASE+name+"?_="+Date.now());
+        scene=normalizeScene(await sr.json());
+        sel=null;selMarker=null;closePanels();resetToPlayView();showHint("已读取："+scene.name);
+      };
+      list.appendChild(b);
+    });
+  }catch(e){list.textContent="读取失败："+e.message+"\n（保存后需等构建部署 1-2 分钟才会出现在列表）";}
+};
+$("loadCancel").onclick=closePanels;
+
+//==================== 启动 ====================
+buildLayers();loadManifest();updateActions();
+const _restored=restoreLocal();
+resetToPlayView();
+showHint(_restored?"已自动恢复上次的场景（本机自动保存）":"自由摆放：点素材落地 · 拖动摆位 · 拖金点缩放；切「瓦片铺」可在网格上连铺地面/墙");
+</script>
+</body>
+</html>
